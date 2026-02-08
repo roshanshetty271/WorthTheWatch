@@ -22,7 +22,7 @@ class JinaService:
         if settings.JINA_API_KEY:
             self.headers["Authorization"] = f"Bearer {settings.JINA_API_KEY}"
 
-    async def read_url(self, url: str, timeout: float = 15.0) -> Optional[str]:
+    async def read_url(self, url: str, timeout: float = 8.0) -> Optional[str]:
         """Read a single URL and return clean markdown content."""
         try:
             return await self._read_url_with_retry(url, timeout)
@@ -32,7 +32,7 @@ class JinaService:
         except Exception:
             return None
 
-    @with_retry(max_retries=2, base_delay=1.0, timeout=15.0)
+    @with_retry(max_retries=1, base_delay=0.5, timeout=8.0)
     async def _read_url_with_retry(self, url: str, timeout: float) -> Optional[str]:
         """Internal method with retry logic."""
         async with httpx.AsyncClient(timeout=timeout) as client:

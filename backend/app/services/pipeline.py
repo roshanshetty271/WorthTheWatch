@@ -101,13 +101,13 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     year = str(movie.release_date.year) if movie.release_date else ""
     genres = ", ".join(g.get("name", "") for g in (movie.genres or []) if g.get("name"))
 
-    job_progress[tmdb_id] = "Searching"
+    job_progress[tmdb_id] = "Searching for reviews..."
     logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
 
     # ─── Step 1: SEARCH ────────────────────────────────────
     try:
         # Two parallel searches for diverse sources
-        job_progress[tmdb_id] = "Searching the web & Reddit..."
+        job_progress[tmdb_id] = "Searching for reviews..."
         critic_results, reddit_results = await asyncio.gather(
             serper_service.search_reviews(title, year),
             serper_service.search_reddit(title, year),
@@ -137,7 +137,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
 
     # ─── Step 2: READ ──────────────────────────────────────
-    job_progress[tmdb_id] = f"Reading {len(selected_urls)} articles..."
+    job_progress[tmdb_id] = "Gathering opinions..."
     articles = await jina_service.read_urls(selected_urls, max_concurrent=10)
     logger.info(f"   → Successfully read {len(articles)} articles")
 
@@ -149,7 +149,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         articles = [snippets]
 
     # ─── Step 3: GREP ──────────────────────────────────────
-    job_progress[tmdb_id] = "Filtering opinions..."
+    job_progress[tmdb_id] = "Analyzing feedback..."
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
     filtered_opinions = extract_opinion_paragraphs(articles)
 
@@ -160,7 +160,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         )
 
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
-    job_progress[tmdb_id] = "Generating final verdict..."
+    job_progress[tmdb_id] = "Writing your verdict..."
     logger.info(f"🧠 Step 4/4: Generating review with DeepSeek for '{title}'")
     
     try:
