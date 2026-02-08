@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Cron
     CRON_SECRET: str = "change-me-in-production"
 
+    # Security
+    IP_HASH_SALT: str = "change-me-in-production"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

@@ -51,7 +51,7 @@ export default async function HomePage() {
         )}
 
         {/* Center Content: Title & Search */}
-        <div className="relative z-10 w-full max-w-2xl px-4 text-center">
+        <div className="relative z-30 w-full max-w-2xl px-4 text-center">
           <h1 className="mb-2 font-display text-5xl text-white shadow-black drop-shadow-lg sm:text-6xl md:text-7xl">
             Worth the Watch<span className="text-accent-gold">?</span>
           </h1>
@@ -65,8 +65,8 @@ export default async function HomePage() {
 
         {/* Bottom Left: Featured Movie Info */}
         {featured && (
-          <div className="absolute bottom-0 left-0 z-10 w-full p-6 sm:p-12">
-            <div className="mx-auto flex max-w-7xl items-end justify-between">
+          <div className="absolute bottom-0 left-0 z-20 w-full p-6 sm:p-12 pointer-events-none">
+            <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
                 <Link href={`/movie/${featured.movie.tmdb_id}`} className="group block">
                   <div className="mb-2 flex items-center gap-3">

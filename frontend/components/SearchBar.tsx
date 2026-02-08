@@ -31,7 +31,7 @@ export default function SearchBar({
     <form onSubmit={handleSubmit} className="relative w-full">
       {/* Search Icon */}
       <div
-        className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused ? "text-accent-gold" : "text-text-muted"
+        className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${focused ? "text-accent-gold" : "text-text-muted"
           }`}
       >
         <svg
@@ -58,8 +58,8 @@ export default function SearchBar({
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
         className={`w-full border bg-surface-card text-text-primary placeholder-text-muted transition-all ${focused
-            ? "border-accent-gold/50 ring-2 ring-accent-gold/20 shadow-lg shadow-accent-gold/5"
-            : "border-surface-elevated hover:border-surface-hover"
+          ? "border-accent-gold/50 ring-2 ring-accent-gold/20 shadow-lg shadow-accent-gold/5"
+          : "border-surface-elevated hover:border-surface-hover"
           } ${isLarge
             ? "rounded-2xl py-4 pl-12 pr-28 text-lg"
             : "rounded-xl py-2.5 pl-10 pr-20 text-sm"
