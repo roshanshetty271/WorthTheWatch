@@ -49,6 +49,11 @@ export interface Review {
   rt_critic_score: number | null;
   rt_audience_score: number | null;
   controversial: boolean;
+  // Phase 2 additions
+  trailer_url: string | null;
+  positive_pct: number | null;
+  negative_pct: number | null;
+  mixed_pct: number | null;
 }
 
 export interface MovieWithReview {

@@ -18,6 +18,12 @@ from app.services.grep import extract_opinion_paragraphs, select_best_sources
 from app.services.llm import synthesize_review, llm_model
 from app.config import get_settings
 
+# Phase 2 imports
+from app.services.omdb import omdb_service
+from app.services.kinocheck import kinocheck_service, youtube_embed_url
+from app.services.guardian import guardian_service
+from app.services.nyt import nyt_service
+
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -88,6 +94,9 @@ job_progress = {}
 async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     """
     Full pipeline: Search → Read → Grep → Synthesize → Cache
+    
+    If USE_LANGGRAPH=true, uses the LangGraph agent for adaptive review generation.
+    Otherwise, uses the procedural pipeline (faster, simpler).
 
     Steps:
     1. SEARCH: Serper finds review articles + Reddit threads
@@ -101,6 +110,60 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     year = str(movie.release_date.year) if movie.release_date else ""
     genres = ", ".join(g.get("name", "") for g in (movie.genres or []) if g.get("name"))
 
+    # ─── LangGraph Agent Route ────────────────────────────────
+    if settings.USE_LANGGRAPH:
+        logger.info(f"🤖 Using LangGraph agent for '{title}'")
+        job_progress[tmdb_id] = "Running LangGraph agent..."
+        
+        try:
+            from app.services.agent import run_agent_pipeline
+            result = await run_agent_pipeline(movie)
+            
+            if result.get("error"):
+                logger.error(f"LangGraph agent error: {result['error']}")
+                # Fall through to procedural pipeline as fallback
+            elif result.get("llm_output"):
+                llm_output = result["llm_output"]
+                
+                # Create review from agent output
+                review = Review(
+                    movie_id=movie.id,
+                    verdict=llm_output.verdict,
+                    overall=llm_output.overall,
+                    positives=llm_output.positives,
+                    negatives=llm_output.negatives,
+                    audience_reactions=llm_output.audience_reactions,
+                    recommendation=llm_output.recommendation,
+                    sources=result.get("search_results", [])[:5],
+                    llm_model=llm_model,
+                    created_at=datetime.utcnow(),
+                    trailer_url=result.get("trailer_url"),
+                    positive_pct=llm_output.positive_pct,
+                    negative_pct=llm_output.negative_pct,
+                    mixed_pct=llm_output.mixed_pct,
+                )
+                
+                # Apply OMDB scores if present
+                omdb = result.get("omdb_scores")
+                if omdb and isinstance(omdb, dict):
+                    review.imdb_score = omdb.get("imdb_score")
+                    review.imdb_votes = omdb.get("imdb_votes")
+                    review.rt_critic_score = omdb.get("rt_critic_score")
+                    review.metascore = omdb.get("metascore")
+                
+                db.add(review)
+                await db.commit()
+                await db.refresh(review)
+                
+                job_progress.pop(tmdb_id, None)
+                logger.info(f"✅ LangGraph review complete: '{title}' → {review.verdict}")
+                return review
+        except ImportError:
+            logger.warning("langgraph not installed, falling back to pipeline")
+        except Exception as e:
+            logger.error(f"LangGraph failed, falling back to pipeline: {e}")
+    
+    # ─── Procedural Pipeline Route ────────────────────────────
     job_progress[tmdb_id] = "Searching for reviews..."
     logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
 
@@ -125,6 +188,31 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         critic_results, reddit_results = [], []
 
     all_results = critic_results + reddit_results
+    
+    # ─── Step 1b: Guardian + NYT (Phase 2) ─────────────────
+    try:
+        guardian_results, nyt_results = await asyncio.gather(
+            guardian_service.search_film_reviews(title, year),
+            nyt_service.search_reviews(title),
+            return_exceptions=True,
+        )
+        if isinstance(guardian_results, Exception):
+            logger.warning(f"Guardian search failed: {guardian_results}")
+            guardian_results = []
+        if isinstance(nyt_results, Exception):
+            logger.warning(f"NYT search failed: {nyt_results}")
+            nyt_results = []
+        
+        # Add critic URLs to results
+        for article in guardian_results:
+            all_results.append({"title": article.headline, "link": article.url, "snippet": article.snippet})
+        for review in nyt_results:
+            all_results.append({"title": review.headline, "link": review.url, "snippet": review.summary})
+        
+        if guardian_results or nyt_results:
+            logger.info(f"   → Added {len(guardian_results)} Guardian + {len(nyt_results)} NYT reviews")
+    except Exception as e:
+        logger.warning(f"Phase 2 critic APIs failed: {e}")
 
     if not all_results:
         logger.warning(f"No search results found for '{title}'")
@@ -213,6 +301,46 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         db.add(review)
     
     await db.flush()
+    
+    # ─── Step 6: ENRICH (Phase 2) ─────────────────────────
+    job_progress[tmdb_id] = "Enriching with scores and trailer..."
+    logger.info(f"🎬 Step 5/5: Fetching OMDB scores and trailer for '{title}'")
+    
+    try:
+        # Parallel fetch: OMDB scores + KinoCheck trailer
+        omdb_task = omdb_service.get_scores_by_title(
+            title, year, "series" if movie.media_type == "tv" else "movie"
+        )
+        trailer_task = kinocheck_service.get_trailer_by_tmdb_id(movie.tmdb_id, movie.media_type or "movie")
+        
+        omdb_scores, trailer_id = await asyncio.gather(
+            omdb_task, trailer_task, return_exceptions=True
+        )
+        
+        # Apply OMDB scores
+        if not isinstance(omdb_scores, Exception):
+            review.imdb_score = omdb_scores.imdb_score
+            review.rt_critic_score = omdb_scores.rt_critic_score
+            review.metascore = omdb_scores.metascore
+            # Calculate controversial flag (RT critic vs audience gap > 25)
+            if omdb_scores.rt_critic_score and review.rt_audience_score:
+                gap = abs(omdb_scores.rt_critic_score - review.rt_audience_score)
+                review.controversial = gap > 25
+        
+        # Apply trailer
+        if not isinstance(trailer_id, Exception) and trailer_id:
+            review.trailer_url = youtube_embed_url(trailer_id)
+        
+        # Apply sentiment from LLM output
+        review.positive_pct = llm_output.positive_pct
+        review.negative_pct = llm_output.negative_pct
+        review.mixed_pct = llm_output.mixed_pct
+        review.last_refreshed_at = datetime.utcnow()
+        
+        await db.flush()
+    except Exception as e:
+        logger.warning(f"Phase 2 enrichment failed: {e}")
+    
     job_progress.pop(tmdb_id, None)
     return review
 

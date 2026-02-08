@@ -30,9 +30,9 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen">
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO — Full Screen & Immersive
+          HERO — Full Screen & Immersive (navbar is transparent, floats above)
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-[90vh] flex-col items-center justify-center overflow-hidden">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
         {/* Background Image */}
         {featured ? (
           <div className="absolute inset-0 z-0">
@@ -40,25 +40,26 @@ export default async function HomePage() {
               src={featured.movie.backdrop_url!}
               alt={featured.movie.title}
               fill
-              className="object-cover transition-transform duration-[20s] hover:scale-105"
+              className="object-cover object-top transition-transform duration-[20s] hover:scale-105"
               priority
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-surface/30" />
-            <div className="absolute inset-0 bg-black/40" />
+            {/* Darker overlay at top for navbar readability */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-transparent" />
           </div>
         ) : (
-          <div className="absolute inset-0 z-0 bg-surface" />
+          <div className="absolute inset-0 z-0 bg-gradient-to-b from-black via-surface to-surface" />
         )}
 
         {/* Center Content: Title & Search */}
         <div className="relative z-30 w-full max-w-2xl px-4 text-center">
-          <h1 className="mb-2 font-display text-5xl text-white shadow-black drop-shadow-lg sm:text-6xl md:text-7xl">
+          <h1 className="mb-2 font-display text-5xl text-white sm:text-6xl md:text-7xl drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
             Worth the Watch<span className="text-accent-gold">?</span>
           </h1>
-          <p className="mx-auto mb-8 max-w-md text-lg text-white/90 shadow-black drop-shadow-md">
+          <p className="mx-auto mb-8 max-w-md text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
             Should I stream this? The internet decides.
           </p>
-          <div className="mx-auto max-w-xl shadow-2xl">
+          <div className="mx-auto max-w-xl">
             <SearchBar placeholder="Search any movie or TV show..." size="lg" />
           </div>
         </div>
@@ -68,24 +69,34 @@ export default async function HomePage() {
           <div className="absolute bottom-0 left-0 z-20 w-full p-6 sm:p-12 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
+                <div className="mb-2 flex items-center gap-3">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-gold"></span>
+                    FEATURED
+                  </span>
+                  {featured.review && (
+                    <VerdictBadge verdict={featured.review.verdict} size="sm" />
+                  )}
+                </div>
                 <Link href={`/movie/${featured.movie.tmdb_id}`} className="group block">
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-gold"></span>
-                      FEATURED
-                    </span>
-                    {featured.review && (
-                      <VerdictBadge verdict={featured.review.verdict} size="sm" />
-                    )}
-                  </div>
                   <h2 className="font-display text-3xl text-white drop-shadow-lg transition-colors group-hover:text-accent-gold sm:text-4xl">
                     {featured.movie.title}
                   </h2>
-                  {featured.review?.vibe && (
-                    <p className="mt-1 max-w-lg text-sm italic text-white/80 drop-shadow-md">
-                      "{featured.review.vibe}"
-                    </p>
-                  )}
+                </Link>
+                {featured.review?.vibe && (
+                  <p className="mt-1 max-w-lg text-sm italic text-white/80 drop-shadow-md">
+                    "{featured.review.vibe}"
+                  </p>
+                )}
+                {/* Read Full Review Button */}
+                <Link
+                  href={`/movie/${featured.movie.tmdb_id}`}
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-gold px-5 py-2.5 text-sm font-semibold text-black transition-all hover:bg-accent-gold/90 hover:shadow-lg hover:shadow-accent-gold/30"
+                >
+                  Read Full Review
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
                 </Link>
               </div>
             </div>
@@ -102,7 +113,7 @@ export default async function HomePage() {
             <h2 className="mb-6 font-display text-2xl text-text-primary sm:text-3xl">
               More Verdicts
             </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
               {restMovies.map((item) => (
                 <MovieCard key={item.movie.tmdb_id} data={item} />
               ))}

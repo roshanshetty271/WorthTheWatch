@@ -2,6 +2,7 @@
 
 import type { Review } from "@/lib/api";
 import VerdictBadge from "./VerdictBadge";
+import SentimentBar from "./SentimentBar";
 
 interface ReviewContentProps {
   review: Review;
@@ -16,6 +17,11 @@ export default function ReviewContent({ review }: ReviewContentProps) {
         {review.confidence && (
           <span className="text-xs uppercase tracking-widest text-text-muted">
             {review.confidence} confidence
+          </span>
+        )}
+        {review.controversial && (
+          <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400 border border-amber-500/20">
+            🔥 Controversial
           </span>
         )}
       </div>
@@ -33,6 +39,13 @@ export default function ReviewContent({ review }: ReviewContentProps) {
           {review.review_text}
         </p>
       </div>
+
+      {/* Sentiment Bar (Phase 2) */}
+      <SentimentBar
+        positive={review.positive_pct}
+        mixed={review.mixed_pct}
+        negative={review.negative_pct}
+      />
 
       {/* Praise & Criticism */}
       <div className="grid gap-4 sm:grid-cols-2">

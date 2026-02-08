@@ -40,6 +40,30 @@ class Settings(BaseSettings):
     ON_DEMAND_PER_IP_PER_HOUR: int = 10
     ON_DEMAND_PER_IP_PER_DAY: int = 30
 
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 2 APIs
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # OMDB (free 1000 req/day — https://www.omdbapi.com/apikey.aspx)
+    OMDB_API_KEY: str = ""
+    
+    # KinoCheck (free 1000 req/day — https://www.kinocheck.com/api)
+    KINOCHECK_API_KEY: str = ""
+    
+    # The Guardian (free — https://open-platform.theguardian.com/access/)
+    GUARDIAN_API_KEY: str = ""
+    
+    # NYT (free 500 req/day — https://developer.nytimes.com/)
+    NYT_API_KEY: str = ""
+    
+    # Watchmode (free 1000 req/month — https://api.watchmode.com/)
+    WATCHMODE_API_KEY: str = ""
+    
+    # TVMaze is FREE — no API key required!
+    
+    # Feature Flags
+    USE_LANGGRAPH: bool = False  # Toggle between LangGraph agent and pipeline
+
     # Cron
     CRON_SECRET: str = "change-me-in-production"
 

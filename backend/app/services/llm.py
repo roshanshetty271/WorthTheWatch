@@ -87,8 +87,16 @@ OUTPUT FORMAT (strict JSON, no markdown fences):
   "praise_points": ["point 1", "point 2", "point 3"],
   "criticism_points": ["point 1", "point 2"],
   "vibe": "one-line vibe description",
-  "confidence": "HIGH" | "MEDIUM" | "LOW"
-}"""
+  "confidence": "HIGH" | "MEDIUM" | "LOW",
+  "positive_pct": 70,
+  "negative_pct": 20,
+  "mixed_pct": 10
+}
+
+SENTIMENT BREAKDOWN RULES:
+- positive_pct + negative_pct + mixed_pct MUST equal 100.
+- Base these on the actual distribution of opinions you analyzed.
+- 70/20/10 is an example — use the real proportions from the sources."""
 
 
 # ─── Synthesis Function ───────────────────────────────────

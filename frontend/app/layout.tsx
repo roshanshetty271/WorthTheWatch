@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "Worth the Watch? — Should I stream this? The internet decides.",
@@ -20,22 +21,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-surface">
-        {/* Navigation */}
-        <nav className="sticky top-0 z-50 border-b border-surface-elevated/50 bg-surface/80 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
-            <a href="/" className="flex items-center gap-2">
-              <span className="font-display text-xl text-accent-gold sm:text-2xl">
-                Worth the Watch?
-              </span>
-            </a>
-            <a
-              href="/search"
-              className="rounded-full bg-surface-elevated px-4 py-2 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
-            >
-              Search
-            </a>
-          </div>
-        </nav>
+        {/* Scroll-aware Navigation */}
+        <Navbar />
 
         {/* Main Content */}
         <main>{children}</main>

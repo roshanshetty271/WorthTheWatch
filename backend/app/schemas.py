@@ -63,6 +63,11 @@ class ReviewResponse(BaseModel):
     rt_critic_score: Optional[int] = None
     rt_audience_score: Optional[int] = None
     controversial: Optional[bool] = False
+    # Phase 2 additions
+    trailer_url: Optional[str] = None
+    positive_pct: Optional[int] = None
+    negative_pct: Optional[int] = None
+    mixed_pct: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -82,6 +87,10 @@ class LLMReviewOutput(BaseModel):
     criticism_points: list[str] = Field(default_factory=list)
     vibe: str = ""
     confidence: str = Field(default="MEDIUM", pattern=r"^(HIGH|MEDIUM|LOW)$")
+    # Sentiment breakdown (Phase 2)
+    positive_pct: Optional[int] = None
+    negative_pct: Optional[int] = None
+    mixed_pct: Optional[int] = None
 
 
 # ─── API Response Wrappers ────────────────────────────────
