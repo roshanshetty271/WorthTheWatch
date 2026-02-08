@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     
     # Feature Flags
     USE_LANGGRAPH: bool = False  # Toggle between LangGraph agent and pipeline
+    USE_JINA: bool = False  # Set to True to use Jina Reader instead of BeautifulSoup
 
     # Cron
     CRON_SECRET: str = "change-me-in-production"

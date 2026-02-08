@@ -223,11 +223,27 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # Select diverse, high-quality sources
     selected_urls = select_best_sources(all_results, max_total=12)  # Increased from 8 for better accuracy
     logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
+    
+    # DEBUG: Log each URL being fetched
+    logger.info("=" * 60)
+    logger.info("📋 SOURCES BEING FETCHED:")
+    for i, url in enumerate(selected_urls, 1):
+        logger.info(f"   {i}. {url[:100]}...")
+    logger.info("=" * 60)
 
     # ─── Step 2: READ ──────────────────────────────────────
     job_progress[tmdb_id] = "Gathering opinions..."
     articles = await jina_service.read_urls(selected_urls, max_concurrent=10)
     logger.info(f"   → Successfully read {len(articles)} articles")
+    
+    # DEBUG: Log content lengths from each article
+    logger.info("📊 ARTICLE CONTENT LENGTHS:")
+    total_chars = 0
+    for i, article in enumerate(articles, 1):
+        char_count = len(article) if article else 0
+        total_chars += char_count
+        logger.info(f"   Article {i}: {char_count:,} chars")
+    logger.info(f"   TOTAL: {total_chars:,} characters from {len(articles)} articles")
 
     if not articles:
         # Fall back to using just the search snippets
@@ -240,16 +256,22 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     job_progress[tmdb_id] = "Analyzing feedback..."
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
     filtered_opinions = extract_opinion_paragraphs(articles)
+    
+    # DEBUG: Log filtered content
+    logger.info(f"🔍 FILTERED OPINIONS: {len(filtered_opinions):,} chars (from {total_chars:,} raw chars)")
 
     if not filtered_opinions or len(filtered_opinions) < 50:
         # Use raw snippets as fallback
         filtered_opinions = "\n\n".join(
             f"{r['title']}: {r['snippet']}" for r in all_results[:15]
         )
+        logger.info(f"   ⚠️ Using fallback snippets: {len(filtered_opinions)} chars")
 
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
     job_progress[tmdb_id] = "Writing your verdict..."
-    logger.info(f"🧠 Step 4/4: Generating review with DeepSeek for '{title}'")
+    logger.info(f"🧠 Step 4/4: Generating review with LLM for '{title}'")
+    logger.info(f"   → Sending {len(filtered_opinions[:18000]):,} chars to LLM")
+    logger.info(f"   → TMDB Score: {movie.tmdb_vote_average}")
     
     try:
         llm_output = await synthesize_review(
@@ -261,6 +283,10 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             sources_count=len(articles),
             tmdb_score=movie.tmdb_vote_average or 0.0,
         )
+        logger.info(f"✅ LLM RESPONSE RECEIVED:")
+        logger.info(f"   → Verdict: {llm_output.verdict}")
+        logger.info(f"   → Praise Points: {len(llm_output.praise_points or [])} items")
+        logger.info(f"   → Criticism Points: {len(llm_output.criticism_points or [])} items")
     except Exception as e:
         job_progress.pop(tmdb_id, None)
         logger.error(f"LLM generation failed: {e}")
