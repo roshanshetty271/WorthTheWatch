@@ -98,7 +98,7 @@ async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
         ],
         response_format={"type": "json_object"},
         temperature=0.7,
-        max_tokens=1000,
+        max_tokens=800,
     )
     return response.choices[0].message.content
 

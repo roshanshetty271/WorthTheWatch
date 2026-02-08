@@ -138,7 +138,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     # ─── Step 2: READ ──────────────────────────────────────
     job_progress[tmdb_id] = f"Reading {len(selected_urls)} articles..."
-    articles = await jina_service.read_urls(selected_urls, max_concurrent=5)
+    articles = await jina_service.read_urls(selected_urls, max_concurrent=10)
     logger.info(f"   → Successfully read {len(articles)} articles")
 
     if not articles:
