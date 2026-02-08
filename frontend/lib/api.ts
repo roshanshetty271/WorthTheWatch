@@ -103,8 +103,14 @@ export async function triggerGeneration(
   return fetchAPI(`/search/generate/${tmdbId}?media_type=${mediaType}`);
 }
 
-export async function checkGenerationStatus(
-  tmdbId: number
-): Promise<{ status: string; movie?: MovieWithReview }> {
-  return fetchAPI(`/search/status/${tmdbId}`);
+export async function checkGenerationStatus(tmdbId: number): Promise<{
+  status: "generating" | "completed" | "not_found";
+  progress?: string;
+  movie?: MovieWithReview;
+}> {
+  return fetchAPI<{
+    status: "generating" | "completed" | "not_found";
+    progress?: string;
+    movie?: MovieWithReview;
+  }>(`/search/status/${tmdbId}`);
 }

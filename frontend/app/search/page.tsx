@@ -40,6 +40,7 @@ function SearchContent() {
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState<string>("Initializing...");
   const [generatedMovie, setGeneratedMovie] = useState<MovieWithReview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTmdbId, setSelectedTmdbId] = useState<number | null>(null);
@@ -55,7 +56,6 @@ function SearchContent() {
       const data = await searchMovies(q);
       setResult(data);
       // Always show disambiguation UI - don't auto-select DB match
-      // The UI will highlight the existing review if available
     } catch (e) {
       setError("Search failed. Please try again.");
     } finally {
@@ -65,11 +65,16 @@ function SearchContent() {
 
   // Poll for generation completion
   async function pollForCompletion(tmdbId: number) {
-    const maxAttempts = 30; // 30 * 2s = 60 seconds max
+    const maxAttempts = 45; // 45 * 2s = 90 seconds max (increased for safety)
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       try {
         const status = await checkGenerationStatus(tmdbId);
+
+        if (status.progress) {
+          setProgress(status.progress);
+        }
+
         if (status.status === "completed" && status.movie) {
           setGeneratedMovie(status.movie);
           setGenerating(false);
@@ -88,6 +93,7 @@ function SearchContent() {
   // Handle generation trigger for a specific title
   async function handleGenerate(movie: Movie) {
     setGenerating(true);
+    setProgress("Initializing...");
     setSelectedTmdbId(movie.tmdb_id);
     setError(null);
     try {
@@ -133,30 +139,27 @@ function SearchContent() {
 
       {/* Generating Animation */}
       {generating && (
-        <div className="rounded-xl border border-accent-gold/20 bg-accent-gold/5 p-6">
+        <div className="rounded-xl border border-accent-gold/20 bg-accent-gold/5 p-6 animate-in fade-in zoom-in-95 duration-300">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-3 border-accent-gold border-t-transparent" />
+            <div className="relative">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-accent-gold/30 border-t-accent-gold" />
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-accent-gold">
+                AI
+              </div>
+            </div>
             <div>
-              <p className="font-display text-lg text-accent-gold">
-                Analyzing reviews across the internet...
+              <p className="font-display text-lg text-accent-gold animate-pulse">
+                {progress}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                Reading Reddit, Rotten Tomatoes, IMDB, and more. This takes 10-15 seconds.
+                Analyzing reviews from Rotten Tomatoes, Reddit, and IMDB.
               </p>
             </div>
           </div>
-          {/* Progress steps */}
-          <div className="mt-4 flex items-center gap-2 text-xs text-text-muted">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-accent-gold animate-pulse"></span>
-              Searching
-            </span>
-            <span className="text-surface-elevated">→</span>
-            <span className="opacity-50">Reading articles</span>
-            <span className="text-surface-elevated">→</span>
-            <span className="opacity-50">Filtering opinions</span>
-            <span className="text-surface-elevated">→</span>
-            <span className="opacity-50">Generating review</span>
+
+          {/* Visual Progress Bar */}
+          <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-accent-gold/10">
+            <div className="h-full animate-progress bg-accent-gold/50" style={{ width: '60%' }}></div>
           </div>
         </div>
       )}

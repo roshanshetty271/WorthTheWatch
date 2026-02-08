@@ -16,8 +16,10 @@ from app.services.serper import serper_service
 from app.services.jina import jina_service
 from app.services.grep import extract_opinion_paragraphs, select_best_sources
 from app.services.llm import synthesize_review, llm_model
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = "movie") -> Movie:
@@ -161,16 +163,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     job_progress[tmdb_id] = "Generating final verdict..."
     logger.info(f"🧠 Step 4/4: Generating review with DeepSeek for '{title}'")
     
-    prompt = f"""
-    Analyze these movie reviews and opinions for the movie/show '{title}' ({year}).
-    Genres: {genres}
-
-    --- REVIEWS AND OPINIONS ---
-    {filtered_opinions[:18000]}  # Truncate to fit context window
-    """
-
     try:
-        review_data = await llm_service.generate_review(prompt)
+        llm_output = await synthesize_review(
+            title=title,
+            year=year,
+            genres=genres,
+            overview=movie.overview or "",
+            opinions=filtered_opinions[:18000], # Truncate to fit
+            sources_count=len(articles),
+        )
     except Exception as e:
         job_progress.pop(tmdb_id, None)
         logger.error(f"LLM generation failed: {e}")
@@ -184,20 +185,23 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     existing = result.scalar_one_or_none()
 
     if existing:
-        existing.verdict = review_data.verdict
-        existing.review_text = review_data.review_text
-        existing.praise_points = review_data.praise_points
-        existing.criticism_points = review_data.criticism_points
-        existing.vibe = review_data.vibe
-        existing.confidence = review_data.confidence
+        existing.verdict = llm_output.verdict
+        existing.review_text = llm_output.review_text
+        existing.praise_points = llm_output.praise_points
+        existing.criticism_points = llm_output.criticism_points
+        existing.vibe = llm_output.vibe
+        existing.confidence = llm_output.confidence
         existing.sources_count = len(selected_urls)
         existing.sources_urls = selected_urls
-        existing.llm_model = settings.LLM_PROVIDER
+        existing.llm_model = llm_model
         existing.generated_at = datetime.utcnow()
         review = existing
     else:
         review = Review(
             movie_id=movie.id,
+            verdict=llm_output.verdict,
+            review_text=llm_output.review_text,
+            praise_points=llm_output.praise_points,
             criticism_points=llm_output.criticism_points,
             vibe=llm_output.vibe,
             confidence=llm_output.confidence,
@@ -206,9 +210,9 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             llm_model=llm_model,
         )
         db.add(review)
-
+    
     await db.flush()
-    logger.info(f"✅ Review generated for '{title}': {llm_output.verdict}")
+    job_progress.pop(tmdb_id, None)
     return review
 
 

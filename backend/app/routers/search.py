@@ -13,7 +13,11 @@ from app.database import get_db, async_session
 from app.models import Movie, Review, SearchEvent
 from app.schemas import MovieWithReview, MovieBase, MovieResponse, ReviewResponse, SearchResult
 from app.services.tmdb import tmdb_service
-from app.services.pipeline import get_or_create_movie, generate_review_for_movie
+from app.services.pipeline import (
+    get_or_create_movie,
+    generate_review_for_movie,
+    job_progress,
+)
 from app.middleware.rate_limit import check_rate_limit
 
 router = APIRouter(prefix="/search", tags=["Search"])
@@ -136,6 +140,11 @@ async def check_generation_status(
     movie = result.unique().scalar_one_or_none()
 
     if not movie:
+        # Check if it's currently processing but not yet in DB (unlikely with our flow)
+        # or just started
+        progress = job_progress.get(tmdb_id)
+        if progress:
+             return {"status": "generating", "progress": progress}
         return {"status": "not_found"}
 
     if movie.review:
@@ -160,7 +169,9 @@ async def check_generation_status(
             "movie": MovieWithReview(movie=movie_resp, review=review_resp),
         }
 
-    return {"status": "generating"}
+    # Movie exists but no review yet -> likely generating
+    progress = job_progress.get(tmdb_id, "Preparing...")
+    return {"status": "generating", "progress": progress}
 
 
 async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
