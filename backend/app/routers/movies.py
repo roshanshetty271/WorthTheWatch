@@ -4,8 +4,9 @@ Endpoints for listing and retrieving movies with reviews.
 """
 
 import math
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -15,6 +16,74 @@ from app.schemas import MovieWithReview, MovieResponse, ReviewResponse, Paginate
 from app.services.tmdb import tmdb_service
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
+
+
+@router.get("/sections/curated")
+async def get_curated_sections(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get curated homepage sections.
+    
+    Returns:
+        {
+            "this_week": [...],     # Latest releases with verdicts
+            "hidden_gems": [...],   # WORTH IT + low popularity
+            "skip_these": [...],    # NOT WORTH IT verdicts
+        }
+    """
+    now = datetime.utcnow()
+    week_ago = now - timedelta(days=7)
+    
+    # This Week's Verdicts - Movies released in past 7 days with reviews
+    this_week_query = (
+        select(Movie)
+        .options(joinedload(Movie.review))
+        .join(Review)
+        .where(Movie.release_date >= week_ago.date())
+        .order_by(desc(Movie.release_date))
+        .limit(8)
+    )
+    
+    # Hidden Gems - WORTH IT + lower popularity (underrated)
+    hidden_gems_query = (
+        select(Movie)
+        .options(joinedload(Movie.review))
+        .join(Review)
+        .where(
+            and_(
+                Review.verdict == "WORTH IT",
+                Movie.tmdb_popularity < 50  # Less popular = hidden gem
+            )
+        )
+        .order_by(desc(Review.generated_at))
+        .limit(8)
+    )
+    
+    # Skip These - NOT WORTH IT verdicts
+    skip_these_query = (
+        select(Movie)
+        .options(joinedload(Movie.review))
+        .join(Review)
+        .where(Review.verdict == "NOT WORTH IT")
+        .order_by(desc(Review.generated_at))
+        .limit(8)
+    )
+    
+    # Execute all queries
+    this_week_result = await db.execute(this_week_query)
+    hidden_gems_result = await db.execute(hidden_gems_query)
+    skip_these_result = await db.execute(skip_these_query)
+    
+    this_week = this_week_result.unique().scalars().all()
+    hidden_gems = hidden_gems_result.unique().scalars().all()
+    skip_these = skip_these_result.unique().scalars().all()
+    
+    return {
+        "this_week": [_format_movie_with_review(m) for m in this_week],
+        "hidden_gems": [_format_movie_with_review(m) for m in hidden_gems],
+        "skip_these": [_format_movie_with_review(m) for m in skip_these],
+    }
 
 
 @router.get("", response_model=PaginatedMovies)
@@ -89,6 +158,61 @@ async def get_movie(tmdb_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Movie not found")
 
     return _format_movie_with_review(movie)
+
+
+@router.get("/{tmdb_id}/streaming")
+async def get_streaming_availability(
+    tmdb_id: int,
+    region: str = Query("US", max_length=2),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get streaming availability for a movie/show.
+    Uses TMDB's free watch providers API (JustWatch data).
+    
+    Returns:
+        {
+            "available": true,
+            "flatrate": [{"name": "Netflix", "logo_url": "..."}],
+            "rent": [{"name": "Apple TV", "logo_url": "...", "price": null}],
+            "buy": [...],
+            "free": [...],
+            "justwatch_link": "https://..."
+        }
+    """
+    # Get movie to determine media type
+    result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
+    movie = result.scalar_one_or_none()
+    
+    media_type = movie.media_type if movie else "movie"
+    
+    # Fetch from TMDB (free!)
+    providers = await tmdb_service.get_watch_providers(tmdb_id, media_type, region)
+    
+    # Format response
+    def format_provider(p: dict) -> dict:
+        logo_path = p.get("logo_path", "")
+        return {
+            "name": p.get("provider_name", ""),
+            "logo_url": f"https://image.tmdb.org/t/p/w92{logo_path}" if logo_path else None,
+            "provider_id": p.get("provider_id"),
+        }
+    
+    flatrate = [format_provider(p) for p in providers.get("flatrate", [])]
+    rent = [format_provider(p) for p in providers.get("rent", [])]
+    buy = [format_provider(p) for p in providers.get("buy", [])]
+    free = [format_provider(p) for p in (providers.get("free", []) + providers.get("ads", []))]
+    
+    has_any = bool(flatrate or rent or buy or free)
+    
+    return {
+        "available": has_any,
+        "flatrate": flatrate,
+        "rent": rent,
+        "buy": buy,
+        "free": free,
+        "justwatch_link": providers.get("link", ""),
+    }
 
 
 def _format_movie_with_review(movie: Movie) -> MovieWithReview:

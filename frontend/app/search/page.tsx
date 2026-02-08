@@ -302,11 +302,6 @@ function SearchContent() {
 
                     {/* Metadata */}
                     <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted pt-2 border-t border-surface-elevated">
-                      {generatedMovie.review.sources_count && (
-                        <span className="flex items-center gap-1">
-                          📰 {generatedMovie.review.sources_count} sources analyzed
-                        </span>
-                      )}
                       {generatedMovie.review.confidence && (
                         <span className="flex items-center gap-1">
                           🎯 {generatedMovie.review.confidence} confidence

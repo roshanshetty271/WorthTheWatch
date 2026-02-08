@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import ReviewContent from "@/components/ReviewContent";
 import TrailerEmbed from "@/components/TrailerEmbed";
 import VerdictBadge from "@/components/VerdictBadge";
+import StreamingAvailability from "@/components/StreamingAvailability";
 import type { MovieWithReview } from "@/lib/api";
 import type { Metadata } from "next";
 
@@ -23,6 +24,42 @@ async function getMovie(tmdbId: string): Promise<MovieWithReview | null> {
   } catch {
     return null;
   }
+}
+
+// Generate JSON-LD structured data for SEO
+function generateJsonLd(movie: MovieWithReview) {
+  const { movie: m, review: r } = movie;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Movie",
+    name: m.title,
+    description: m.overview,
+    image: m.poster_url || m.backdrop_url,
+    datePublished: m.release_date,
+    genre: m.genres?.map((g) => g.name).filter(Boolean),
+    aggregateRating: m.tmdb_vote_average ? {
+      "@type": "AggregateRating",
+      ratingValue: m.tmdb_vote_average.toFixed(1),
+      bestRating: 10,
+      worstRating: 0,
+      ratingCount: 1000, // Estimate
+    } : undefined,
+    review: r ? {
+      "@type": "Review",
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: r.verdict === "WORTH IT" ? 8 : r.verdict === "NOT WORTH IT" ? 3 : 5,
+        bestRating: 10,
+        worstRating: 0,
+      },
+      reviewBody: r.review_text,
+      author: {
+        "@type": "Organization",
+        name: "Worth the Watch?",
+      },
+    } : undefined,
+  };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -52,8 +89,17 @@ export default async function MoviePage({ params }: Props) {
     .filter(Boolean)
     .join(", ");
 
+  // Generate JSON-LD for SEO
+  const jsonLd = generateJsonLd(data);
+
   return (
     <div className="animate-slide-up">
+      {/* JSON-LD Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
@@ -139,48 +185,61 @@ export default async function MoviePage({ params }: Props) {
                     <VerdictBadge verdict={review.verdict} size="lg" />
                   </div>
                 )}
+
+                {/* Where to Watch - Inline in Hero */}
+                <div className="pt-3">
+                  <StreamingAvailability tmdbId={movie.tmdb_id} />
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Main Content */}
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        {/* Movie Overview */}
-        {movie.overview && (
-          <div className="mb-6 rounded-xl bg-surface-card border border-surface-elevated p-4">
-            <p className="text-sm leading-relaxed text-text-secondary">
+      {/* ═══════════════════════════════════════════════════════════════════
+          TRAILER — Full Width Cinematic Section with Premise
+          ═══════════════════════════════════════════════════════════════════ */}
+      {review?.trailer_url && (
+        <section className="relative bg-black py-8 mt-8">
+          <div className="mx-auto max-w-6xl px-4">
+            {/* Premise - Prominent above trailer */}
+            {movie.overview && (
+              <p className="mb-6 text-lg sm:text-xl text-white/90 font-light leading-relaxed max-w-4xl">
+                {movie.overview}
+              </p>
+            )}
+            <h2 className="mb-4 font-display text-lg text-white/70 flex items-center gap-2">
+              <span>🎬</span> Watch Trailer
+            </h2>
+            <div className="aspect-video w-full rounded-xl overflow-hidden shadow-2xl">
+              <TrailerEmbed youtubeUrl={review.trailer_url} />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* If no trailer, show overview in main content */}
+      {!review?.trailer_url && movie.overview && (
+        <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
+          <div className="rounded-xl bg-surface-card border border-surface-elevated p-4">
+            <p className="text-base leading-relaxed text-text-secondary">
               {movie.overview}
             </p>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            TRAILER (Prominent Position - Right After Header)
-            ═══════════════════════════════════════════════════════════════════ */}
-        {review?.trailer_url && (
-          <div className="mt-8 rounded-2xl border border-surface-elevated bg-surface-card p-4 sm:p-6">
-            <h2 className="mb-4 font-display text-xl text-accent-gold flex items-center gap-2">
-              <span>🎬</span> Watch Trailer
-            </h2>
-            <TrailerEmbed youtubeUrl={review.trailer_url} />
-          </div>
-        )}
+      {/* Main Content */}
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
 
         {/* ═══════════════════════════════════════════════════════════════════
             THE INTERNET'S VERDICT
             ═══════════════════════════════════════════════════════════════════ */}
         <div className="mt-10 rounded-2xl border border-surface-elevated bg-surface-card p-6 sm:p-8">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6">
             <h2 className="font-display text-xl text-accent-gold">
               The Internet&apos;s Verdict
             </h2>
-            {review?.sources_count && (
-              <span className="text-xs text-text-muted">
-                📰 Based on {review.sources_count} sources
-              </span>
-            )}
           </div>
           {review ? (
             <ReviewContent review={review} />

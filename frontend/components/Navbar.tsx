@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function Navbar() {
     const [scrolled, setScrolled] = useState(false);
+    const pathname = usePathname();
+    const router = useRouter();
 
     useEffect(() => {
         const handleScroll = () => {
-            // Use requestAnimationFrame for smoother updates
             requestAnimationFrame(() => {
                 setScrolled(window.scrollY > 80);
             });
@@ -17,6 +19,21 @@ export default function Navbar() {
         window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
+
+    const handleSearchClick = () => {
+        if (pathname === "/") {
+            // On homepage - scroll to hero search
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            // Focus the search input after scrolling
+            setTimeout(() => {
+                const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+                searchInput?.focus();
+            }, 500);
+        } else {
+            // On other pages - navigate to homepage
+            router.push("/");
+        }
+    };
 
     return (
         <nav
@@ -29,7 +46,6 @@ export default function Navbar() {
                 }
       `}
         >
-            {/* Bottom border - always present but opacity changes */}
             <div
                 className={`
           absolute bottom-0 left-0 right-0 h-px bg-white/10
@@ -46,8 +62,8 @@ export default function Navbar() {
                         Worth the Watch?
                     </span>
                 </Link>
-                <Link
-                    href="/search"
+                <button
+                    onClick={handleSearchClick}
                     className={`
             rounded-full px-4 py-2 text-sm transition-all duration-300
             ${scrolled
@@ -57,7 +73,7 @@ export default function Navbar() {
           `}
                 >
                     Search
-                </Link>
+                </button>
             </div>
         </nav>
     );

@@ -84,9 +84,6 @@ export default function ReviewContent({ review }: ReviewContentProps) {
 
       {/* Sources & Meta */}
       <div className="flex flex-wrap items-center gap-4 border-t border-surface-elevated pt-4 text-xs text-text-muted">
-        {review.sources_count && review.sources_count > 0 && (
-          <span>📰 {review.sources_count} sources analyzed</span>
-        )}
         {review.generated_at && (
           <span>
             🕐 Generated{" "}

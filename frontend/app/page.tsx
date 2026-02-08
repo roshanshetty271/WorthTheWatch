@@ -3,6 +3,7 @@ import Image from "next/image";
 import SearchBar from "@/components/SearchBar";
 import MovieCard from "@/components/MovieCard";
 import VerdictBadge from "@/components/VerdictBadge";
+import { CuratedSections } from "@/components/HomepageSection";
 import type { PaginatedMovies } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -53,10 +54,10 @@ export default async function HomePage() {
 
         {/* Center Content: Title & Search */}
         <div className="relative z-30 w-full max-w-2xl px-4 text-center">
-          <h1 className="mb-2 font-display text-5xl text-white sm:text-6xl md:text-7xl drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
+          <h1 className="mb-2 font-display text-3xl text-white sm:text-5xl md:text-6xl lg:text-7xl drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
             Worth the Watch<span className="text-accent-gold">?</span>
           </h1>
-          <p className="mx-auto mb-8 max-w-md text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+          <p className="mx-auto mb-6 sm:mb-8 max-w-xs sm:max-w-md text-sm sm:text-base md:text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
             Should I stream this? The internet decides.
           </p>
           <div className="mx-auto max-w-xl">
@@ -103,6 +104,13 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          CURATED SECTIONS (This Week, Hidden Gems, Skip These)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <CuratedSections />
+      </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
           MORE VERDICTS — Movie Grid

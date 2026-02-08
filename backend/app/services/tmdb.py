@@ -67,6 +67,39 @@ class TMDBService:
         # Filter to only movies and tv
         return [r for r in results if r.get("media_type") in ("movie", "tv")]
 
+    async def get_watch_providers(self, tmdb_id: int, media_type: str = "movie", region: str = "US") -> dict:
+        """
+        Get streaming/rent/buy availability from TMDB (JustWatch data).
+        FREE - no extra API needed!
+        
+        Returns:
+            {
+                "flatrate": [{"provider_name": "Netflix", "logo_path": "...", "provider_id": 8}],
+                "rent": [...],
+                "buy": [...],
+                "free": [...],
+                "link": "https://www.themoviedb.org/movie/123/watch"
+            }
+        """
+        endpoint = f"/{media_type}/{tmdb_id}/watch/providers"
+        try:
+            data = await self._get(endpoint)
+            results = data.get("results", {})
+            
+            # Get region-specific data (default US)
+            region_data = results.get(region, results.get("US", {}))
+            
+            return {
+                "flatrate": region_data.get("flatrate", []),  # Subscription (Netflix, etc)
+                "rent": region_data.get("rent", []),          # Rent options
+                "buy": region_data.get("buy", []),            # Purchase options
+                "free": region_data.get("free", []),          # Free with ads (Tubi, etc)
+                "ads": region_data.get("ads", []),            # Free with ads
+                "link": region_data.get("link", ""),          # JustWatch link
+            }
+        except Exception:
+            return {"flatrate": [], "rent": [], "buy": [], "free": [], "ads": [], "link": ""}
+
     def get_poster_url(self, path: Optional[str], size: str = "w500") -> Optional[str]:
         if not path:
             return None
