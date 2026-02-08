@@ -1,0 +1,76 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base ──────────────────────────────────────────── */
+
+body {
+  @apply bg-surface text-text-primary font-body;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-surface;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-hover rounded-full;
+}
+
+/* ─── Verdict Badges ────────────────────────────────── */
+
+.verdict-worth {
+  @apply bg-verdict-worth/15 text-verdict-worth border border-verdict-worth/30;
+}
+.verdict-skip {
+  @apply bg-verdict-skip/15 text-verdict-skip border border-verdict-skip/30;
+}
+.verdict-mixed {
+  @apply bg-verdict-mixed/15 text-verdict-mixed border border-verdict-mixed/30;
+}
+
+/* ─── Card Hover ────────────────────────────────────── */
+
+.movie-card {
+  @apply transition-all duration-300 ease-out;
+}
+.movie-card:hover {
+  @apply -translate-y-1;
+  box-shadow: 0 8px 30px rgba(212, 168, 67, 0.08);
+}
+
+/* ─── Gradient Overlays ─────────────────────────────── */
+
+.gradient-bottom {
+  background: linear-gradient(to top, #0a0a0f 0%, transparent 100%);
+}
+
+.gradient-top {
+  background: linear-gradient(to bottom, #0a0a0f 0%, transparent 50%);
+}
+
+/* ─── Loading Shimmer ───────────────────────────────── */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  @apply bg-surface-elevated rounded;
+  background-image: linear-gradient(
+    90deg,
+    #12121a 0%,
+    #1a1a25 40%,
+    #12121a 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
