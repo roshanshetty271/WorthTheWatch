@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReviewContent from "@/components/ReviewContent";
 import type { MovieWithReview } from "@/lib/api";
@@ -51,9 +52,31 @@ export default async function MoviePage({ params }: Props) {
 
   return (
     <div className="animate-slide-up">
-      {/* Backdrop */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          BACK NAVIGATION
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mb-6">
+        <Link
+          href="/"
+          className="group inline-flex items-center gap-2 rounded-full border border-surface-elevated bg-surface-card px-4 py-2 text-sm text-text-secondary transition-all hover:border-accent-gold/30 hover:text-accent-gold"
+        >
+          <svg
+            className="h-4 w-4 transition-transform group-hover:-translate-x-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to all reviews
+        </Link>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          BACKDROP
+          ═══════════════════════════════════════════════════════════════════ */}
       {movie.backdrop_url && (
-        <div className="relative -mx-4 -mt-8 mb-8 h-64 overflow-hidden sm:-mx-6 sm:h-80 md:h-96">
+        <div className="relative -mx-4 mb-8 h-64 overflow-hidden rounded-2xl sm:-mx-6 sm:h-80 md:h-96">
           <Image
             src={movie.backdrop_url}
             alt={movie.title}
@@ -67,6 +90,9 @@ export default async function MoviePage({ params }: Props) {
       )}
 
       <div className="mx-auto max-w-4xl">
+        {/* ═══════════════════════════════════════════════════════════════════
+            MOVIE HEADER
+            ═══════════════════════════════════════════════════════════════════ */}
         <div className="flex flex-col gap-8 sm:flex-row">
           {/* Poster */}
           {movie.poster_url && (
@@ -88,24 +114,19 @@ export default async function MoviePage({ params }: Props) {
             </h1>
 
             <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
-              {year && <span>{year}</span>}
+              {year && <span className="rounded-full bg-surface-elevated px-3 py-1">{year}</span>}
               {genres && (
-                <>
-                  <span className="text-text-muted">•</span>
-                  <span>{genres}</span>
-                </>
+                <span className="rounded-full bg-surface-elevated px-3 py-1">{genres}</span>
               )}
               {movie.media_type && (
-                <>
-                  <span className="text-text-muted">•</span>
-                  <span className="capitalize">{movie.media_type}</span>
-                </>
+                <span className="rounded-full bg-surface-elevated px-3 py-1 capitalize">
+                  {movie.media_type}
+                </span>
               )}
               {movie.tmdb_vote_average ? (
-                <>
-                  <span className="text-text-muted">•</span>
-                  <span>⭐ {movie.tmdb_vote_average.toFixed(1)}</span>
-                </>
+                <span className="rounded-full bg-accent-gold/10 px-3 py-1 text-accent-gold">
+                  ⭐ {movie.tmdb_vote_average.toFixed(1)} TMDB
+                </span>
               ) : null}
             </div>
 
@@ -114,14 +135,42 @@ export default async function MoviePage({ params }: Props) {
                 {movie.overview}
               </p>
             )}
+
+            {/* Quick verdict preview for mobile */}
+            {review && (
+              <div className="sm:hidden">
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${review.verdict === "WORTH IT"
+                      ? "bg-verdict-worth/15 text-verdict-worth"
+                      : review.verdict === "NOT WORTH IT"
+                        ? "bg-verdict-skip/15 text-verdict-skip"
+                        : "bg-verdict-mixed/15 text-verdict-mixed"
+                    }`}
+                >
+                  {review.verdict === "WORTH IT" && "✅"}
+                  {review.verdict === "NOT WORTH IT" && "❌"}
+                  {review.verdict === "MIXED BAG" && "⚖️"}
+                  {review.verdict}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Review */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            THE INTERNET'S VERDICT
+            ═══════════════════════════════════════════════════════════════════ */}
         <div className="mt-10 rounded-2xl border border-surface-elevated bg-surface-card p-6 sm:p-8">
-          <h2 className="mb-6 font-display text-xl text-accent-gold">
-            The Internet&apos;s Verdict
-          </h2>
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="font-display text-xl text-accent-gold">
+              The Internet&apos;s Verdict
+            </h2>
+            {review?.sources_count && (
+              <span className="text-xs text-text-muted">
+                📰 Based on {review.sources_count} sources
+              </span>
+            )}
+          </div>
           {review ? (
             <ReviewContent review={review} />
           ) : (
@@ -129,8 +178,38 @@ export default async function MoviePage({ params }: Props) {
               <p className="text-text-secondary">
                 No review generated yet for this title.
               </p>
+              <Link
+                href={`/search?q=${encodeURIComponent(movie.title)}`}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-gold/10 px-5 py-2.5 text-sm text-accent-gold transition-colors hover:bg-accent-gold/20"
+              >
+                Generate a review →
+              </Link>
             </div>
           )}
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            BOTTOM NAVIGATION
+            ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mt-8 flex items-center justify-between border-t border-surface-elevated pt-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-accent-gold"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to home
+          </Link>
+          <Link
+            href="/search"
+            className="inline-flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-accent-gold"
+          >
+            Search another title
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </Link>
         </div>
       </div>
     </div>

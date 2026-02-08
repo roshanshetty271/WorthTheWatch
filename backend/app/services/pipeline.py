@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = "movie") -> Movie:
-    """Get movie from DB or fetch from TMDB and save."""
+    """Get movie from DB or fetch from TMDB and save.
+    
+    Handles race conditions where multiple requests try to insert the same movie.
+    """
+    # First check if movie already exists
     result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
     movie = result.scalar_one_or_none()
 
@@ -37,6 +41,12 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
         tmdb_data["media_type"] = "movie"
 
     normalized = tmdb_service.normalize_result(tmdb_data)
+    
+    # Remove computed fields that aren't DB columns
+    normalized.pop("poster_url", None)
+    normalized.pop("backdrop_url", None)
+    normalized.pop("tmdb_vote_count", None)
+    normalized.pop("original_title", None)
 
     # Parse release_date string to date object before creating Movie
     release_date_val = None
@@ -47,11 +57,31 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
         except (ValueError, TypeError):
             release_date_val = None
 
-    movie = Movie(**normalized, release_date=release_date_val)
-    db.add(movie)
-    await db.flush()
-    return movie
+    # Re-check DB in case another request inserted while we were fetching from TMDB
+    result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
+    movie = result.scalar_one_or_none()
+    if movie:
+        return movie
 
+    # Try to insert, handle race condition gracefully
+    try:
+        movie = Movie(**normalized, release_date=release_date_val)
+        db.add(movie)
+        await db.flush()
+        return movie
+    except Exception as e:
+        # If duplicate key error, rollback and fetch the existing record
+        if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+            await db.rollback()
+            result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
+            movie = result.scalar_one_or_none()
+            if movie:
+                return movie
+        raise
+
+
+# Global progress tracker: {tmdb_id: "Step description"}
+job_progress = {}
 
 async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     """
@@ -64,15 +94,18 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     4. SYNTHESIZE: DeepSeek generates review + verdict
     5. CACHE: Save to PostgreSQL
     """
+    tmdb_id = movie.tmdb_id
     title = movie.title
     year = str(movie.release_date.year) if movie.release_date else ""
     genres = ", ".join(g.get("name", "") for g in (movie.genres or []) if g.get("name"))
 
+    job_progress[tmdb_id] = "Searching"
     logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
 
     # ─── Step 1: SEARCH ────────────────────────────────────
     try:
         # Two parallel searches for diverse sources
+        job_progress[tmdb_id] = "Searching the web & Reddit..."
         critic_results, reddit_results = await asyncio.gather(
             serper_service.search_reviews(title, year),
             serper_service.search_reddit(title, year),
@@ -93,14 +126,16 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     if not all_results:
         logger.warning(f"No search results found for '{title}'")
+        job_progress.pop(tmdb_id, None)
         # Create low-confidence review from metadata only
         return await _create_fallback_review(db, movie, genres)
 
     # Select diverse, high-quality sources
-    selected_urls = select_best_sources(all_results, max_total=8)
+    selected_urls = select_best_sources(all_results, max_total=12)  # Increased from 8 for better accuracy
     logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
 
     # ─── Step 2: READ ──────────────────────────────────────
+    job_progress[tmdb_id] = f"Reading {len(selected_urls)} articles..."
     articles = await jina_service.read_urls(selected_urls, max_concurrent=5)
     logger.info(f"   → Successfully read {len(articles)} articles")
 
@@ -112,6 +147,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         articles = [snippets]
 
     # ─── Step 3: GREP ──────────────────────────────────────
+    job_progress[tmdb_id] = "Filtering opinions..."
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
     filtered_opinions = extract_opinion_paragraphs(articles)
 
@@ -122,38 +158,46 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         )
 
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
-    logger.info(f"🤖 Step 4/4: Generating review for '{title}'")
-    llm_output = await synthesize_review(
-        title=title,
-        year=year,
-        genres=genres,
-        overview=movie.overview or "",
-        opinions=filtered_opinions,
-        sources_count=len(selected_urls),
-    )
+    job_progress[tmdb_id] = "Generating final verdict..."
+    logger.info(f"🧠 Step 4/4: Generating review with DeepSeek for '{title}'")
+    
+    prompt = f"""
+    Analyze these movie reviews and opinions for the movie/show '{title}' ({year}).
+    Genres: {genres}
+
+    --- REVIEWS AND OPINIONS ---
+    {filtered_opinions[:18000]}  # Truncate to fit context window
+    """
+
+    try:
+        review_data = await llm_service.generate_review(prompt)
+    except Exception as e:
+        job_progress.pop(tmdb_id, None)
+        logger.error(f"LLM generation failed: {e}")
+        raise
 
     # ─── Step 5: CACHE ─────────────────────────────────────
+    logger.info(f"💾 Saving review for '{title}'")
+    
     # Check for existing review to update
     result = await db.execute(select(Review).where(Review.movie_id == movie.id))
     existing = result.scalar_one_or_none()
 
     if existing:
-        existing.verdict = llm_output.verdict
-        existing.review_text = llm_output.review_text
-        existing.praise_points = llm_output.praise_points
-        existing.criticism_points = llm_output.criticism_points
-        existing.vibe = llm_output.vibe
-        existing.confidence = llm_output.confidence
+        existing.verdict = review_data.verdict
+        existing.review_text = review_data.review_text
+        existing.praise_points = review_data.praise_points
+        existing.criticism_points = review_data.criticism_points
+        existing.vibe = review_data.vibe
+        existing.confidence = review_data.confidence
         existing.sources_count = len(selected_urls)
         existing.sources_urls = selected_urls
-        existing.llm_model = llm_model
+        existing.llm_model = settings.LLM_PROVIDER
+        existing.generated_at = datetime.utcnow()
         review = existing
     else:
         review = Review(
             movie_id=movie.id,
-            verdict=llm_output.verdict,
-            review_text=llm_output.review_text,
-            praise_points=llm_output.praise_points,
             criticism_points=llm_output.criticism_points,
             vibe=llm_output.vibe,
             confidence=llm_output.confidence,

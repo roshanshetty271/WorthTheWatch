@@ -17,6 +17,8 @@ class MovieBase(BaseModel):
     overview: Optional[str] = None
     poster_path: Optional[str] = None
     backdrop_path: Optional[str] = None
+    poster_url: Optional[str] = None
+    backdrop_url: Optional[str] = None
     genres: Optional[list[dict]] = None
     release_date: Optional[date] = None
     tmdb_popularity: Optional[float] = None

@@ -45,8 +45,9 @@ async def search_movies(
     )
     db_movies = result.unique().scalars().all()
 
-    # If we found movies with reviews, return them
+    # Check if we have any reviewed movies in DB
     reviewed = [m for m in db_movies if m.review]
+    db_match = None
     if reviewed:
         movie = reviewed[0]
         movie_resp = MovieResponse(
@@ -65,40 +66,26 @@ async def search_movies(
             backdrop_url=tmdb_service.get_backdrop_url(movie.backdrop_path),
         )
         review_resp = ReviewResponse.model_validate(movie.review)
-        return SearchResult(
-            found_in_db=True,
-            movie=MovieWithReview(movie=movie_resp, review=review_resp),
-        )
+        db_match = MovieWithReview(movie=movie_resp, review=review_resp)
 
-    # Not in DB — search TMDB
+    # ALWAYS search TMDB for disambiguation options
     tmdb_results = await tmdb_service.search(q)
 
-    if not tmdb_results:
+    if not tmdb_results and not db_match:
         return SearchResult(
             found_in_db=False,
             tmdb_results=[],
         )
 
-    # Return TMDB results and trigger generation for the top result
-    top_result = tmdb_results[0]
-
-    # Rate limit check before triggering generation
-    await check_rate_limit(request, is_generation=True)
-
-    # Trigger background generation for the top result
-    background_tasks.add_task(
-        _generate_review_background,
-        tmdb_id=top_result["id"],
-        media_type=top_result.get("media_type", "movie"),
-    )
-
+    # Return both DB match (if any) AND TMDB results for disambiguation
     return SearchResult(
-        found_in_db=False,
+        found_in_db=db_match is not None,
+        movie=db_match,  # Include DB match if we have one
         tmdb_results=[
             MovieBase(**tmdb_service.normalize_result(r))
-            for r in tmdb_results[:5]
+            for r in tmdb_results[:8]  # Show more options for disambiguation
         ],
-        generation_status="generating",
+        generation_status=None,
     )
 
 

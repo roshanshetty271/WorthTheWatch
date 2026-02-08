@@ -154,10 +154,10 @@ def select_best_sources(serper_results: list[dict], max_total: int = 8) -> list[
     categories = get_source_diversity_score(urls)
 
     selected = []
-    selected.extend(categories["critic"][:3])
-    selected.extend(categories["reddit"][:3])
-    selected.extend(categories["user_review"][:1])
-    selected.extend(categories["other"][:1])
+    selected.extend(categories["critic"][:4])       # 3 → 4 critic reviews
+    selected.extend(categories["reddit"][:5])       # 3 → 5 Reddit threads
+    selected.extend(categories["user_review"][:2])  # 1 → 2 user review sites
+    selected.extend(categories["other"][:1])        # 1 other source
 
     # If we don't have enough from categories, fill from remaining
     if len(selected) < max_total:

@@ -21,7 +21,7 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
 async def list_movies(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
-    sort: str = Query("latest", pattern="^(latest|popular|verdict)$"),
+    sort: str = Query("latest", pattern="^(latest|popular|verdict|release_date)$"),
     verdict: str = Query(None, pattern="^(WORTH IT|NOT WORTH IT|MIXED BAG)$"),
     media_type: str = Query(None, pattern="^(movie|tv)$"),
     db: AsyncSession = Depends(get_db),
@@ -35,8 +35,14 @@ async def list_movies(
     if verdict:
         query = query.join(Review).where(Review.verdict == verdict)
 
-    # Sorting (avoid double-join if verdict filter already joined Review)
+    # Sorting
     if sort == "latest":
+        # Sort by when the review was generated (newest reviews first)
+        # We need to join Review if not already joined
+        if not verdict:
+             query = query.join(Review, isouter=True)
+        query = query.order_by(desc(Review.generated_at).nulls_last(), desc(Movie.release_date))
+    elif sort == "release_date":
         query = query.order_by(desc(Movie.release_date))
     elif sort == "popular":
         query = query.order_by(desc(Movie.tmdb_popularity))

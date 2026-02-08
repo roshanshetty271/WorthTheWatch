@@ -82,6 +82,8 @@ class TMDBService:
         media_type = item.get("media_type", "movie")
         title = item.get("title") or item.get("name", "Unknown")
         release = item.get("release_date") or item.get("first_air_date")
+        poster_path = item.get("poster_path")
+        backdrop_path = item.get("backdrop_path")
 
         return {
             "tmdb_id": item["id"],
@@ -89,8 +91,10 @@ class TMDBService:
             "original_title": item.get("original_title") or item.get("original_name"),
             "media_type": media_type,
             "overview": item.get("overview"),
-            "poster_path": item.get("poster_path"),
-            "backdrop_path": item.get("backdrop_path"),
+            "poster_path": poster_path,
+            "backdrop_path": backdrop_path,
+            "poster_url": self.get_poster_url(poster_path),
+            "backdrop_url": self.get_backdrop_url(backdrop_path),
             "genres": item.get("genres") or [
                 {"id": gid} for gid in (item.get("genre_ids") or [])
             ],
