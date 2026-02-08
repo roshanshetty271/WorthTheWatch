@@ -104,3 +104,50 @@ async def seed_database(
 
     result = await run_daily_sync(db, max_new=count)
     return {"status": "seeded", **result}
+
+
+# ─── Regenerate Endpoint (Maintenance) ─────────────────────
+
+@app.post("/api/regenerate")
+async def regenerate_all_reviews(
+    secret: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-generate all existing reviews with the current prompt."""
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    from app.services.pipeline import generate_review_for_movie
+
+    # Get all movies that have reviews — use .unique() to avoid duplicates from joinedload
+    result = await db.execute(
+        select(Movie).options(joinedload(Movie.review))
+    )
+    all_movies = result.unique().scalars().all()
+    movies_with_reviews = [m for m in all_movies if m.review is not None]
+
+    regenerated = 0
+    failed = 0
+
+    movies_len = len(movies_with_reviews)
+    logger.info(f"🔄 Starting regeneration for {movies_len} movies...")
+
+    for movie in movies_with_reviews:
+        try:
+            await generate_review_for_movie(db, movie)
+            await db.commit()
+            regenerated += 1
+            logger.info(f"♻️ [{regenerated}/{movies_len}] Regenerated: {movie.title}")
+        except Exception as e:
+            await db.rollback()
+            failed += 1
+            logger.error(f"❌ Failed to regenerate {movie.title}: {e}")
+
+    return {
+        "status": "completed",
+        "regenerated": regenerated,
+        "failed": failed,
+        "total": movies_len,
+    }

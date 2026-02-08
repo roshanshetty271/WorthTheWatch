@@ -5,7 +5,7 @@ This is the core of the app.
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
