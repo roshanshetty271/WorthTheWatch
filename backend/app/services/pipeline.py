@@ -171,6 +171,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             overview=movie.overview or "",
             opinions=filtered_opinions[:18000], # Truncate to fit
             sources_count=len(articles),
+            tmdb_score=movie.tmdb_vote_average or 0.0,
         )
     except Exception as e:
         job_progress.pop(tmdb_id, None)
