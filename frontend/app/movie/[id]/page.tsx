@@ -51,7 +51,7 @@ export default async function MoviePage({ params }: Props) {
     .join(", ");
 
   return (
-    <div className="animate-slide-up">
+    <div className="mx-auto max-w-7xl animate-slide-up px-4 py-8 pt-24 sm:px-6">
       {/* ═══════════════════════════════════════════════════════════════════
           BACK NAVIGATION
           ═══════════════════════════════════════════════════════════════════ */}

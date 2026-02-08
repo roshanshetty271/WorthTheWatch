@@ -38,7 +38,7 @@ export default function RootLayout({
         </nav>
 
         {/* Main Content */}
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
+        <main>{children}</main>
 
         {/* Footer */}
         <footer className="border-t border-surface-elevated/50 py-8 text-center">

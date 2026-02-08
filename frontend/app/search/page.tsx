@@ -115,7 +115,7 @@ function SearchContent() {
   }, [query, doSearch]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-4">
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 pt-24 sm:px-6">
       {/* Search Header */}
       <div>
         <h1 className="mb-4 font-display text-2xl text-text-primary">Search</h1>
