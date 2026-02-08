@@ -1,0 +1,167 @@
+"""
+Worth the Watch? — Opinion Grep Service
+Zero-cost keyword filtering. Strips 100K tokens → 5-8K tokens of pure opinion signal.
+No LLM call needed. Runs in milliseconds.
+"""
+
+from difflib import SequenceMatcher
+
+# ─── Positive signals: paragraphs likely containing opinions ───
+OPINION_KEYWORDS = [
+    # Positive sentiment
+    "loved", "amazing", "masterpiece", "brilliant", "stunning",
+    "best", "incredible", "perfect", "must watch", "blown away",
+    "captivating", "gripping", "phenomenal", "outstanding", "superb",
+    "heartfelt", "moving", "beautifully", "powerful", "compelling",
+    # Negative sentiment
+    "boring", "terrible", "waste", "disappointed", "awful",
+    "worst", "overrated", "mediocre", "skip", "dragged", "cringe",
+    "forgettable", "predictable", "shallow", "annoying", "tedious",
+    "unwatchable", "laughable", "weak", "bland", "generic",
+    # Opinion indicators
+    "i think", "i felt", "in my opinion", "honestly",
+    "the problem is", "what works", "what doesn't",
+    "my take", "genuinely", "surprisingly", "unfortunately",
+    "have to say", "worth watching", "not worth",
+    # Craft-specific
+    "the acting", "the writing", "the pacing", "the ending",
+    "the cinematography", "the soundtrack", "the plot",
+    "performances", "direction", "script", "dialogue",
+    "chemistry", "tension", "atmosphere", "tone",
+    "character development", "special effects", "score",
+    # Verdict signals
+    "recommend", "worth", "stream", "skip", "watch",
+    "rating", "/10", "out of 10", "stars", "verdict",
+    "thumbs up", "thumbs down", "must-see", "must see",
+]
+
+# ─── Negative signals: paragraphs to DISCARD ───
+DISCARD_SIGNALS = [
+    # Plot/synopsis
+    "release date", "released on", "premieres on",
+    "the story follows", "the film tells", "synopsis",
+    "the plot centers", "the movie follows", "the series follows",
+    # Cast/crew bios
+    "cast includes", "produced by", "directed by", "written by",
+    "stars include", "executive producer", "showrunner",
+    # Promotional / logistical
+    "box office", "trailer", "now streaming on", "available on",
+    "subscribe to", "click here", "read more", "sign up",
+    "affiliate link", "sponsored", "advertisement",
+    # Legal / meta
+    "copyright", "all rights reserved", "terms of service",
+    "privacy policy", "cookie policy",
+    # Navigation junk
+    "related articles", "you may also like", "share this",
+    "leave a comment", "table of contents", "jump to",
+    "runtime", "rated pg", "rated r", "certificate",
+]
+
+
+def extract_opinion_paragraphs(articles: list[str], max_paragraphs: int = 40) -> str:
+    """
+    Zero-cost grep: extract only opinion-rich paragraphs from articles.
+    
+    Process:
+    1. Split each article into paragraphs
+    2. Discard paragraphs matching negative signals (plot summaries, ads, etc.)
+    3. Keep paragraphs with 2+ opinion keyword hits
+    4. Deduplicate near-identical paragraphs
+    5. Return top N most opinion-rich paragraphs
+    """
+    relevant = []
+
+    for article in articles:
+        paragraphs = article.split("\n\n")
+        for para in paragraphs:
+            para_stripped = para.strip()
+            para_lower = para_stripped.lower()
+
+            # Skip too short or too long paragraphs
+            if len(para_stripped) < 50 or len(para_stripped) > 2000:
+                continue
+
+            # NEGATIVE GREP — discard paragraphs matching discard signals
+            discard_hits = sum(1 for ds in DISCARD_SIGNALS if ds in para_lower)
+            if discard_hits >= 1:
+                continue
+
+            # POSITIVE GREP — count opinion keyword hits
+            keyword_hits = sum(1 for kw in OPINION_KEYWORDS if kw in para_lower)
+
+            # 2+ opinion signals = relevant
+            if keyword_hits >= 2:
+                relevant.append((keyword_hits, para_stripped))
+
+    # Sort by keyword density (most opinion-rich first)
+    relevant.sort(key=lambda x: x[0], reverse=True)
+
+    # Deduplicate near-identical paragraphs
+    unique = _deduplicate([text for _, text in relevant])
+
+    # Return top paragraphs joined with separators
+    return "\n\n---\n\n".join(unique[:max_paragraphs])
+
+
+def _deduplicate(paragraphs: list[str], threshold: float = 0.8) -> list[str]:
+    """Remove near-duplicate paragraphs using sequence matching."""
+    unique = []
+    for para in paragraphs:
+        is_dup = False
+        for existing in unique:
+            # Quick length check before expensive comparison
+            if abs(len(para) - len(existing)) / max(len(para), len(existing)) > 0.5:
+                continue
+            # Compare first 200 chars for speed
+            ratio = SequenceMatcher(
+                None, para[:200].lower(), existing[:200].lower()
+            ).ratio()
+            if ratio > threshold:
+                is_dup = True
+                break
+        if not is_dup:
+            unique.append(para)
+    return unique
+
+
+def get_source_diversity_score(urls: list[str]) -> dict:
+    """Categorize URLs by source type for diversity tracking."""
+    categories = {"critic": [], "reddit": [], "user_review": [], "news": [], "other": []}
+
+    CRITIC_DOMAINS = [
+        "collider", "ign", "screenrant", "variety", "hollywoodreporter",
+        "vulture", "avclub", "indiewire", "deadline", "ew.com",
+        "empireonline", "rogerebert", "theguardian", "nytimes",
+    ]
+
+    for url in urls:
+        url_lower = url.lower()
+        if "reddit.com" in url_lower:
+            categories["reddit"].append(url)
+        elif any(domain in url_lower for domain in CRITIC_DOMAINS):
+            categories["critic"].append(url)
+        elif "letterboxd" in url_lower:
+            categories["user_review"].append(url)
+        else:
+            categories["other"].append(url)
+
+    return categories
+
+
+def select_best_sources(serper_results: list[dict], max_total: int = 8) -> list[str]:
+    """Pick diverse, high-quality URLs from search results."""
+    urls = [r["link"] for r in serper_results if r.get("link")]
+    categories = get_source_diversity_score(urls)
+
+    selected = []
+    selected.extend(categories["critic"][:3])
+    selected.extend(categories["reddit"][:3])
+    selected.extend(categories["user_review"][:1])
+    selected.extend(categories["other"][:1])
+
+    # If we don't have enough from categories, fill from remaining
+    if len(selected) < max_total:
+        remaining = [u for u in urls if u not in selected]
+        selected.extend(remaining[: max_total - len(selected)])
+
+    return selected[:max_total]

@@ -30,6 +30,5 @@ Thumbs.db
 # Logs
 *.log
 
-# Project Specific - Exclude backend and internal docs from public repo
-backend/
+# Project Specific - Exclude internal docs from public repo
 WorthTheWatch_Technical_Architecture_v2.md

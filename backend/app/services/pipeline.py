@@ -1,0 +1,196 @@
+"""
+Worth the Watch? — Review Generation Pipeline
+Orchestrates: Search → Read → Grep → Synthesize → Cache
+This is the core of the app.
+"""
+
+import logging
+from datetime import date
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+
+from app.models import Movie, Review
+from app.services.tmdb import tmdb_service
+from app.services.serper import serper_service
+from app.services.jina import jina_service
+from app.services.grep import extract_opinion_paragraphs, select_best_sources
+from app.services.llm import synthesize_review, llm_model
+
+logger = logging.getLogger(__name__)
+
+
+async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = "movie") -> Movie:
+    """Get movie from DB or fetch from TMDB and save."""
+    result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
+    movie = result.scalar_one_or_none()
+
+    if movie:
+        return movie
+
+    # Fetch from TMDB
+    if media_type == "tv":
+        tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
+        tmdb_data["media_type"] = "tv"
+    else:
+        tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
+        tmdb_data["media_type"] = "movie"
+
+    normalized = tmdb_service.normalize_result(tmdb_data)
+
+    # Parse release_date string to date object before creating Movie
+    release_date_val = None
+    release_str = normalized.pop("release_date", None)
+    if release_str:
+        try:
+            release_date_val = date.fromisoformat(str(release_str))
+        except (ValueError, TypeError):
+            release_date_val = None
+
+    movie = Movie(**normalized, release_date=release_date_val)
+    db.add(movie)
+    await db.flush()
+    return movie
+
+
+async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
+    """
+    Full pipeline: Search → Read → Grep → Synthesize → Cache
+
+    Steps:
+    1. SEARCH: Serper finds review articles + Reddit threads
+    2. READ: Jina Reader extracts full content (parallel)
+    3. GREP: Python keyword-filters opinion paragraphs
+    4. SYNTHESIZE: DeepSeek generates review + verdict
+    5. CACHE: Save to PostgreSQL
+    """
+    title = movie.title
+    year = str(movie.release_date.year) if movie.release_date else ""
+    genres = ", ".join(g.get("name", "") for g in (movie.genres or []) if g.get("name"))
+
+    logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
+
+    # ─── Step 1: SEARCH ────────────────────────────────────
+    try:
+        # Two parallel searches for diverse sources
+        critic_results, reddit_results = await asyncio.gather(
+            serper_service.search_reviews(title, year),
+            serper_service.search_reddit(title, year),
+            return_exceptions=True,
+        )
+        # Handle individual failures gracefully
+        if isinstance(critic_results, Exception):
+            logger.error(f"Critic search failed: {critic_results}")
+            critic_results = []
+        if isinstance(reddit_results, Exception):
+            logger.error(f"Reddit search failed: {reddit_results}")
+            reddit_results = []
+    except Exception as e:
+        logger.error(f"Serper search failed: {e}")
+        critic_results, reddit_results = [], []
+
+    all_results = critic_results + reddit_results
+
+    if not all_results:
+        logger.warning(f"No search results found for '{title}'")
+        # Create low-confidence review from metadata only
+        return await _create_fallback_review(db, movie, genres)
+
+    # Select diverse, high-quality sources
+    selected_urls = select_best_sources(all_results, max_total=8)
+    logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
+
+    # ─── Step 2: READ ──────────────────────────────────────
+    articles = await jina_service.read_urls(selected_urls, max_concurrent=5)
+    logger.info(f"   → Successfully read {len(articles)} articles")
+
+    if not articles:
+        # Fall back to using just the search snippets
+        snippets = "\n\n".join(
+            f"Source: {r['title']}\n{r['snippet']}" for r in all_results[:10]
+        )
+        articles = [snippets]
+
+    # ─── Step 3: GREP ──────────────────────────────────────
+    logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
+    filtered_opinions = extract_opinion_paragraphs(articles)
+
+    if not filtered_opinions or len(filtered_opinions) < 50:
+        # Use raw snippets as fallback
+        filtered_opinions = "\n\n".join(
+            f"{r['title']}: {r['snippet']}" for r in all_results[:15]
+        )
+
+    # ─── Step 4: SYNTHESIZE ────────────────────────────────
+    logger.info(f"🤖 Step 4/4: Generating review for '{title}'")
+    llm_output = await synthesize_review(
+        title=title,
+        year=year,
+        genres=genres,
+        overview=movie.overview or "",
+        opinions=filtered_opinions,
+        sources_count=len(selected_urls),
+    )
+
+    # ─── Step 5: CACHE ─────────────────────────────────────
+    # Check for existing review to update
+    result = await db.execute(select(Review).where(Review.movie_id == movie.id))
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.verdict = llm_output.verdict
+        existing.review_text = llm_output.review_text
+        existing.praise_points = llm_output.praise_points
+        existing.criticism_points = llm_output.criticism_points
+        existing.vibe = llm_output.vibe
+        existing.confidence = llm_output.confidence
+        existing.sources_count = len(selected_urls)
+        existing.sources_urls = selected_urls
+        existing.llm_model = llm_model
+        review = existing
+    else:
+        review = Review(
+            movie_id=movie.id,
+            verdict=llm_output.verdict,
+            review_text=llm_output.review_text,
+            praise_points=llm_output.praise_points,
+            criticism_points=llm_output.criticism_points,
+            vibe=llm_output.vibe,
+            confidence=llm_output.confidence,
+            sources_count=len(selected_urls),
+            sources_urls=selected_urls,
+            llm_model=llm_model,
+        )
+        db.add(review)
+
+    await db.flush()
+    logger.info(f"✅ Review generated for '{title}': {llm_output.verdict}")
+    return review
+
+
+async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -> Review:
+    """Create a low-confidence review when no sources are found."""
+    llm_output = await synthesize_review(
+        title=movie.title,
+        year=str(movie.release_date.year) if movie.release_date else "",
+        genres=genres,
+        overview=movie.overview or "",
+        opinions="Very limited crowd discussion found for this title. Base your review on the movie description and any general knowledge you have.",
+        sources_count=0,
+    )
+
+    review = Review(
+        movie_id=movie.id,
+        verdict=llm_output.verdict,
+        review_text=llm_output.review_text,
+        praise_points=llm_output.praise_points,
+        criticism_points=llm_output.criticism_points,
+        vibe=llm_output.vibe,
+        confidence="LOW",
+        sources_count=0,
+        sources_urls=[],
+        llm_model=llm_model,
+    )
+    db.add(review)
+    await db.flush()
+    return review
