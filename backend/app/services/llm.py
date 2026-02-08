@@ -1,29 +1,22 @@
 """
 Worth the Watch? — LLM Service
-Swappable between DeepSeek and GPT-4o mini via LLM_PROVIDER env var.
+Supports DeepSeek and OpenAI with automatic failover.
 Uses OpenAI SDK for both (DeepSeek is OpenAI-compatible).
 """
 
 import json
+import logging
 from openai import AsyncOpenAI
 from app.config import get_settings
 from app.schemas import LLMReviewOutput
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # ─── Client Configuration ─────────────────────────────────
 
-def _build_clients():
-    """Build LLM clients lazily. Returns (client, model) tuple."""
-    provider = settings.LLM_PROVIDER
-
-    if provider == "openai" and settings.OPENAI_API_KEY:
-        return (
-            AsyncOpenAI(api_key=settings.OPENAI_API_KEY),
-            "gpt-4o-mini",
-        )
-
-    # Default to DeepSeek
+def _build_deepseek_client():
+    """Build DeepSeek client if API key exists."""
     if settings.DEEPSEEK_API_KEY:
         return (
             AsyncOpenAI(
@@ -32,19 +25,38 @@ def _build_clients():
             ),
             "deepseek-chat",
         )
+    return None, None
 
-    # Fallback: create a dummy client that will fail with a clear error
-    # This allows the app to start even without keys (for frontend-only dev)
-    return (
-        AsyncOpenAI(
-            base_url="https://api.deepseek.com/v1",
-            api_key="missing-key-set-DEEPSEEK_API_KEY-in-env",
-        ),
-        "deepseek-chat",
+
+def _build_openai_client():
+    """Build OpenAI client if API key exists."""
+    if settings.OPENAI_API_KEY:
+        return (
+            AsyncOpenAI(api_key=settings.OPENAI_API_KEY),
+            "gpt-4o-mini",
+        )
+    return None, None
+
+
+# Build both clients at startup
+deepseek_client, deepseek_model = _build_deepseek_client()
+openai_client, openai_model = _build_openai_client()
+
+# Primary client based on config
+if settings.LLM_PROVIDER == "openai" and openai_client:
+    llm_client, llm_model = openai_client, openai_model
+elif deepseek_client:
+    llm_client, llm_model = deepseek_client, deepseek_model
+elif openai_client:
+    llm_client, llm_model = openai_client, openai_model
+else:
+    # Fallback: dummy client that will fail with clear error
+    llm_client = AsyncOpenAI(
+        base_url="https://api.deepseek.com/v1",
+        api_key="missing-key-set-DEEPSEEK_API_KEY-or-OPENAI_API_KEY-in-env",
     )
+    llm_model = "deepseek-chat"
 
-
-llm_client, llm_model = _build_clients()
 
 # ─── System Prompt ─────────────────────────────────────────
 
@@ -76,6 +88,21 @@ OUTPUT FORMAT (strict JSON, no markdown fences):
 
 # ─── Synthesis Function ───────────────────────────────────
 
+async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
+    """Make LLM API call and return raw content."""
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.7,
+        max_tokens=1000,
+    )
+    return response.choices[0].message.content
+
+
 async def synthesize_review(
     title: str,
     year: str,
@@ -84,7 +111,7 @@ async def synthesize_review(
     opinions: str,
     sources_count: int,
 ) -> LLMReviewOutput:
-    """Generate a review from filtered opinion text."""
+    """Generate a review with automatic LLM failover."""
 
     user_prompt = f"""Movie/Show: {title} ({year})
 Genre: {genres}
@@ -96,18 +123,35 @@ Opinions gathered from {sources_count} sources across the internet:
 
 Write your "Worth the Watch?" review based on these real internet opinions."""
 
-    response = await llm_client.chat.completions.create(
-        model=llm_model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.7,
-        max_tokens=1000,
-    )
+    content = None
+    used_model = None
 
-    content = response.choices[0].message.content
+    # Try primary LLM
+    try:
+        logger.info(f"🧠 Trying primary LLM: {llm_model}")
+        content = await _call_llm(llm_client, llm_model, user_prompt)
+        used_model = llm_model
+    except Exception as e:
+        logger.warning(f"Primary LLM ({llm_model}) failed: {e}")
+        
+        # Try fallback LLM
+        fallback_client = openai_client if llm_client != openai_client else deepseek_client
+        fallback_model = openai_model if llm_client != openai_client else deepseek_model
+        
+        if fallback_client:
+            try:
+                logger.info(f"🔄 Falling back to: {fallback_model}")
+                content = await _call_llm(fallback_client, fallback_model, user_prompt)
+                used_model = fallback_model
+            except Exception as fallback_error:
+                logger.error(f"Fallback LLM ({fallback_model}) also failed: {fallback_error}")
+                raise RuntimeError(
+                    f"All LLMs failed. Primary: {e}, Fallback: {fallback_error}"
+                )
+        else:
+            raise RuntimeError(f"Primary LLM failed and no fallback available: {e}")
+
+    logger.info(f"✅ Review generated using {used_model}")
 
     # Parse and validate JSON
     try:
@@ -115,6 +159,7 @@ Write your "Worth the Watch?" review based on these real internet opinions."""
         return LLMReviewOutput(**data)
     except (json.JSONDecodeError, Exception) as e:
         # Fallback: try to extract what we can
+        logger.warning(f"JSON parsing failed: {e}")
         return LLMReviewOutput(
             review_text=content if isinstance(content, str) else "Review generation failed.",
             verdict="MIXED BAG",
@@ -123,3 +168,4 @@ Write your "Worth the Watch?" review based on these real internet opinions."""
             vibe="Unable to determine",
             confidence="LOW",
         )
+

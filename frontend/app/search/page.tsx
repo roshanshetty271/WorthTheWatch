@@ -183,6 +183,19 @@ function SearchContent() {
             </button>
           </div>
 
+          {/* Low Confidence Warning */}
+          {generatedMovie.review?.confidence === "LOW" && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <span className="text-amber-400 text-lg">⚠️</span>
+              <div>
+                <p className="text-sm font-medium text-amber-300">Limited Sources Available</p>
+                <p className="text-xs text-amber-400/80 mt-0.5">
+                  This review is based on limited online discussion. Take it with a grain of salt!
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Main Result Card */}
           <div className="rounded-2xl border border-surface-elevated bg-gradient-to-br from-surface-card to-surface-elevated overflow-hidden">
             {/* Verdict Header */}

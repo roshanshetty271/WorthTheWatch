@@ -6,6 +6,7 @@ Free tier: 2500 searches on signup.
 
 import httpx
 from app.config import get_settings
+from app.services.retry import with_retry
 
 settings = get_settings()
 
@@ -18,6 +19,7 @@ class SerperService:
             "Content-Type": "application/json",
         }
 
+    @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
     async def search(self, query: str, num_results: int = 10) -> list[dict]:
         """Search Google via Serper. Returns list of {title, link, snippet}."""
         async with httpx.AsyncClient(timeout=10) as client:
