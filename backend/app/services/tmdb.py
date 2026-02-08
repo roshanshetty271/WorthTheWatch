@@ -32,25 +32,39 @@ class TMDBService:
             resp.raise_for_status()
             return resp.json()
 
+    def _filter_results(self, items: list[dict]) -> list[dict]:
+        """Filter out adult/porn content. Does NOT filter R-rated normal movies."""
+        filtered = []
+        for item in items:
+            # Skip porn — TMDB marks XXX content with adult=True
+            # This does NOT affect R-rated movies like Deadpool or John Wick
+            if item.get("adult", False):
+                continue
+            # Skip items without a title
+            if not (item.get("title") or item.get("name")):
+                continue
+            filtered.append(item)
+        return filtered
+
     async def get_trending(self, media_type: str = "all", time_window: str = "day", page: int = 1) -> list[dict]:
         """Get trending movies/tv. media_type: 'all', 'movie', 'tv'"""
         data = await self._get(f"/trending/{media_type}/{time_window}", {"page": page})
-        return data.get("results", [])
+        return self._filter_results(data.get("results", []))
 
     async def get_now_playing(self, page: int = 1) -> list[dict]:
         """Movies currently in theaters."""
         data = await self._get("/movie/now_playing", {"page": page})
-        return data.get("results", [])
+        return self._filter_results(data.get("results", []))
 
     async def get_upcoming(self, page: int = 1) -> list[dict]:
         """Movies coming soon — for pre-computation."""
         data = await self._get("/movie/upcoming", {"page": page})
-        return data.get("results", [])
+        return self._filter_results(data.get("results", []))
 
     async def get_popular_tv(self, page: int = 1) -> list[dict]:
         """Popular TV shows."""
         data = await self._get("/tv/popular", {"page": page})
-        return data.get("results", [])
+        return self._filter_results(data.get("results", []))
 
     async def get_movie_details(self, tmdb_id: int) -> dict:
         """Full movie details."""
@@ -62,10 +76,16 @@ class TMDBService:
 
     async def search(self, query: str, page: int = 1) -> list[dict]:
         """Multi-search across movies and TV."""
-        data = await self._get("/search/multi", {"query": query, "page": page})
+        data = await self._get("/search/multi", {
+            "query": query,
+            "page": page,
+            "include_adult": "false",  # First layer: API-level filter
+        })
         results = data.get("results", [])
         # Filter to only movies and tv
-        return [r for r in results if r.get("media_type") in ("movie", "tv")]
+        results = [r for r in results if r.get("media_type") in ("movie", "tv")]
+        # Second layer: local filter for extra safety
+        return self._filter_results(results)
 
     async def get_watch_providers(self, tmdb_id: int, media_type: str = "movie", region: str = "US") -> dict:
         """

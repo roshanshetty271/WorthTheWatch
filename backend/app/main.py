@@ -107,6 +107,31 @@ async def seed_database(
     return {"status": "seeded", **result}
 
 
+# ─── Delete Movie Endpoint (Maintenance) ──────────────────
+
+@app.delete("/api/movies/{tmdb_id}")
+async def delete_movie(
+    tmdb_id: int,
+    secret: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a movie and its review from the database."""
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    
+    result = await db.execute(
+        select(Movie).where(Movie.tmdb_id == tmdb_id)
+    )
+    movie = result.scalar_one_or_none()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    title = movie.title
+    await db.delete(movie)
+    await db.commit()
+    return {"status": "deleted", "title": title, "tmdb_id": tmdb_id}
+
+
 # ─── Regenerate Endpoint (Maintenance) ─────────────────────
 
 # ─── Regenerate Endpoint (Maintenance) ─────────────────────
