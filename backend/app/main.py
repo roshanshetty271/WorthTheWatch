@@ -6,9 +6,10 @@ Worth the Watch? — FastAPI Application
 import logging
 import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import init_db, get_db
@@ -108,9 +109,12 @@ async def seed_database(
 
 # ─── Regenerate Endpoint (Maintenance) ─────────────────────
 
+# ─── Regenerate Endpoint (Maintenance) ─────────────────────
+
 @app.post("/api/regenerate")
 async def regenerate_all_reviews(
     secret: str = "",
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Re-generate all existing reviews with the current prompt."""
@@ -119,35 +123,52 @@ async def regenerate_all_reviews(
 
     from sqlalchemy import select
     from sqlalchemy.orm import joinedload
-    from app.services.pipeline import generate_review_for_movie
 
-    # Get all movies that have reviews — use .unique() to avoid duplicates from joinedload
+    # Count how many movies need regeneration
     result = await db.execute(
         select(Movie).options(joinedload(Movie.review))
     )
     all_movies = result.unique().scalars().all()
     movies_with_reviews = [m for m in all_movies if m.review is not None]
 
-    regenerated = 0
-    failed = 0
+    # Get the TMDB IDs to pass to background task (can't pass ORM objects)
+    tmdb_ids = [m.tmdb_id for m in movies_with_reviews]
 
-    movies_len = len(movies_with_reviews)
-    logger.info(f"🔄 Starting regeneration for {movies_len} movies...")
-
-    for movie in movies_with_reviews:
-        try:
-            await generate_review_for_movie(db, movie)
-            await db.commit()
-            regenerated += 1
-            logger.info(f"♻️ [{regenerated}/{movies_len}] Regenerated: {movie.title}")
-        except Exception as e:
-            await db.rollback()
-            failed += 1
-            logger.error(f"❌ Failed to regenerate {movie.title}: {e}")
+    # Run in background — return immediately
+    background_tasks.add_task(_regenerate_background, tmdb_ids)
 
     return {
-        "status": "completed",
-        "regenerated": regenerated,
-        "failed": failed,
-        "total": movies_len,
+        "status": "started",
+        "message": f"Regenerating {len(tmdb_ids)} reviews in background. Watch the server logs.",
+        "count": len(tmdb_ids),
     }
+
+
+async def _regenerate_background(tmdb_ids: list[int]):
+    """Background task: regenerate reviews for given TMDB IDs."""
+    from app.database import async_session
+    from app.services.pipeline import generate_review_for_movie
+
+    total = len(tmdb_ids)
+    regenerated = 0
+    failed = 0
+    logger.info(f"🔄 Background regeneration started for {total} movies")
+
+    for i, tmdb_id in enumerate(tmdb_ids):
+        async with async_session() as db:
+            try:
+                result = await db.execute(
+                    select(Movie).where(Movie.tmdb_id == tmdb_id)
+                )
+                movie = result.scalar_one_or_none()
+                if movie:
+                    logger.info(f"♻️ [{i+1}/{total}] Regenerating: {movie.title}")
+                    await generate_review_for_movie(db, movie)
+                    await db.commit()
+                    regenerated += 1
+            except Exception as e:
+                await db.rollback()
+                failed += 1
+                logger.error(f"❌ Failed to regenerate tmdb_id {tmdb_id}: {e}")
+
+    logger.info(f"🏁 Regeneration complete: {regenerated} success, {failed} failed out of {total}")
