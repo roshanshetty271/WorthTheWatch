@@ -17,9 +17,16 @@ _daily_reset_time = time.time()
 
 
 def _get_client_ip(request: Request) -> str:
+    """
+    Get client IP address.
+    Uses RIGHTMOST IP from X-Forwarded-For (set by trusted edge proxy).
+    Leftmost IPs can be spoofed by the client.
+    """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Rightmost IP is added by our trusted proxy, harder to spoof
+        ips = [ip.strip() for ip in forwarded.split(",")]
+        return ips[-1] if ips else "unknown"
     return request.client.host if request.client else "unknown"
 
 

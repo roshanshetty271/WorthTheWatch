@@ -32,3 +32,4 @@ Thumbs.db
 
 # Project Specific - Exclude internal docs from public repo
 WorthTheWatch_Technical_Architecture_v2.md
+auth-security-checklist.md

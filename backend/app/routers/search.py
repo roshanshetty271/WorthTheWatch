@@ -4,6 +4,7 @@ Search for movies and trigger on-demand review generation.
 """
 
 import hashlib
+import os
 from fastapi import APIRouter, Depends, Query, Request, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,9 @@ from app.middleware.rate_limit import check_rate_limit
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
+# Salt for IP hashing (prevents rainbow table attacks)
+IP_HASH_SALT = os.getenv("IP_HASH_SALT", "wtw-default-salt-change-in-prod")
+
 
 @router.get("", response_model=SearchResult)
 async def search_movies(
@@ -34,10 +38,9 @@ async def search_movies(
     Search for a movie/show. If found in DB with review, returns immediately.
     If not in DB, searches TMDB and triggers background review generation.
     """
-    # Log search event
-    ip_hash = hashlib.sha256(
-        (request.client.host if request.client else "unknown").encode()
-    ).hexdigest()[:16]
+    # Log search event (salted hash for privacy)
+    raw_ip = request.client.host if request.client else "unknown"
+    ip_hash = hashlib.sha256(f"{IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
     db.add(SearchEvent(query=q, ip_hash=ip_hash))
 
     # Check if already in our DB (case-insensitive search)
@@ -93,7 +96,7 @@ async def search_movies(
     )
 
 
-@router.get("/generate/{tmdb_id}")
+@router.post("/generate/{tmdb_id}")
 async def trigger_generation(
     tmdb_id: int,
     media_type: str = Query("movie", pattern="^(movie|tv)$"),

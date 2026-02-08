@@ -100,7 +100,9 @@ export async function triggerGeneration(
   tmdbId: number,
   mediaType: string = "movie"
 ): Promise<{ status: string; tmdb_id: number }> {
-  return fetchAPI(`/search/generate/${tmdbId}?media_type=${mediaType}`);
+  return fetchAPI(`/search/generate/${tmdbId}?media_type=${mediaType}`, {
+    method: "POST",
+  });
 }
 
 export async function checkGenerationStatus(tmdbId: number): Promise<{

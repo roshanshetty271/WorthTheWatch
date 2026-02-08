@@ -4,6 +4,7 @@ Worth the Watch? — FastAPI Application
 """
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -82,7 +83,7 @@ async def cron_daily(
     Daily sync endpoint. Called by external cron (cron-job.org).
     Protected by CRON_SECRET to prevent unauthorized triggers.
     """
-    if secret != settings.CRON_SECRET:
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
     result = await run_daily_sync(db, max_new=20)
@@ -98,7 +99,7 @@ async def seed_database(
     db: AsyncSession = Depends(get_db),
 ):
     """Seed the database with trending titles. For initial setup only."""
-    if secret != settings.CRON_SECRET:
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     result = await run_daily_sync(db, max_new=count)
