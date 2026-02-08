@@ -130,21 +130,15 @@ export default async function MoviePage({ params }: Props) {
               ) : null}
             </div>
 
-            {movie.overview && (
-              <p className="text-sm leading-relaxed text-text-secondary">
-                {movie.overview}
-              </p>
-            )}
-
-            {/* Quick verdict preview for mobile */}
+            {/* Quick verdict preview for mobile - moved above overview */}
             {review && (
-              <div className="sm:hidden">
+              <div className="mb-4 sm:hidden">
                 <div
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${review.verdict === "WORTH IT"
-                      ? "bg-verdict-worth/15 text-verdict-worth"
-                      : review.verdict === "NOT WORTH IT"
-                        ? "bg-verdict-skip/15 text-verdict-skip"
-                        : "bg-verdict-mixed/15 text-verdict-mixed"
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm ${review.verdict === "WORTH IT"
+                    ? "bg-verdict-worth text-white"
+                    : review.verdict === "NOT WORTH IT"
+                      ? "bg-verdict-skip text-white"
+                      : "bg-verdict-mixed text-white"
                     }`}
                 >
                   {review.verdict === "WORTH IT" && "✅"}
@@ -153,6 +147,12 @@ export default async function MoviePage({ params }: Props) {
                   {review.verdict}
                 </div>
               </div>
+            )}
+
+            {movie.overview && (
+              <p className="text-sm leading-relaxed text-text-secondary">
+                {movie.overview}
+              </p>
             )}
           </div>
         </div>
