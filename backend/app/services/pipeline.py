@@ -289,59 +289,33 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     # ─── Step 1: SEARCH ────────────────────────────────────
     try:
-        # Three parallel searches for diverse sources
-        job_progress[tmdb_id] = "Searching for reviews..."
-        critic_results, reddit_results, forum_results = await asyncio.gather(
+        # Run ALL searches in parallel — Serper + Guardian + NYT
+        logger.info(f"🚀 Step 1/4: Launching parallel searches for '{title}'...")
+        search_results = await asyncio.gather(
             serper_service.search_reviews(title, year),
             serper_service.search_reddit(title, year),
             serper_service.search_forums(title, year),
-            return_exceptions=True,
-        )
-        # Handle individual failures gracefully
-        if isinstance(critic_results, Exception):
-            logger.error(f"Critic search failed: {critic_results}")
-            critic_results = []
-        if isinstance(reddit_results, Exception):
-            logger.error(f"Reddit search failed: {reddit_results}")
-            reddit_results = []
-        if isinstance(forum_results, Exception):
-            logger.error(f"Forum search failed: {forum_results}")
-            forum_results = []
-    except Exception as e:
-        logger.error(f"Serper search failed: {e}")
-        critic_results, reddit_results, forum_results = [], [], []
-
-    all_results = critic_results + reddit_results + forum_results
-    
-    # Extract Reddit snippets from Serper results as backup
-    # These are available even when Reddit blocks direct access
-    reddit_snippets = []
-    for r in all_results:
-        link = r.get("link", "").lower()
-        if "reddit.com" in link:
-            snippet = r.get("snippet", "")
-            result_title = r.get("title", "")
-            if snippet and len(snippet) > 40:
-                # Clean up the snippet
-                clean_snippet = f"Reddit ({result_title}):\n{snippet}"
-                reddit_snippets.append(clean_snippet)
-    
-    if reddit_snippets:
-        logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
-    
-    # ─── Step 1b: Guardian + NYT (Phase 2) ─────────────────
-    try:
-        guardian_results, nyt_results = await asyncio.gather(
-            guardian_service.search_film_reviews(title, year),
+            guardian_service.search_reviews(title, year),
             nyt_service.search_reviews(title),
             return_exceptions=True,
         )
-        if isinstance(guardian_results, Exception):
-            logger.warning(f"Guardian search failed: {guardian_results}")
-            guardian_results = []
-        if isinstance(nyt_results, Exception):
-            logger.warning(f"NYT search failed: {nyt_results}")
-            nyt_results = []
+        
+        # Unpack results
+        serper_critics = search_results[0] if not isinstance(search_results[0], Exception) else []
+        serper_reddit = search_results[1] if not isinstance(search_results[1], Exception) else []
+        serper_forums = search_results[2] if not isinstance(search_results[2], Exception) else []
+        guardian_results = search_results[3] if not isinstance(search_results[3], Exception) else []
+        nyt_results = search_results[4] if not isinstance(search_results[4], Exception) else []
+
+        # Log failures
+        if isinstance(search_results[0], Exception): logger.error(f"Critic search failed: {search_results[0]}")
+        if isinstance(search_results[1], Exception): logger.error(f"Reddit search failed: {search_results[1]}")
+        if isinstance(search_results[2], Exception): logger.error(f"Forum search failed: {search_results[2]}")
+        if isinstance(search_results[3], Exception): logger.warning(f"Guardian search failed: {search_results[3]}")
+        if isinstance(search_results[4], Exception): logger.warning(f"NYT search failed: {search_results[4]}")
+
+        # Combine all results
+        all_results = serper_critics + serper_reddit + serper_forums
         
         # Add critic URLs to results
         for article in guardian_results:
@@ -351,8 +325,12 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         
         if guardian_results or nyt_results:
             logger.info(f"   → Added {len(guardian_results)} Guardian + {len(nyt_results)} NYT reviews")
+            
     except Exception as e:
-        logger.warning(f"Phase 2 critic APIs failed: {e}")
+        logger.error(f"Search aggregation failed: {e}")
+        all_results = []
+    
+    # Phase 2 critic APIs already merged in Step 1 (parallel execution)
 
     if not all_results:
         logger.warning(f"No search results found for '{title}'")
@@ -371,43 +349,45 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         logger.info(f"   {i}. {url[:100]}...")
     logger.info("=" * 60)
 
+    # ─── STEP: Capture Reddit snippets from Serper results ───
+    # Do this BEFORE article fetching (already done, keep it)
+    reddit_snippets = []
+    for r in all_results:
+        link = r.get("link", "").lower()
+        if "reddit.com" in link:
+            snippet = r.get("snippet", "")
+            result_title = r.get("title", "")
+            if snippet and len(snippet) > 40:
+                reddit_snippets.append(f"Reddit ({result_title}):\n{snippet}")
+    
+    if reddit_snippets:
+        logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
+
     # ─── Step 2: READ ──────────────────────────────────────
     job_progress[tmdb_id] = "Gathering opinions..."
-    # Now returns (articles, failed_urls)
-    articles, failed_urls = await jina_service.read_urls(selected_urls, max_concurrent=10)
-    logger.info(f"   → Successfully read {len(articles)} articles")
     
-    # Check for failures and backfill
-    failed_count = len(failed_urls)
-    if failed_count > 0 and backfill_urls:
-        # Only backfill up to 3 URLs with a shorter timeout
+    # ─── STEP: Read articles ───
+    articles, failed_urls = await jina_service.read_urls(selected_urls, max_concurrent=5)
+    
+    # ─── STEP: Smart backfill — only if we're short on data ───
+    if len(articles) >= 5:
+        logger.info(f"📚 {len(articles)} articles sufficient — skipping backfill")
+    elif backfill_urls:
         backfill_count = min(3, len(backfill_urls))
-        logger.info(f"🔄 {failed_count} sources failed — backfilling with {backfill_count} alternatives")
-        
-        # Read backfill URLs
+        logger.info(f"🔄 Only {len(articles)} articles — backfilling {backfill_count}")
         backfill_articles, _ = await jina_service.read_urls(
-            backfill_urls[:backfill_count], 
+            backfill_urls[:backfill_count],
             max_concurrent=5,
-            timeout=5.0  # Shorter timeout for backfill
+            timeout=5.0,
         )
-        if backfill_articles:
-            articles.extend(backfill_articles)
-            logger.info(f"📖 Backfill coverage: +{len(backfill_articles)} articles")
-
-    # ALWAYS inject Reddit snippets as supplementary data
-    # Even if we got full Reddit threads, snippets add more voices
-    if reddit_snippets:
-        combined_snippets = "\n\n---\n\n".join(reddit_snippets[:12])
-        articles.append(combined_snippets)
-        logger.info(f"💬 Injected {len(reddit_snippets)} Reddit comment snippets")
+        articles.extend(backfill_articles)
+        logger.info(f"📖 Backfill: +{len(backfill_articles)} articles")
+    else:
+        logger.info(f"📚 {len(articles)} articles, no backfill URLs available")
     
-    # DEBUG: Log content lengths from each article
+    # DEBUG: Log content lengths
     logger.info("📊 ARTICLE CONTENT LENGTHS:")
-    total_chars = 0
-    for i, article in enumerate(articles, 1):
-        char_count = len(article) if article else 0
-        total_chars += char_count
-        logger.info(f"   Article {i}: {char_count:,} chars")
+    total_chars = sum(len(a) for a in articles)
     logger.info(f"   TOTAL: {total_chars:,} characters from {len(articles)} articles")
 
     if not articles:
@@ -420,10 +400,61 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # ─── Step 3: GREP ──────────────────────────────────────
     job_progress[tmdb_id] = "Analyzing feedback..."
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
+    
+    # ─── STEP: Grep filter ONLY the scraped articles ───
+    # Reddit snippets bypass grep — they're already pure opinion
     filtered_opinions = extract_opinion_paragraphs(articles)
     
-    # DEBUG: Log filtered content
-    logger.info(f"🔍 FILTERED OPINIONS: {len(filtered_opinions):,} chars (from {total_chars:,} raw chars)")
+    logger.info(
+        f"🔍 FILTERED OPINIONS: {len(filtered_opinions)} chars "
+        f"(from {total_chars} raw chars)"
+    )
+    
+    # ─── STEP: Append Reddit snippets AFTER grep ───
+    # This is critical — snippets must ALWAYS reach the LLM
+    # They bypass grep because they're already opinion text
+    snippet_text = ""
+    if reddit_snippets:
+        snippet_text = "\n\n".join(reddit_snippets[:10])
+        filtered_opinions = (
+            filtered_opinions 
+            + "\n\n--- What Reddit Thinks ---\n\n" 
+            + snippet_text
+        )
+        logger.info(
+            f"💬 Appended {len(snippet_text)} chars of Reddit snippets "
+            f"(bypassed grep — pure crowd opinion)"
+        )
+        logger.info(
+            f"📊 TOTAL to LLM: {len(filtered_opinions)} chars "
+            f"(filtered articles + Reddit snippets)"
+        )
+
+    # ─── STEP: Truncate to LLM limit ───
+    # Make sure snippets don't get cut off by truncation
+    # If we have to truncate, keep at least the snippet portion
+    MAX_LLM_CHARS = 18000
+    
+    if len(filtered_opinions) > MAX_LLM_CHARS:
+        if snippet_text:
+            # Reserve space for snippets at the end
+            snippet_reserve = min(len(snippet_text) + 50, 5000)
+            article_limit = MAX_LLM_CHARS - snippet_reserve
+            
+            # Find where the snippet section starts
+            snippet_marker = "--- What Reddit Thinks ---"
+            marker_pos = filtered_opinions.find(snippet_marker)
+            
+            if marker_pos > 0:
+                article_part = filtered_opinions[:marker_pos][:article_limit]
+                snippet_part = filtered_opinions[marker_pos:][:snippet_reserve]
+                filtered_opinions = article_part + "\n\n" + snippet_part
+            else:
+                filtered_opinions = filtered_opinions[:MAX_LLM_CHARS]
+        else:
+            filtered_opinions = filtered_opinions[:MAX_LLM_CHARS]
+    
+    logger.info(f"📨 Sending {len(filtered_opinions)} chars to LLM")
 
     if not filtered_opinions or len(filtered_opinions) < 50:
         # Use raw snippets as fallback
@@ -435,7 +466,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
     job_progress[tmdb_id] = "Writing your verdict..."
     logger.info(f"🧠 Step 4/4: Generating review with LLM for '{title}'")
-    logger.info(f"   → Sending {len(filtered_opinions[:18000]):,} chars to LLM")
+    logger.info(f"   → Sending {len(filtered_opinions)} chars to LLM")
     logger.info(f"   → TMDB Score: {movie.tmdb_vote_average}")
     
     # Calculate confidence from actual data metrics
@@ -453,7 +484,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             year=year,
             genres=genres,
             overview=movie.overview or "",
-            opinions=filtered_opinions[:18000], # Truncate to fit
+            opinions=filtered_opinions, # Already truncated
             sources_count=len(articles),
             tmdb_score=movie.tmdb_vote_average or 0.0,
             tmdb_vote_count=movie.tmdb_vote_count or 0,
@@ -556,15 +587,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     logger.info(f"🎬 Step 5/5: Fetching OMDB scores and trailer for '{title}'")
     
     try:
-        # Parallel fetch: OMDB scores + trailer (try KinoCheck then TMDB)
-        omdb_task = omdb_service.get_scores_by_title(
-            title, year, "series" if movie.media_type == "tv" else "movie"
+        # Step 5: Enrichment — all in parallel
+        enrichment_results = await asyncio.gather(
+            omdb_service.get_scores_by_title(title, year, "series" if movie.media_type == "tv" else "movie"),
+            _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
+            return_exceptions=True,
         )
-        trailer_task = _get_best_trailer(movie.tmdb_id, movie.media_type or "movie")
         
-        omdb_scores, trailer_url = await asyncio.gather(
-            omdb_task, trailer_task, return_exceptions=True
-        )
+        omdb_scores = enrichment_results[0] if not isinstance(enrichment_results[0], Exception) else None
+        trailer_url = enrichment_results[1] if not isinstance(enrichment_results[1], Exception) else None
         
         # Apply OMDB scores
         if not isinstance(omdb_scores, Exception):
