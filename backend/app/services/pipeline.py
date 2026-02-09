@@ -295,7 +295,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             serper_service.search_reviews(title, year),
             serper_service.search_reddit(title, year),
             serper_service.search_forums(title, year),
-            guardian_service.search_reviews(title, year),
+            guardian_service.search_film_reviews(title, year),
             nyt_service.search_reviews(title),
             return_exceptions=True,
         )
