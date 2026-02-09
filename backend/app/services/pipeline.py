@@ -407,26 +407,28 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             neg = llm_output.negative_pct
             
 
-            # OVERRIDE LOGIC
-            # We want to protect high-scoring masterpieces from being downgraded by mixed text analysis.
-            # But we must avoid protecting new/niche movies with few votes (skewed scores).
-            
-            # Condition for "High Score Privilege":
-            # 1. Score > 7.8 (Excellent)
-            # 2. Votes > 500 (Statistically significant)
-            has_high_score_privilege = (tmdb_score > 7.8 and (movie.tmdb_vote_count or 0) > 500)
-
-            # WORTH IT requires strong positive signal (Relaxed from 65% to 55%)
-            # EXCEPTION: If High Score Privilege applies, allow lower positive signal
-            if llm_output.verdict == "WORTH IT" and pos < 55 and not has_high_score_privilege:
-                logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (positive only {pos}%)")
-                llm_output.verdict = "MIXED BAG"
-            
-            # WORTH IT shouldn't have huge negative signal (Relaxed from 35% to 45%)
-            # EXCEPTION: If High Score Privilege applies, tolerate more negativity
-            if llm_output.verdict == "WORTH IT" and neg > 45 and not has_high_score_privilege:
-                logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (negative {neg}%)")
-                llm_output.verdict = "MIXED BAG"
+            # High Score Privilege — crowd has spoken
+            if (
+                movie.tmdb_vote_average and movie.tmdb_vote_average > 7.5
+                and movie.tmdb_vote_count and movie.tmdb_vote_count > 500
+                and llm_output.verdict != "WORTH IT"
+            ):
+                if llm_output.positive_pct and llm_output.positive_pct >= 45:
+                    logger.info(
+                        f"⭐ High Score Privilege: {movie.title} "
+                        f"(TMDB {movie.tmdb_vote_average}, {movie.tmdb_vote_count} votes) "
+                        f"{llm_output.verdict} → WORTH IT"
+                    )
+                    llm_output.verdict = "WORTH IT"
+                else:
+                    # Edge case: high TMDB but LLM found very negative articles
+                    # Split the difference
+                    logger.info(
+                        f"⚠️ High Score Conflict: {movie.title} "
+                        f"(TMDB {movie.tmdb_vote_average} but only {llm_output.positive_pct}% positive) "
+                        f"→ MIXED BAG"
+                    )
+                    llm_output.verdict = "MIXED BAG"
             
             # NOT WORTH IT requires strong negative signal (Relaxed cutoff)
             if llm_output.verdict == "NOT WORTH IT" and pos > 60:
