@@ -54,7 +54,7 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
     # Remove computed fields that aren't DB columns
     normalized.pop("poster_url", None)
     normalized.pop("backdrop_url", None)
-    normalized.pop("tmdb_vote_count", None)
+    # normalized.pop("tmdb_vote_count", None)  <-- KEEP THIS NOW
     normalized.pop("original_title", None)
 
     # Parse release_date string to date object before creating Movie
@@ -395,6 +395,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             opinions=filtered_opinions[:18000], # Truncate to fit
             sources_count=len(articles),
             tmdb_score=movie.tmdb_vote_average or 0.0,
+            tmdb_vote_count=movie.tmdb_vote_count or 0,
             confidence_tier=confidence_stats["confidence_tier"],
             articles_read=confidence_stats["articles_read"],
             reddit_sources=confidence_stats["reddit_sources"],
@@ -405,13 +406,25 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             pos = llm_output.positive_pct
             neg = llm_output.negative_pct
             
+
+            # OVERRIDE LOGIC
+            # We want to protect high-scoring masterpieces from being downgraded by mixed text analysis.
+            # But we must avoid protecting new/niche movies with few votes (skewed scores).
+            
+            # Condition for "High Score Privilege":
+            # 1. Score > 7.8 (Excellent)
+            # 2. Votes > 500 (Statistically significant)
+            has_high_score_privilege = (tmdb_score > 7.8 and (movie.tmdb_vote_count or 0) > 500)
+
             # WORTH IT requires strong positive signal (Relaxed from 65% to 55%)
-            if llm_output.verdict == "WORTH IT" and pos < 55:
+            # EXCEPTION: If High Score Privilege applies, allow lower positive signal
+            if llm_output.verdict == "WORTH IT" and pos < 55 and not has_high_score_privilege:
                 logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (positive only {pos}%)")
                 llm_output.verdict = "MIXED BAG"
             
             # WORTH IT shouldn't have huge negative signal (Relaxed from 35% to 45%)
-            if llm_output.verdict == "WORTH IT" and neg > 45:
+            # EXCEPTION: If High Score Privilege applies, tolerate more negativity
+            if llm_output.verdict == "WORTH IT" and neg > 45 and not has_high_score_privilege:
                 logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (negative {neg}%)")
                 llm_output.verdict = "MIXED BAG"
             

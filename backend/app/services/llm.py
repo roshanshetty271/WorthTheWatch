@@ -91,6 +91,12 @@ CALIBRATION:
 - No quotas. No targets. 
 - If 90% of movies are fun and worth watching, then give 90% WORTH IT. We trust the internet.
 
+HIGH SCORE PRIVILEGE (CRITICAL):
+- If the TMDB User Rating is > 8.0, this is a MASTERPIECE.
+- You MUST default to "WORTH IT" for any score > 8.0 unless there is a catastrophic, well-documented reason not to.
+- Do NOT nitpick high-scoring movies. "Interstellar" (8.5) is WORTH IT. "The Dark Knight" (8.5) is WORTH IT.
+- If the score is high but reviews are mixed, assume the reviews are the minority opinion and trust the score.
+
 RULES:
 - Write in a conversational, opinionated voice. Like a friend who watched it.
 - NEVER include spoilers. 
@@ -143,6 +149,7 @@ async def synthesize_review(
     opinions: str,
     sources_count: int,
     tmdb_score: float = 0.0,
+    tmdb_vote_count: int = 0,
     confidence_tier: str = "MEDIUM",
     articles_read: int = 0,
     reddit_sources: int = 0,
@@ -183,7 +190,7 @@ INSTRUCTIONS FOR HIGH DATA:
 
     user_prompt = f"""Movie/Show: {title} ({year})
 Genre: {genres}
-TMDB User Rating: {tmdb_score}/10 (based on thousands of votes)
+TMDB User Rating: {tmdb_score}/10 (based on {tmdb_vote_count} votes)
 Description: {overview}
 
 {data_context}
