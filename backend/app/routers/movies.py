@@ -8,7 +8,15 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, desc, and_, or_
 
-# ... (rest of imports)
+from typing import Optional, List
+from sqlalchemy.orm import joinedload, Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
+from app.models import Movie, Review
+from app.schemas import MovieResponse, ReviewResponse, MovieWithReview, PaginatedMovies
+from app.services.tmdb import tmdb_service
+
+router = APIRouter()
 
 @router.get("", response_model=PaginatedMovies)
 async def list_movies(
