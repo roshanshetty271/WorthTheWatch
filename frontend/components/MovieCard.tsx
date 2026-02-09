@@ -118,9 +118,11 @@ export default function MovieCard({ data }: MovieCardProps) {
             <span className="opacity-0" /> // Spacer
           )}
 
-          {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-medium text-accent-gold backdrop-blur-md">
-              ★ {movie.tmdb_vote_average.toFixed(1)}
+          {/* Rating Badge - Prioritize IMDb, fallback to TMDB */}
+          {(review?.imdb_score || (movie.tmdb_vote_average && movie.tmdb_vote_average > 0)) && (
+            <span className={`inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-medium backdrop-blur-md ${review?.imdb_score ? 'text-amber-400' : 'text-accent-gold'}`}>
+              <span>⭐</span>
+              {review?.imdb_score ? review.imdb_score.toFixed(1) : movie.tmdb_vote_average?.toFixed(1)}
             </span>
           )}
         </div>

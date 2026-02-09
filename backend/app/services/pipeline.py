@@ -207,6 +207,26 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     """
     tmdb_id = movie.tmdb_id
     title = movie.title
+    
+    # ─── Title Sanity Check ────────────────────────────────
+    # Sanity check: title must be a clean movie title from TMDB
+    # If title looks corrupted (Reddit thread title), refetch it
+    if any(s in title.lower() for s in ["reddit", "anyone", "watched", "discussion", "experience", "..."]) or len(title) > 80:
+        logger.error(f"⚠️ Corrupted title detected: '{title[:80]}'")
+        try:
+            if movie.media_type == "tv":
+                tmdb_data = await tmdb_service.get_tv_details(movie.tmdb_id)
+            else:
+                tmdb_data = await tmdb_service.get_movie_details(movie.tmdb_id)
+            if tmdb_data:
+                clean_title = tmdb_data.get("title") or tmdb_data.get("name")
+                if clean_title:
+                    title = clean_title
+                    movie.title = clean_title
+                    logger.info(f"🔧 Title fixed: '{clean_title}'")
+        except Exception as e:
+            logger.error(f"Could not fix title: {e}")
+
     year = str(movie.release_date.year) if movie.release_date else ""
     genres = ", ".join(g.get("name", "") for g in (movie.genres or []) if g.get("name"))
 
@@ -297,13 +317,17 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # These are available even when Reddit blocks direct access
     reddit_snippets = []
     for r in all_results:
-        if "reddit.com" in r.get("link", "").lower():
+        link = r.get("link", "").lower()
+        if "reddit.com" in link:
             snippet = r.get("snippet", "")
-            title = r.get("title", "")
-            if snippet and len(snippet) > 30:
-                reddit_snippets.append(f"Reddit: {title}\n{snippet}")
+            result_title = r.get("title", "")
+            if snippet and len(snippet) > 40:
+                # Clean up the snippet
+                clean_snippet = f"Reddit ({result_title}):\n{snippet}"
+                reddit_snippets.append(clean_snippet)
     
-    reddit_backup = "\n\n".join(reddit_snippets) if reddit_snippets else ""
+    if reddit_snippets:
+        logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
     
     # ─── Step 1b: Guardian + NYT (Phase 2) ─────────────────
     try:
@@ -337,7 +361,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         return await _create_fallback_review(db, movie, genres)
 
     # Select diverse, high-quality sources
-    selected_urls = select_best_sources(all_results, movie_title=title, max_total=12)  # Increased from 8 for better accuracy
+    selected_urls, backfill_urls = select_best_sources(all_results, movie_title=title, max_total=12)
     logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
     
     # DEBUG: Log each URL being fetched
@@ -349,17 +373,32 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     # ─── Step 2: READ ──────────────────────────────────────
     job_progress[tmdb_id] = "Gathering opinions..."
-    articles = await jina_service.read_urls(selected_urls, max_concurrent=10)
+    # Now returns (articles, failed_urls)
+    articles, failed_urls = await jina_service.read_urls(selected_urls, max_concurrent=10)
     logger.info(f"   → Successfully read {len(articles)} articles")
     
-    # Check how many Reddit articles actually succeeded
-    reddit_urls_attempted = sum(1 for u in selected_urls if "reddit.com" in u.lower())
-    reddit_success = sum(1 for u, a in zip(selected_urls, articles) if "reddit.com" in u.lower() and a)
-    
-    # If Reddit scraping mostly failed, inject the Serper snippets as backup
-    if reddit_urls_attempted > 0 and reddit_success == 0 and reddit_backup:
-        logger.info(f"🔄 Reddit blocked in production — using {len(reddit_snippets)} Serper snippets as backup")
-        articles.append(reddit_backup)
+    # Check for failures and backfill
+    failed_count = len(failed_urls)
+    if failed_count > 0 and backfill_urls:
+        # Don't backfill more than we detected as failed
+        backfill_count = min(failed_count, len(backfill_urls))
+        logger.info(f"🔄 {failed_count} sources failed — backfilling with {backfill_count} alternatives")
+        
+        # Read backfill URLs
+        backfill_articles, _ = await jina_service.read_urls(
+            backfill_urls[:backfill_count], 
+            max_concurrent=5
+        )
+        if backfill_articles:
+            articles.extend(backfill_articles)
+            logger.info(f"📖 Backfill coverage: +{len(backfill_articles)} articles")
+
+    # ALWAYS inject Reddit snippets as supplementary data
+    # Even if we got full Reddit threads, snippets add more voices
+    if reddit_snippets:
+        combined_snippets = "\n\n---\n\n".join(reddit_snippets[:12])
+        articles.append(combined_snippets)
+        logger.info(f"💬 Injected {len(reddit_snippets)} Reddit comment snippets")
     
     # DEBUG: Log content lengths from each article
     logger.info("📊 ARTICLE CONTENT LENGTHS:")

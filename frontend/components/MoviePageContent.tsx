@@ -115,9 +115,10 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                             {movie.media_type}
                                         </span>
                                     )}
-                                    {movie.tmdb_vote_average ? (
-                                        <span className="rounded-full bg-accent-gold/20 backdrop-blur-sm px-3 py-1 text-accent-gold font-medium">
-                                            ⭐ {movie.tmdb_vote_average.toFixed(1)}
+                                    {(review?.imdb_score || movie.tmdb_vote_average) ? (
+                                        <span className={`rounded-full backdrop-blur-sm px-3 py-1 font-medium flex items-center gap-1.5 ${review?.imdb_score ? 'bg-amber-400/20 text-amber-400' : 'bg-accent-gold/20 text-accent-gold'}`}>
+                                            <span>⭐</span>
+                                            {review?.imdb_score ? review.imdb_score.toFixed(1) : movie.tmdb_vote_average?.toFixed(1)}
                                         </span>
                                     ) : null}
                                 </div>

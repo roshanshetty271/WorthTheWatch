@@ -209,29 +209,42 @@ class ArticleReader:
             logger.debug(f"BS4 failed for {url[:50]}: {e}")
             return None
 
-    async def read_urls(self, urls: list[str], max_concurrent: int = 5) -> list[str]:
-        """Read multiple URLs in parallel."""
+    async def read_urls(self, urls: list[str], max_concurrent: int = 5) -> tuple[list[str], list[str]]:
+        """
+        Read multiple URLs in parallel.
+        Returns (successful_articles, failed_urls).
+        """
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def _read(url: str) -> Optional[str]:
+        async def _read(url: str) -> tuple[str, Optional[str]]:
             async with semaphore:
-                return await self.read_url(url)
+                content = await self.read_url(url)
+                return (url, content)
 
         tasks = [_read(url) for url in urls]
         # Use return_exceptions=True to prevent one failure from crashing all
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Filter out exceptions and None values
-        successful = []
+        articles = []
+        failed = []
+        
         for r in results:
-            if isinstance(r, Exception):
+            if isinstance(r, tuple):
+                url, content = r
+                if content:
+                    articles.append(content)
+                else:
+                    failed.append(url)
+            else:
+                # Exception occurred (shouldn't happen with return_exceptions=True inside _read, but safe to handle)
+                failed.append("unknown_error")
                 logger.error(f"Error reading URL: {r}")
-                continue
-            if isinstance(r, str) and r:
-                successful.append(r)
-                
-        logger.info(f"📖 Read {len(successful)}/{len(urls)} articles successfully")
-        return successful
+
+        logger.info(f"📖 Read {len(articles)}/{len(urls)} articles successfully")
+        if failed:
+            logger.info(f"❌ Failed URLs: {len(failed)}")
+            
+        return articles, failed
 
     def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
         """Parse Reddit content from Google's cached HTML."""

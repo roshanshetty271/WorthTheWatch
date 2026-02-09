@@ -151,7 +151,7 @@ def get_source_diversity_score(urls: list[str]) -> dict:
     return categories
 
 
-def select_best_sources(serper_results: list[dict], movie_title: str, max_total: int = 15) -> list[str]:
+def select_best_sources(serper_results: list[dict], movie_title: str, max_total: int = 15) -> tuple[list[str], list[str]]:
     """Pick diverse, high-quality URLs from search results with strict relevance filtering."""
     import re
 
@@ -232,5 +232,14 @@ def select_best_sources(serper_results: list[dict], movie_title: str, max_total:
         if normalized not in seen:
             seen.add(normalized)
             unique_selected.append(url)
+    
+    # Build backfill list: extra non-Reddit URLs we can use if Reddit fails
+    backfill = []
+    for url in urls:
+        normalized = url.rstrip("/").split("#")[0]
+        if normalized not in seen and "reddit.com" not in normalized.lower():
+            backfill.append(url)
+            if len(backfill) >= 6:
+                break
 
-    return unique_selected[:max_total]
+    return unique_selected[:max_total], backfill
