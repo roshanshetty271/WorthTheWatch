@@ -59,7 +59,7 @@ class ArticleReader:
 
     # ─── Main Entry Points ────────────────────────────────
 
-    async def read_url(self, url: str, timeout: float = 15.0) -> Optional[str]:
+    async def read_url(self, url: str, timeout: float = 8.0) -> Optional[str]:
         """Read a single URL and return clean text content."""
         url_lower = url.lower()
 
@@ -72,7 +72,7 @@ class ArticleReader:
         else:
             return await self._read_with_bs4(url, timeout)
 
-    async def read_urls(self, urls: list[str], max_concurrent: int = 5) -> tuple[list[str], list[str]]:
+    async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0) -> tuple[list[str], list[str]]:
         """
         Read multiple URLs with smart Reddit handling.
 
@@ -98,7 +98,7 @@ class ArticleReader:
 
             async def _read(url: str) -> tuple[str, Optional[str]]:
                 async with semaphore:
-                    content = await self.read_url(url)
+                    content = await self.read_url(url, timeout=timeout)
                     return (url, content)
 
             tasks = [_read(url) for url in other_urls]
@@ -117,7 +117,7 @@ class ArticleReader:
         # ─── Step 2: Handle Reddit URLs smartly ───
         if reddit_urls:
             reddit_articles, reddit_failed = await self._read_reddit_urls(
-                reddit_urls, max_concurrent
+                reddit_urls, max_concurrent, timeout=timeout
             )
             articles.extend(reddit_articles)
             failed.extend(reddit_failed)
@@ -131,7 +131,7 @@ class ArticleReader:
     # ─── Reddit Smart Handler ─────────────────────────────
 
     async def _read_reddit_urls(
-        self, urls: list[str], max_concurrent: int = 5
+        self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0
     ) -> tuple[list[str], list[str]]:
         """
         Smart Reddit fetching:
@@ -150,7 +150,7 @@ class ArticleReader:
         old_url = self._to_old_reddit(test_url)
 
         logger.info(f"🔍 Testing Reddit access with: {old_url[:60]}...")
-        test_result = await self._fetch_and_parse(old_url)
+        test_result = await self._fetch_and_parse(old_url, timeout=timeout)
 
         if test_result:
             # Reddit works! Fetch all remaining in parallel via old.reddit.com
@@ -164,10 +164,10 @@ class ArticleReader:
                 async def _read_reddit(url: str) -> tuple[str, Optional[str]]:
                     async with semaphore:
                         old = self._to_old_reddit(url)
-                        content = await self._fetch_and_parse(old)
+                        content = await self._fetch_and_parse(old, timeout=timeout)
                         # If individual URL fails, try cache for just that one
                         if not content:
-                            content = await self._fetch_google_cache(url)
+                            content = await self._fetch_google_cache(url, timeout=timeout)
                         return (url, content)
 
                 tasks = [_read_reddit(u) for u in remaining]
@@ -195,7 +195,7 @@ class ArticleReader:
 
             async def _cache_reddit(url: str) -> tuple[str, Optional[str]]:
                 async with semaphore:
-                    content = await self._fetch_google_cache(url)
+                    content = await self._fetch_google_cache(url, timeout=timeout)
                     return (url, content)
 
             tasks = [_cache_reddit(u) for u in urls[1:]]  # Skip test URL (already failed)
@@ -215,7 +215,7 @@ class ArticleReader:
 
     # ─── Core Fetch Methods ───────────────────────────────
 
-    async def _fetch_and_parse(self, url: str, timeout: float = 15.0) -> Optional[str]:
+    async def _fetch_and_parse(self, url: str, timeout: float = 8.0) -> Optional[str]:
         """Single fetch + parse attempt. No retries. Returns clean text or None."""
         from bs4 import BeautifulSoup
 
@@ -247,7 +247,7 @@ class ArticleReader:
             logger.debug(f"Fetch error for {url[:60]}: {e}")
             return None
 
-    async def _fetch_google_cache(self, url: str, timeout: float = 15.0) -> Optional[str]:
+    async def _fetch_google_cache(self, url: str, timeout: float = 8.0) -> Optional[str]:
         """Fetch Reddit content via Google's web cache."""
         # Normalize to www.reddit.com for cache lookup
         original = url.replace("old.reddit.com", "www.reddit.com")

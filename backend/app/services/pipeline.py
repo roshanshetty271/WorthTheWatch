@@ -380,14 +380,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # Check for failures and backfill
     failed_count = len(failed_urls)
     if failed_count > 0 and backfill_urls:
-        # Don't backfill more than we detected as failed
-        backfill_count = min(failed_count, len(backfill_urls))
+        # Only backfill up to 3 URLs with a shorter timeout
+        backfill_count = min(3, len(backfill_urls))
         logger.info(f"🔄 {failed_count} sources failed — backfilling with {backfill_count} alternatives")
         
         # Read backfill URLs
         backfill_articles, _ = await jina_service.read_urls(
             backfill_urls[:backfill_count], 
-            max_concurrent=5
+            max_concurrent=5,
+            timeout=5.0  # Shorter timeout for backfill
         )
         if backfill_articles:
             articles.extend(backfill_articles)
