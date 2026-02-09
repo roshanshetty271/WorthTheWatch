@@ -293,6 +293,18 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     all_results = critic_results + reddit_results + forum_results
     
+    # Extract Reddit snippets from Serper results as backup
+    # These are available even when Reddit blocks direct access
+    reddit_snippets = []
+    for r in all_results:
+        if "reddit.com" in r.get("link", "").lower():
+            snippet = r.get("snippet", "")
+            title = r.get("title", "")
+            if snippet and len(snippet) > 30:
+                reddit_snippets.append(f"Reddit: {title}\n{snippet}")
+    
+    reddit_backup = "\n\n".join(reddit_snippets) if reddit_snippets else ""
+    
     # ─── Step 1b: Guardian + NYT (Phase 2) ─────────────────
     try:
         guardian_results, nyt_results = await asyncio.gather(
@@ -339,6 +351,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     job_progress[tmdb_id] = "Gathering opinions..."
     articles = await jina_service.read_urls(selected_urls, max_concurrent=10)
     logger.info(f"   → Successfully read {len(articles)} articles")
+    
+    # Check how many Reddit articles actually succeeded
+    reddit_urls_attempted = sum(1 for u in selected_urls if "reddit.com" in u.lower())
+    reddit_success = sum(1 for u, a in zip(selected_urls, articles) if "reddit.com" in u.lower() and a)
+    
+    # If Reddit scraping mostly failed, inject the Serper snippets as backup
+    if reddit_urls_attempted > 0 and reddit_success == 0 and reddit_backup:
+        logger.info(f"🔄 Reddit blocked in production — using {len(reddit_snippets)} Serper snippets as backup")
+        articles.append(reddit_backup)
     
     # DEBUG: Log content lengths from each article
     logger.info("📊 ARTICLE CONTENT LENGTHS:")

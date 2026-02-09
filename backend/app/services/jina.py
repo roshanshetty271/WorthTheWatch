@@ -122,6 +122,20 @@ class ArticleReader:
 
                 if resp.status_code != 200:
                     logger.debug(f"BS4 got {resp.status_code} for {fetch_url[:50]}")
+                    
+                    # Fallback for Reddit: Google Web Cache
+                    if is_reddit:
+                        original_url = url.replace("old.reddit.com", "www.reddit.com")
+                        cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original_url}"
+                        logger.info(f"🔄 Reddit blocked, trying Google cache: {url[:60]}")
+                        
+                        try:
+                            resp = await client.get(cache_url, headers=headers)
+                            if resp.status_code == 200:
+                                return self._parse_reddit_from_cache(resp.text)
+                        except Exception as e:
+                            logger.warning(f"Google cache fetch failed: {e}")
+                    
                     return None
 
                 soup = BeautifulSoup(resp.text, "html.parser")
@@ -204,11 +218,36 @@ class ArticleReader:
                 return await self.read_url(url)
 
         tasks = [_read(url) for url in urls]
+        # Use return_exceptions=True to prevent one failure from crashing all
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        successful = [r for r in results if isinstance(r, str) and r]
+        # Filter out exceptions and None values
+        successful = []
+        for r in results:
+            if isinstance(r, Exception):
+                logger.error(f"Error reading URL: {r}")
+                continue
+            if isinstance(r, str) and r:
+                successful.append(r)
+                
         logger.info(f"📖 Read {len(successful)}/{len(urls)} articles successfully")
         return successful
+
+    def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
+        """Parse Reddit content from Google's cached HTML."""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        
+        # Google cache wraps the original page
+        # Extract text from comment-like elements
+        paragraphs = []
+        for el in soup.find_all(["p", "div"], string=True):
+            text = el.get_text(strip=True)
+            if len(text) > 50 and len(text) < 2000:
+                paragraphs.append(text)
+        
+        result = "\n\n".join(paragraphs[:30])
+        return result if len(result) > 200 else None
 
 
 # Keep the same variable name so nothing else needs to change
