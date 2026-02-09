@@ -179,7 +179,7 @@ export default function SearchBar({
 
             return (
               <Link
-                href={`/movie/${movie.tmdb_id}`}
+                href={`/movie/${movie.tmdb_id}?type=${movie.media_type}`}
                 key={movie.tmdb_id}
                 onClick={() => setShowDropdown(false)}
                 className="flex items-center gap-3 p-3 hover:bg-surface-hover transition-colors cursor-pointer border-b border-surface-elevated last:border-b-0"

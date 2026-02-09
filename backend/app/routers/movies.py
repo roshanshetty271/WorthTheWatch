@@ -133,14 +133,19 @@ async def list_movies(
 
 
 @router.get("/{tmdb_id}", response_model=MovieWithReview)
-async def get_movie(tmdb_id: int, db: AsyncSession = Depends(get_db)):
+async def get_movie(
+    tmdb_id: int,
+    media_type: str = Query(None, pattern="^(movie|tv)$"),
+    db: AsyncSession = Depends(get_db),
+):
     """Get a single movie with its review. Falls back to TMDB if not in our DB."""
+    
     # Try our DB first
-    result = await db.execute(
-        select(Movie)
-        .options(joinedload(Movie.review))
-        .where(Movie.tmdb_id == tmdb_id)
-    )
+    query = select(Movie).options(joinedload(Movie.review)).where(Movie.tmdb_id == tmdb_id)
+    if media_type:
+        query = query.where(Movie.media_type == media_type)
+        
+    result = await db.execute(query)
     movie = result.unique().scalar_one_or_none()
 
     if movie:
@@ -148,14 +153,19 @@ async def get_movie(tmdb_id: int, db: AsyncSession = Depends(get_db)):
     
     # Not in our DB — fetch from TMDB directly
     try:
-        # Try movie first
-        tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
-        media_type = "movie"
-        
-        # If no movie found, try TV
-        if not tmdb_data or not tmdb_data.get("id"):
-            tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
-            media_type = "tv"
+        tmdb_data = None
+        detected_type = media_type or "movie"
+
+        if media_type == "movie":
+             tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
+        elif media_type == "tv":
+             tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
+        else:
+            # Fallback: Try movie first, then TV
+            tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
+            if not tmdb_data or not tmdb_data.get("id"):
+                tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
+                detected_type = "tv"
         
         if tmdb_data and tmdb_data.get("id"):
             tmdb_data["media_type"] = media_type

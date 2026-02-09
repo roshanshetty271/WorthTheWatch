@@ -12,11 +12,15 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface Props {
   params: { id: string };
+  searchParams?: { type?: string };
 }
 
-async function getMovie(tmdbId: string): Promise<MovieWithReview | null> {
+async function getMovie(tmdbId: string, mediaType?: string): Promise<MovieWithReview | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/movies/${tmdbId}`, {
+    const url = new URL(`${API_BASE}/api/movies/${tmdbId}`);
+    if (mediaType) url.searchParams.set("media_type", mediaType);
+
+    const res = await fetch(url.toString(), {
       next: { revalidate: 600 },
     });
     if (!res.ok) return null;
@@ -32,7 +36,7 @@ function generateJsonLd(movie: MovieWithReview) {
 
   return {
     "@context": "https://schema.org",
-    "@type": "Movie",
+    "@type": m.media_type === "tv" ? "TVSeries" : "Movie",
     name: m.title,
     description: m.overview,
     image: m.poster_url || m.backdrop_url,
@@ -62,8 +66,9 @@ function generateJsonLd(movie: MovieWithReview) {
   };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const data = await getMovie(params.id);
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const mediaType = searchParams?.type;
+  const data = await getMovie(params.id, mediaType);
   if (!data) return { title: "Not Found | Worth the Watch?" };
 
   const verdict = data.review?.verdict || "";
@@ -80,8 +85,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 import MoviePageContent from "@/components/MoviePageContent";
 
-export default async function MoviePage({ params }: Props) {
-  const data = await getMovie(params.id);
+export default async function MoviePage({ params, searchParams }: Props) {
+  const mediaType = searchParams?.type;
+  const data = await getMovie(params.id, mediaType);
   if (!data) notFound();
 
   // Generate JSON-LD for SEO
