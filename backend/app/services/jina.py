@@ -77,136 +77,171 @@ class ArticleReader:
             return await self._read_with_bs4(url, timeout)
 
     async def _read_with_bs4(self, url: str, timeout: float) -> Optional[str]:
-        """Read using httpx + BeautifulSoup. Free forever."""
+        """Read using httpx + BeautifulSoup. More aggressive content extraction."""
         from bs4 import BeautifulSoup
-
-        # Default headers that work for most sites
+        
+        # Default headers
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
                           "Chrome/131.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
         }
 
-        fetch_url = url
-        is_reddit = "reddit.com" in url
-
-        # Reddit: use old.reddit.com which works without JS
-        if is_reddit and "old.reddit.com" not in url:
-            fetch_url = url.replace("www.reddit.com", "old.reddit.com")
-            # Handle URLs without www prefix
-            if "old.reddit.com" not in fetch_url:
-                fetch_url = fetch_url.replace("reddit.com", "old.reddit.com")
-            logger.info(f"🔄 Reddit URL swapped: {url[:60]} → {fetch_url[:60]}")
-
         try:
-            logger.debug(f"Fetching: {fetch_url}")
+            fetch_url = url
+            is_reddit = "reddit.com" in url.lower()
+            
+            # Reddit URL swap
+            if is_reddit and "old.reddit.com" not in url:
+                fetch_url = url.replace("www.reddit.com", "old.reddit.com")
+                if "old.reddit.com" not in fetch_url:
+                    fetch_url = fetch_url.replace("reddit.com", "old.reddit.com")
+                logger.info(f"🔄 Reddit URL swapped: {url[:60]} → {fetch_url[:60]}")
+            
             async with httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
                 headers=headers,
             ) as client:
                 resp = await client.get(fetch_url)
-
-                # Retry with Safari User-Agent on 403
+                
+                # Handle Reddit 403 with retry / Google cache
                 if resp.status_code == 403:
-                    headers["User-Agent"] = (
+                    # Retry with Safari User-Agent
+                    client.headers["User-Agent"] = (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                         "AppleWebKit/605.1.15 (KHTML, like Gecko) "
                         "Version/17.0 Safari/605.1.15"
                     )
-                    resp = await client.get(fetch_url, headers=headers)
-
+                    resp = await client.get(fetch_url)
+                
                 if resp.status_code != 200:
-                    logger.debug(f"BS4 got {resp.status_code} for {fetch_url[:50]}")
-                    
                     # Fallback for Reddit: Google Web Cache
                     if is_reddit:
                         original_url = url.replace("old.reddit.com", "www.reddit.com")
                         cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original_url}"
                         logger.info(f"🔄 Reddit blocked, trying Google cache: {url[:60]}")
-                        
                         try:
-                            resp = await client.get(cache_url, headers=headers)
+                            resp = await client.get(cache_url)
                             if resp.status_code == 200:
                                 return self._parse_reddit_from_cache(resp.text)
                         except Exception as e:
                             logger.warning(f"Google cache fetch failed: {e}")
                     
                     return None
-
-                soup = BeautifulSoup(resp.text, "html.parser")
-
-                # ─── Reddit-specific parsing ───────────────────────────
-                if is_reddit or "old.reddit.com" in fetch_url:
-                    comments = []
-                    
-                    # Post title
-                    title_el = soup.find("a", class_="title")
-                    if title_el:
-                        comments.append(title_el.get_text(strip=True))
-                    
-                    # Post body (self text)
-                    post_body = soup.find("div", class_="expando")
-                    if post_body:
-                        text = post_body.get_text(strip=True)
-                        if len(text) > 30:
-                            comments.append(text)
-                    
-                    # Comments from old.reddit.com
-                    for comment in soup.find_all("div", class_="usertext-body"):
-                        text = comment.get_text(strip=True)
-                        if 50 < len(text) < 2000:
-                            comments.append(text)
-                    
-                    result = "\n\n".join(comments[:30])  # Top 30 comments max
-                    return result if len(result) > 200 else None
-
-                # ─── Standard article parsing ──────────────────────────
-
+                
+                html = resp.text
+                if len(html) < 500:
+                    return None
+                
+                soup = BeautifulSoup(html, "html.parser")
+                
                 # Remove junk elements
                 for tag in soup(["script", "style", "nav", "footer", "header",
                                "aside", "iframe", "noscript", "form", "button",
-                               "svg", "figure", "figcaption"]):
+                               "svg"]):
                     tag.decompose()
-
-                # Remove common ad/cookie/popup classes
-                for selector in [".ad", ".ads", ".advertisement", ".cookie",
-                               ".popup", ".modal", ".sidebar", ".newsletter",
-                               ".social-share", ".related-posts", "#comments"]:
-                    for el in soup.select(selector):
-                        el.decompose()
-
-                # Find main content area (priority order)
-                main = (
-                    soup.find("article") or
-                    soup.find(class_=["post-content", "article-body", 
-                                     "entry-content", "story-body", 
-                                     "review-body", "article-content",
-                                     "post-body", "content-body"]) or
-                    soup.find("main") or
-                    soup.find(id=["content", "main-content", "article-body"]) or
-                    soup.find("body")
-                )
-
-                if not main:
+                
+                # STRATEGY 1: Try targeted content selectors
+                content = None
+                
+                # Try common article/content containers
+                selectors = [
+                    "article",
+                    "[class*='article-body']",
+                    "[class*='post-content']",
+                    "[class*='entry-content']",
+                    "[class*='story-body']",
+                    "[class*='review-body']",
+                    "[class*='article-content']",
+                    "[class*='post-body']",
+                    "[class*='content-body']",
+                    "[class*='review-content']",
+                    "[class*='main-content']",
+                    "[class*='post_content']",
+                    "[class*='blogpost']",
+                    "[class*='single-content']",
+                    "[id='content']",
+                    "[id='main-content']",
+                    "[id='article-body']",
+                    "[role='main']",
+                    "main",
+                    ".post",
+                    ".review",
+                    ".entry",
+                ]
+                
+                for selector in selectors:
+                    found = soup.select_one(selector)
+                    if found:
+                        content = found
+                        break
+                
+                # STRATEGY 2: If no container found, use body
+                if not content:
+                    content = soup.find("body")
+                
+                if not content:
                     return None
-
-                # Extract text with paragraph separation
+                
+                # Extract ALL text paragraphs
                 paragraphs = []
-                for p in main.find_all(["p", "h2", "h3", "blockquote", "li"]):
-                    text = p.get_text(strip=True)
-                    if len(text) > 30:
-                        paragraphs.append(text)
-
-                result = "\n\n".join(paragraphs)
-                return result if len(result) > 200 else None
-
+                for el in content.find_all(["p", "h2", "h3", "h4", 
+                                            "blockquote", "li", "div", "span"]):
+                    text = el.get_text(strip=True)
+                    # Be LESS strict — accept shorter paragraphs
+                    if len(text) > 20:
+                        # Skip obvious navigation/UI text
+                        skip_words = ["cookie", "subscribe", "sign up", "log in",
+                                    "newsletter", "privacy policy", "terms of",
+                                    "click here", "read more", "share this",
+                                    "advertisement", "sponsored"]
+                        if not any(sw in text.lower() for sw in skip_words):
+                            paragraphs.append(text)
+                
+                # STRATEGY 3: If paragraphs are empty, just get ALL text
+                if len(paragraphs) < 3:
+                    # Fall back to raw text extraction
+                    raw_text = content.get_text(separator="\n", strip=True)
+                    # Split into lines and keep meaningful ones
+                    lines = [line.strip() for line in raw_text.split("\n") 
+                             if len(line.strip()) > 20]
+                    if lines:
+                        paragraphs = lines
+                
+                # Deduplicate
+                seen = set()
+                unique = []
+                for p in paragraphs:
+                    key = p[:80].lower()
+                    if key not in seen:
+                        seen.add(key)
+                        unique.append(p)
+                
+                result = "\n\n".join(unique[:50])  # More paragraphs
+                
+                # Be LESS strict on minimum length
+                if len(result) > 100:  # Was 200, now 100
+                    return result
+                
+                # Log WHY parsing failed
+                html_len = len(resp.text)
+                para_count = len(paragraphs)
+                result_len = len(result)
+                logger.warning(
+                    f"⚠️ Parse failed for {url[:60]}: "
+                    f"HTML={html_len} chars, paragraphs={para_count}, "
+                    f"extracted={result_len} chars"
+                )
+                return None
+        
+        except httpx.TimeoutException:
+            return None
         except Exception as e:
-            logger.debug(f"BS4 failed for {url[:50]}: {e}")
+            logger.debug(f"BS4 parse error for {url[:60]}: {e}")
             return None
 
     async def read_urls(self, urls: list[str], max_concurrent: int = 5) -> tuple[list[str], list[str]]:
@@ -251,16 +286,39 @@ class ArticleReader:
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(html, "html.parser")
         
-        # Google cache wraps the original page
-        # Extract text from comment-like elements
-        paragraphs = []
-        for el in soup.find_all(["p", "div"], string=True):
-            text = el.get_text(strip=True)
-            if len(text) > 50 and len(text) < 2000:
-                paragraphs.append(text)
+        # Remove Google's cache header/banner
+        for div in soup.find_all("div", id="google-cache-hdr"):
+            div.decompose()
+        for div in soup.find_all("div", style=lambda s: s and "CACHE" in s.upper() if s else False):
+            div.decompose()
         
-        result = "\n\n".join(paragraphs[:30])
-        return result if len(result) > 200 else None
+        # Get ALL text content aggressively
+        body = soup.find("body") or soup
+        
+        # Remove scripts, styles, nav
+        for tag in body(["script", "style", "nav", "footer"]):
+            tag.decompose()
+        
+        # Get raw text
+        raw_text = body.get_text(separator="\n", strip=True)
+        
+        # Split into lines, keep meaningful ones
+        lines = []
+        for line in raw_text.split("\n"):
+            line = line.strip()
+            if len(line) > 30 and len(line) < 3000:
+                # Skip Google cache UI text
+                skip = ["cache", "google", "disclaimer", "snapshot", 
+                       "log in", "sign up", "get the app", "reddit premium",
+                       "user agreement", "privacy policy", "content policy"]
+                if not any(s in line.lower() for s in skip):
+                    lines.append(line)
+        
+        result = "\n\n".join(lines[:40])
+        
+        if len(result) > 100:
+            return result
+        return None
 
 
 # Keep the same variable name so nothing else needs to change
