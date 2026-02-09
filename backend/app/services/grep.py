@@ -151,9 +151,10 @@ def get_source_diversity_score(urls: list[str]) -> dict:
     return categories
 
 
-def select_best_sources(serper_results: list[dict], max_total: int = 15) -> list[str]:
-    """Pick diverse, high-quality URLs from search results."""
-    
+def select_best_sources(serper_results: list[dict], movie_title: str, max_total: int = 15) -> list[str]:
+    """Pick diverse, high-quality URLs from search results with strict relevance filtering."""
+    import re
+
     # Pre-filter blocked domains BEFORE categorizing (no wasted slots)
     BLOCKED = [
         "imdb.com", "rottentomatoes.com", "letterboxd.com",
@@ -163,10 +164,45 @@ def select_best_sources(serper_results: list[dict], max_total: int = 15) -> list
         "x.com", "instagram.com", "tiktok.com", "facebook.com",
     ]
     
-    # Deduplicate input URLs first
+    # ─── Title Relevance Filter ─────────────────────────────
+    # Normalize title for comparison
+    title_lower = movie_title.lower().strip()
+    is_short_title = len(title_lower) <= 3
+    
+    relevant_results = []
+    
+    for r in serper_results:
+        # Check for title presence in result fields
+        r_title = r.get("title", "").lower()
+        r_snippet = r.get("snippet", "").lower()
+        r_link = r.get("link", "").lower()
+        
+        match = False
+        if is_short_title:
+            # Strict word boundary check for short titles (e.g. "Us", "X", "Up")
+            # Avoids matching "Us" in "United States" or "X" in "Example"
+            pattern = re.compile(rf"\b{re.escape(title_lower)}\b")
+            if pattern.search(r_title) or pattern.search(r_snippet) or pattern.search(r_link):
+                match = True
+        else:
+            # Standard check
+            if title_lower in r_title or title_lower in r_snippet or title_lower in r_link:
+                match = True
+        
+        if match:
+            relevant_results.append(r)
+    
+    # Fallback: if filtering kills too many results, use original list
+    # (Better to have some noise than zero data)
+    if len(relevant_results) < 5:
+        filtered_results = serper_results
+    else:
+        filtered_results = relevant_results
+
+    # ─── Deduplication & Blocking ───────────────────────────
     seen_urls = set()
     unique_results = []
-    for r in serper_results:
+    for r in filtered_results:
         link = r.get("link", "").rstrip("/").split("#")[0]
         if link and link not in seen_urls and not any(d in link.lower() for d in BLOCKED):
             seen_urls.add(link)

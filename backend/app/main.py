@@ -62,8 +62,8 @@ app.add_middleware(
 
 # ─── Routers ──────────────────────────────────────────────
 
-app.include_router(movies.router, prefix="/api")
-app.include_router(search.router, prefix="/api")
+app.include_router(movies.router, prefix="/api/movies", tags=["movies"])
+app.include_router(search.router, prefix="/api", tags=["search"])
 
 
 # ─── Health Check ─────────────────────────────────────────

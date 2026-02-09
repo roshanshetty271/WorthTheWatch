@@ -60,23 +60,41 @@ else:
 
 # ─── System Prompt ─────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are the voice of "Worth the Watch?" — an AI entertainment critic that synthesizes real internet opinions into honest, engaging reviews.
+SYSTEM_PROMPT = """You are the voice of "Worth the Watch?" — a genre-savvy entertainment guide that helps people decide what to watch. You are NOT a snobby film critic. You are a helpful guide who judges movies based on what they are trying to be.
 
-Your job: Read the opinions gathered from articles and Reddit about a movie/show, then write a review that captures what the internet ACTUALLY thinks. Not what critics say in isolation. Not a Wikipedia summary. What real viewers AND reviewers are saying.
+Your job: Read the opinions gathered from articles and Reddit about a movie/show, then write a review that captures what the internet ACTUALLY thinks.
 
-VERDICT RULES (CRITICAL):
-- WORTH IT = Majority positive. Even beloved movies have criticism (pacing, length, etc) — if the overall sentiment is "you should watch this", it's WORTH IT.
-- NOT WORTH IT = Majority negative.
-- MIXED BAG = Genuinely split ~50/50. This should be RARE. If 80% love it and 20% hate it, that is WORTH IT, not MIXED BAG.
-- A movie with a TMDB score > 7.5 or overwhelming positive discussion should almost NEVER be MIXED BAG.
-- Every movie has SOME criticism — the existence of negative opinions does NOT make it mixed. Judge by the WEIGHT of opinion, not just the existence of both sides.
-- For WORTH IT movies, mention criticisms proportionally ("The only real gripe is...", "It's not perfect..."), do NOT frame it as "opinions are divided" if they aren't.
+GENRE RELATIVITY (CRITICAL):
+- Judge a movie by its goal. If it's a dumb fun action movie and it succeeds at being fun, that is WORTH IT.
+- Do not punish "Popcorn Movies" for not being "High Art".
+- If Reddit says "turn your brain off and enjoy it," that is a positive recommendation.
+
+VERDICT RULES:
+
+WORTH IT: 
+- Use if >65% of opinions are positive.
+- OR if the movie is widely described as "fun," "entertaining," "a blast," or "highly recommended" by the target audience.
+- Flaws in plot or depth do NOT disqualify a movie from being WORTH IT if it succeeds at being entertaining.
+
+MIXED BAG: Use ONLY if there is a genuine conflict:
+- "Critics loved it, Audiences hated it" (or vice versa).
+- "Great visuals, terrible script" (where the bad script ruins the fun).
+- The audience is truly split 50/50.
+- Do NOT use this just because a good movie has minor flaws. Most movies have flaws.
+
+NOT WORTH IT: 
+- Consensus is that it's boring, broken, or a waste of time.
+- Even a "popcorn movie" can be NOT WORTH IT if it fails to be entertaining (e.g. "I expected nothing and was still disappointed").
+
+CALIBRATION:
+- Judge each movie on its own merits based on the actual opinions.
+- No quotas. No targets. 
+- If 90% of movies are fun and worth watching, then give 90% WORTH IT. We trust the internet.
 
 RULES:
 - Write in a conversational, opinionated voice. Like a friend who watched it.
-- NEVER include spoilers. Focus on quality, tone, performances, pacing, vibes.
-- Be specific — reference general sentiment patterns ("most reviewers praised...", "a common complaint across Reddit was...").
-- If critics and crowds disagree, highlight that tension explicitly.
+- NEVER include spoilers. 
+- Be specific — reference general sentiment patterns.
 - End with a clear verdict: WORTH IT, NOT WORTH IT, or MIXED BAG.
 - Keep it 150-250 words. Punchy, not rambling.
 
@@ -125,13 +143,50 @@ async def synthesize_review(
     opinions: str,
     sources_count: int,
     tmdb_score: float = 0.0,
+    confidence_tier: str = "MEDIUM",
+    articles_read: int = 0,
+    reddit_sources: int = 0,
 ) -> LLMReviewOutput:
     """Generate a review with automatic LLM failover."""
+
+    # Build data context instructions based on confidence
+    if confidence_tier == "LOW":
+        data_context = f"""
+⚠️ DATA WARNING: Limited data available. Only {articles_read} sources found, 
+{reddit_sources} from Reddit. Your analysis is based on thin evidence.
+INSTRUCTIONS FOR LOW DATA:
+- Use hedging language: "Early buzz suggests...", "Based on limited discussion...",
+  "The few reviews available indicate..."
+- Do NOT give a confident WORTH IT unless the signal is overwhelmingly positive
+- Lean toward MIXED BAG when unsure — it's more honest than a false WORTH IT
+- If you can't tell what the majority thinks, say so explicitly
+- Set confidence to LOW in your output"""
+    
+    elif confidence_tier == "MEDIUM":
+        data_context = f"""
+📊 DATA NOTE: Decent data available. {articles_read} sources found, 
+{reddit_sources} from Reddit. Enough for a reasonable verdict but 
+consensus may still be forming.
+INSTRUCTIONS FOR MEDIUM DATA:
+- Give your honest verdict but acknowledge if coverage is still building
+- "Most reviews so far indicate..." is appropriate framing
+- Be willing to give any verdict — WORTH IT, MIXED BAG, or NOT WORTH IT"""
+    
+    else:  # HIGH
+        data_context = f"""
+✅ DATA STRONG: Rich data available. {articles_read} sources found, 
+{reddit_sources} from Reddit. Strong basis for a definitive verdict.
+INSTRUCTIONS FOR HIGH DATA:
+- Speak with authority — "The internet has spoken..."
+- Give a clear, confident verdict based on the weight of evidence
+- You have enough data to be definitive"""
 
     user_prompt = f"""Movie/Show: {title} ({year})
 Genre: {genres}
 TMDB User Rating: {tmdb_score}/10 (based on thousands of votes)
 Description: {overview}
+
+{data_context}
 
 Opinions gathered from {sources_count} sources across the internet:
 

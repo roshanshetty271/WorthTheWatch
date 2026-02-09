@@ -89,6 +89,105 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
         raise
 
 
+
+def calculate_confidence(
+    articles_read: int,
+    total_articles_attempted: int,
+    selected_urls: list[str],
+    filtered_opinion_chars: int,
+    release_date=None,
+) -> dict:
+    """
+    Calculate data-aware confidence score.
+    Returns dict with score (0-100), tier (HIGH/MEDIUM/LOW), and stats.
+    
+    Calibrated for our actual pipeline:
+    - We typically read 7-10 articles successfully
+    - Reddit threads are available for movies from ~2010+
+    - Classic movies may have 0 Reddit but strong critic coverage
+    """
+    score = 0
+    stats = {}
+    
+    # --- Source Count (max 25 pts) ---
+    # Our pipeline attempts 12, typically reads 7-10
+    if articles_read >= 8:
+        score += 25      # Great scraping session
+    elif articles_read >= 5:
+        score += 15      # Decent
+    elif articles_read >= 3:
+        score += 8       # Thin but workable
+    else:
+        score += 0       # Very thin data
+    stats["articles_read"] = articles_read
+    
+    # --- Reddit Presence (max 30 pts) ---
+    # Reddit = real crowd opinions, our most valuable signal
+    reddit_count = sum(1 for url in selected_urls if "reddit.com" in url.lower())
+    if reddit_count >= 3:
+        score += 30      # Strong crowd signal
+    elif reddit_count >= 1:
+        score += 15      # Some crowd signal
+    else:
+        score += 0       # No crowd signal (don't penalize — old movies won't have Reddit)
+    stats["reddit_sources"] = reddit_count
+    
+    # --- Content Volume (max 25 pts) ---
+    # After grep filtering, we typically get 8K-25K chars
+    if filtered_opinion_chars >= 15000:
+        score += 25      # Rich opinion data
+    elif filtered_opinion_chars >= 8000:
+        score += 15      # Decent opinion data
+    elif filtered_opinion_chars >= 3000:
+        score += 8       # Thin but usable
+    else:
+        score += 0       # Very thin
+    stats["opinion_chars"] = filtered_opinion_chars
+    
+    # --- Movie Age / Consensus Stability (max 20 pts) ---
+    if release_date:
+        from datetime import date
+        try:
+            if isinstance(release_date, str):
+                release_date = date.fromisoformat(release_date)
+            days_old = (date.today() - release_date).days
+            
+            if days_old > 365:
+                score += 20      # Old movie — consensus fully settled
+            elif days_old > 90:
+                score += 15      # Consensus mostly settled
+            elif days_old > 30:
+                score += 8       # Still forming
+            else:
+                score += 0       # Brand new — opinions volatile
+            stats["days_since_release"] = days_old
+        except:
+            score += 10          # Unknown age, give benefit of doubt
+            stats["days_since_release"] = None
+    else:
+        score += 10
+        stats["days_since_release"] = None
+    
+    # --- Determine Tier ---
+    if score >= 70:
+        tier = "HIGH"
+    elif score >= 40:
+        tier = "MEDIUM"
+    else:
+        tier = "LOW"
+    
+    stats["confidence_score"] = score
+    stats["confidence_tier"] = tier
+    
+    logging.getLogger(__name__).info(
+        f"📊 Confidence: {score}/100 ({tier}) — "
+        f"{articles_read} articles, {reddit_count} reddit, "
+        f"{filtered_opinion_chars} chars"
+    )
+    
+    return stats
+
+
 # Global progress tracker: {tmdb_id: "Step description"}
 job_progress = {}
 
@@ -226,7 +325,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         return await _create_fallback_review(db, movie, genres)
 
     # Select diverse, high-quality sources
-    selected_urls = select_best_sources(all_results, max_total=12)  # Increased from 8 for better accuracy
+    selected_urls = select_best_sources(all_results, movie_title=title, max_total=12)  # Increased from 8 for better accuracy
     logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
     
     # DEBUG: Log each URL being fetched
@@ -278,6 +377,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     logger.info(f"   → Sending {len(filtered_opinions[:18000]):,} chars to LLM")
     logger.info(f"   → TMDB Score: {movie.tmdb_vote_average}")
     
+    # Calculate confidence from actual data metrics
+    confidence_stats = calculate_confidence(
+        articles_read=len(articles),
+        total_articles_attempted=len(selected_urls),
+        selected_urls=selected_urls,
+        filtered_opinion_chars=len(filtered_opinions),
+        release_date=movie.release_date,
+    )
+
     try:
         llm_output = await synthesize_review(
             title=title,
@@ -287,7 +395,41 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             opinions=filtered_opinions[:18000], # Truncate to fit
             sources_count=len(articles),
             tmdb_score=movie.tmdb_vote_average or 0.0,
+            confidence_tier=confidence_stats["confidence_tier"],
+            articles_read=confidence_stats["articles_read"],
+            reddit_sources=confidence_stats["reddit_sources"],
         )
+        
+        # Sanity check: verdict should match sentiment percentages
+        if llm_output.positive_pct is not None and llm_output.negative_pct is not None:
+            pos = llm_output.positive_pct
+            neg = llm_output.negative_pct
+            
+            # WORTH IT requires strong positive signal (Relaxed from 65% to 55%)
+            if llm_output.verdict == "WORTH IT" and pos < 55:
+                logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (positive only {pos}%)")
+                llm_output.verdict = "MIXED BAG"
+            
+            # WORTH IT shouldn't have huge negative signal (Relaxed from 35% to 45%)
+            if llm_output.verdict == "WORTH IT" and neg > 45:
+                logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (negative {neg}%)")
+                llm_output.verdict = "MIXED BAG"
+            
+            # NOT WORTH IT requires strong negative signal (Relaxed cutoff)
+            if llm_output.verdict == "NOT WORTH IT" and pos > 60:
+                logger.info(f"⚖️ Verdict override: NOT WORTH IT → MIXED BAG (positive {pos}%)")
+                llm_output.verdict = "MIXED BAG"
+        
+        # LOW confidence + low data should not give definitive WORTH IT
+        if confidence_stats["confidence_tier"] == "LOW" and llm_output.verdict == "WORTH IT":
+            # Only override if critically low data (reduced from < 4 to < 3)
+            if confidence_stats["articles_read"] < 3:
+                logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (LOW confidence, only {confidence_stats['articles_read']} articles)")
+                llm_output.verdict = "MIXED BAG"
+        
+        # Override confidence with our calculated value (not LLM's guess)
+        llm_output.confidence = confidence_stats["confidence_tier"]
+
         logger.info(f"✅ LLM RESPONSE RECEIVED:")
         logger.info(f"   → Verdict: {llm_output.verdict}")
         logger.info(f"   → Praise Points: {len(llm_output.praise_points or [])} items")
