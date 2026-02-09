@@ -197,3 +197,85 @@ async def _regenerate_background(tmdb_ids: list[int]):
                 logger.error(f"❌ Failed to regenerate tmdb_id {tmdb_id}: {e}")
 
     logger.info(f"🏁 Regeneration complete: {regenerated} success, {failed} failed out of {total}")
+
+
+# ─── Seed Top-Rated Endpoint ─────────────────────────────
+
+@app.post("/api/seed-top-rated")
+async def seed_top_rated(
+    pages: int = 10,
+    media_type: str = "movie",
+    secret: str = "",
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    Seed database with top-rated movies/TV from TMDB.
+    Each page = 20 items. 10 pages = 200 top items.
+    
+    Args:
+        pages: Number of pages to fetch (1-20)
+        media_type: "movie" or "tv"
+        secret: CRON_SECRET for authorization
+    """
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    
+    if media_type not in ("movie", "tv"):
+        raise HTTPException(status_code=400, detail="media_type must be 'movie' or 'tv'")
+    
+    pages = min(max(pages, 1), 20)  # Clamp 1-20
+    
+    background_tasks.add_task(_seed_top_rated_background, pages, media_type)
+    return {
+        "status": "started",
+        "message": f"Seeding ~{pages * 20} top-rated {media_type}s in background. Watch server logs.",
+    }
+
+
+async def _seed_top_rated_background(pages: int, media_type: str):
+    """Background task: fetch top-rated content from TMDB and generate reviews."""
+    from app.database import async_session
+    from app.services.tmdb import tmdb_service
+    from app.services.pipeline import get_or_create_movie, generate_review_for_movie
+    
+    generated = 0
+    skipped = 0
+    failed = 0
+    
+    for page in range(1, pages + 1):
+        try:
+            if media_type == "movie":
+                results = await tmdb_service.get_top_rated_movies(page)
+            else:
+                results = await tmdb_service.get_top_rated_tv(page)
+            
+            for item in results:
+                tmdb_id = item["id"]
+                title = item.get("title") or item.get("name", "Unknown")
+                
+                async with async_session() as db:
+                    # Skip if already in database
+                    existing = await db.execute(
+                        select(Movie).where(Movie.tmdb_id == tmdb_id)
+                    )
+                    if existing.scalar_one_or_none():
+                        skipped += 1
+                        logger.debug(f"⏭️ Skipping (exists): {title}")
+                        continue
+                    
+                    try:
+                        movie = await get_or_create_movie(db, tmdb_id, media_type)
+                        await generate_review_for_movie(db, movie)
+                        await db.commit()
+                        generated += 1
+                        logger.info(f"⭐ [{generated}] Top rated {media_type}: {title}")
+                    except Exception as e:
+                        await db.rollback()
+                        failed += 1
+                        logger.error(f"❌ Failed: {title} — {e}")
+                        
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch page {page}: {e}")
+    
+    logger.info(f"🏁 Top rated seed complete: {generated} new, {skipped} skipped, {failed} failed")
+

@@ -68,6 +68,16 @@ class TMDBService:
         data = await self._get("/tv/popular", {"page": page})
         return self._filter_results(data.get("results", []))
 
+    async def get_top_rated_movies(self, page: int = 1) -> list[dict]:
+        """Highest rated movies on TMDB."""
+        data = await self._get("/movie/top_rated", {"page": page})
+        return self._filter_results(data.get("results", []))
+
+    async def get_top_rated_tv(self, page: int = 1) -> list[dict]:
+        """Highest rated TV shows on TMDB."""
+        data = await self._get("/tv/top_rated", {"page": page})
+        return self._filter_results(data.get("results", []))
+
     async def get_movie_details(self, tmdb_id: int) -> dict:
         """Full movie details."""
         return await self._get(f"/movie/{tmdb_id}")
