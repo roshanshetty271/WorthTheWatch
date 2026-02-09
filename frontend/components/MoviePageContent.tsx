@@ -30,7 +30,10 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[70vh] flex items-end overflow-hidden">
+            {/* ═══════════════════════════════════════════════════════════════════
+          FULLSCREEN HERO BACKDROP
+          ═══════════════════════════════════════════════════════════════════ */}
+            <section className="relative min-h-[70vh] flex flex-col justify-between overflow-hidden">
                 {/* Background Image */}
                 {movie.backdrop_url ? (
                     <div className="absolute inset-0 z-0">
@@ -48,27 +51,29 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     <div className="absolute inset-0 z-0 bg-gradient-to-b from-surface-elevated to-surface" />
                 )}
 
-                {/* Back Button - Floating top left */}
-                <div className="absolute top-20 left-4 z-30 sm:left-6">
-                    <Link
-                        href="/"
-                        className="group inline-flex items-center gap-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 text-sm text-white/90 transition-all hover:bg-black/60 hover:text-white"
-                    >
-                        <svg
-                            className="h-4 w-4 transition-transform group-hover:-translate-x-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                {/* Back Button - Relative to clear header */}
+                <div className="relative z-30 pt-24 px-6">
+                    <div className="mx-auto max-w-7xl">
+                        <Link
+                            href="/"
+                            className="group inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-all hover:bg-black/60 hover:text-white hover:scale-110"
+                            aria-label="Back to Home"
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 19l-7-7 7-7"
-                            />
-                        </svg>
-                        Back
-                    </Link>
+                            <svg
+                                className="h-6 w-6 transition-transform group-hover:-translate-x-0.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M15 19l-7-7 7-7"
+                                />
+                            </svg>
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Movie Info Overlay */}
@@ -152,19 +157,28 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 {/* ═══════════════════════════════════════════════════════════════════
             THE INTERNET'S VERDICT
             ═══════════════════════════════════════════════════════════════════ */}
-                <div className="mt-10 rounded-2xl border border-surface-elevated bg-surface-card p-6 sm:p-8">
-                    <div className="mb-6">
-                        <h2 className="font-display text-xl text-accent-gold">
+                <div className="mt-12">
+                    <div className="mb-8 text-center">
+                        <span className="mb-2 block font-display text-sm uppercase tracking-wider text-accent-gold/80">
+                            Consensus
+                        </span>
+                        <h2 className="font-display text-3xl text-text-primary drop-shadow-md">
                             The Internet&apos;s Verdict
                         </h2>
                     </div>
-                    <ReviewSection
-                        tmdbId={movie.tmdb_id}
-                        mediaType={movie.media_type || "movie"}
-                        movieTitle={movie.title}
-                        initialReview={review}
-                        onReviewUpdate={setReview}
-                    />
+
+                    <div className="relative rounded-2xl border border-white/10 bg-surface-card/50 p-6 shadow-2xl backdrop-blur-sm sm:p-10">
+                        {/* Glow effect */}
+                        <div className="absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-50" />
+
+                        <ReviewSection
+                            tmdbId={movie.tmdb_id}
+                            mediaType={movie.media_type || "movie"}
+                            movieTitle={movie.title}
+                            initialReview={review}
+                            onReviewUpdate={setReview}
+                        />
+                    </div>
                 </div>
 
                 {/* ═══════════════════════════════════════════════════════════════════
@@ -173,7 +187,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 <div className="mt-8 flex items-center justify-between border-t border-surface-elevated pt-8">
                     <Link
                         href="/"
-                        className="inline-flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-accent-gold"
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-muted transition-colors hover:text-accent-gold"
                     >
                         <svg
                             className="h-4 w-4"
@@ -192,7 +206,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     </Link>
                     <Link
                         href="/search"
-                        className="inline-flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-accent-gold"
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-muted transition-colors hover:text-accent-gold"
                     >
                         Search another title
                         <svg
