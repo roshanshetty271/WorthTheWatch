@@ -7,11 +7,13 @@ Free API, ~50 req/sec, no daily limit.
 import re
 import httpx
 import asyncio
+import logging
 from datetime import date
 from typing import Optional
 from app.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 TMDB_HEADERS = {
     "Authorization": f"Bearer {settings.TMDB_API_KEY}",
@@ -25,14 +27,51 @@ class TMDBService:
         self.image_base = settings.TMDB_IMAGE_BASE
 
     async def _get(self, endpoint: str, params: dict = None) -> dict:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                f"{self.base}{endpoint}",
-                headers=TMDB_HEADERS,
-                params=params or {},
-            )
-            resp.raise_for_status()
-            return resp.json()
+        """Make TMDB API request with error handling and retry."""
+        max_retries = 2
+        
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(
+                        f"{self.base}{endpoint}",
+                        headers=TMDB_HEADERS,
+                        params=params or {},
+                    )
+                    
+                    if resp.status_code == 401:
+                        logger.critical("⚠️ TMDB API key is invalid!")
+                        return {}
+                    
+                    if resp.status_code == 404:
+                        logger.debug(f"TMDB 404: {endpoint}")
+                        return {}
+                    
+                    if resp.status_code == 429:
+                        logger.warning("TMDB rate limited, waiting 1s...")
+                        await asyncio.sleep(1)
+                        continue
+                    
+                    if resp.status_code >= 500:
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(1)
+                            continue
+                        logger.error(f"TMDB server error: {resp.status_code}")
+                        return {}
+                    
+                    resp.raise_for_status()
+                    return resp.json()
+                    
+            except httpx.TimeoutException:
+                logger.warning(f"TMDB timeout: {endpoint}")
+                if attempt < max_retries - 1:
+                    continue
+                return {}
+            except Exception as e:
+                logger.error(f"TMDB request failed: {e}")
+                return {}
+        
+        return {}
 
     def _filter_results(self, items: list[dict]) -> list[dict]:
         """Filter out adult/porn content. Does NOT filter R-rated normal movies."""

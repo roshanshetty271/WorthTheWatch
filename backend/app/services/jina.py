@@ -22,6 +22,9 @@ SKIP_DOMAINS = [
 # Domains that block scrapers — skip to save time
 BLOCKED_DOMAINS = [
     "imdb.com", "rottentomatoes.com", "letterboxd.com",
+    "rogerebert.com", "nytimes.com",  # Always 403
+    "wsj.com", "washingtonpost.com", "bloomberg.com",
+    "newyorker.com", "wired.com",  # Paywall + block scrapers
 ]
 
 
@@ -77,21 +80,78 @@ class ArticleReader:
         """Read using httpx + BeautifulSoup. Free forever."""
         from bs4 import BeautifulSoup
 
+        # Default headers that work for most sites
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+        }
+
+        fetch_url = url
+        is_reddit = "reddit.com" in url
+
+        # Reddit: use old.reddit.com which works without JS
+        if is_reddit and "old.reddit.com" not in url:
+            fetch_url = url.replace("www.reddit.com", "old.reddit.com")
+            # Handle URLs without www prefix
+            if "old.reddit.com" not in fetch_url:
+                fetch_url = fetch_url.replace("reddit.com", "old.reddit.com")
+            logger.info(f"🔄 Reddit URL swapped: {url[:60]} → {fetch_url[:60]}")
+
         try:
+            logger.debug(f"Fetching: {fetch_url}")
             async with httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/131.0.0.0 Safari/537.36"
-                },
+                headers=headers,
             ) as client:
-                resp = await client.get(url)
+                resp = await client.get(fetch_url)
+
+                # Retry with Safari User-Agent on 403
+                if resp.status_code == 403:
+                    headers["User-Agent"] = (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                        "Version/17.0 Safari/605.1.15"
+                    )
+                    resp = await client.get(fetch_url, headers=headers)
+
                 if resp.status_code != 200:
+                    logger.debug(f"BS4 got {resp.status_code} for {fetch_url[:50]}")
                     return None
 
                 soup = BeautifulSoup(resp.text, "html.parser")
+
+                # ─── Reddit-specific parsing ───────────────────────────
+                if is_reddit or "old.reddit.com" in fetch_url:
+                    comments = []
+                    
+                    # Post title
+                    title_el = soup.find("a", class_="title")
+                    if title_el:
+                        comments.append(title_el.get_text(strip=True))
+                    
+                    # Post body (self text)
+                    post_body = soup.find("div", class_="expando")
+                    if post_body:
+                        text = post_body.get_text(strip=True)
+                        if len(text) > 30:
+                            comments.append(text)
+                    
+                    # Comments from old.reddit.com
+                    for comment in soup.find_all("div", class_="usertext-body"):
+                        text = comment.get_text(strip=True)
+                        if 50 < len(text) < 2000:
+                            comments.append(text)
+                    
+                    result = "\n\n".join(comments[:30])  # Top 30 comments max
+                    return result if len(result) > 200 else None
+
+                # ─── Standard article parsing ──────────────────────────
 
                 # Remove junk elements
                 for tag in soup(["script", "style", "nav", "footer", "header",

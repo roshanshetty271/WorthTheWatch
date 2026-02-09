@@ -179,12 +179,17 @@ async def check_generation_status(
 
 async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
     """Background task: generate a review for a movie."""
-    async with async_session() as db:
-        try:
-            movie = await get_or_create_movie(db, tmdb_id, media_type)
-            await generate_review_for_movie(db, movie)
-            await db.commit()
-        except Exception as e:
-            await db.rollback()
-            import logging
-            logging.getLogger(__name__).error(f"Background generation failed for {tmdb_id}: {e}")
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        async with async_session() as db:
+            try:
+                movie = await get_or_create_movie(db, tmdb_id, media_type)
+                await generate_review_for_movie(db, movie)
+                await db.commit()
+            except Exception as e:
+                await db.rollback()
+                logger.error(f"Background generation failed for {tmdb_id}: {e}")
+    except Exception as e:
+        logger.critical(f"🚨 Background generation task crashed for {tmdb_id}: {e}")

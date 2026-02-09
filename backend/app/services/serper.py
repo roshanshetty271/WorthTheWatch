@@ -5,10 +5,11 @@ Free tier: 2500 searches on signup.
 """
 
 import httpx
+import logging
 from app.config import get_settings
-from app.services.retry import with_retry
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class SerperService:
@@ -19,36 +20,79 @@ class SerperService:
             "Content-Type": "application/json",
         }
 
-    @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
     async def search(self, query: str, num_results: int = 10) -> list[dict]:
         """Search Google via Serper. Returns list of {title, link, snippet}."""
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                self.url,
-                headers=self.headers,
-                json={"q": query, "num": num_results},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    self.url,
+                    headers=self.headers,
+                    json={"q": query, "num": num_results},
+                )
 
-        results = []
-        for item in data.get("organic", []):
-            results.append({
-                "title": item.get("title", ""),
-                "link": item.get("link", ""),
-                "snippet": item.get("snippet", ""),
-            })
-        return results
+                # Handle API limit errors
+                if resp.status_code in (402, 429):
+                    logger.warning("⚠️ Serper API limit reached! Rotate key or wait.")
+                    return []
+
+                # Handle server errors
+                if resp.status_code >= 500:
+                    logger.error(f"Serper server error: {resp.status_code}")
+                    return []
+
+                if resp.status_code != 200:
+                    logger.warning(f"Serper returned {resp.status_code}")
+                    return []
+
+                try:
+                    data = resp.json()
+                except Exception:
+                    logger.error("Serper returned invalid JSON")
+                    return []
+
+            results = []
+            for item in data.get("organic", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                })
+            return results
+
+        except httpx.TimeoutException:
+            logger.warning(f"Serper search timed out for: {query[:50]}")
+            return []
+        except Exception as e:
+            logger.error(f"Serper search failed: {e}")
+            return []
 
     async def search_reviews(self, title: str, year: str = "") -> list[dict]:
         """Search for critic review articles."""
-        query = f'"{title}" {year} review'.strip()
-        return await self.search(query, num_results=15)
+        try:
+            query = f'"{title}" {year} review'.strip()
+            return await self.search(query, num_results=20)
+        except Exception as e:
+            logger.error(f"search_reviews failed for '{title}': {e}")
+            return []
 
     async def search_reddit(self, title: str, year: str = "") -> list[dict]:
         """Search Reddit discussions via Google."""
-        query = f'"{title}" {year} site:reddit.com review discussion'.strip()
-        return await self.search(query, num_results=10)
+        try:
+            query = f'"{title}" {year} site:reddit.com review discussion'.strip()
+            return await self.search(query, num_results=15)
+        except Exception as e:
+            logger.error(f"search_reddit failed for '{title}': {e}")
+            return []
+
+    async def search_forums(self, title: str, year: str = "") -> list[dict]:
+        """Search for forum discussions, blog posts, and user opinions."""
+        try:
+            query = f'"{title}" {year} review discussion opinions worth watching'.strip()
+            return await self.search(query, num_results=10)
+        except Exception as e:
+            logger.error(f"search_forums failed for '{title}': {e}")
+            return []
 
 
 serper_service = SerperService()
+

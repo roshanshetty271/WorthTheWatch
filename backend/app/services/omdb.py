@@ -5,11 +5,13 @@ Free tier: 1000 requests/day.
 """
 
 import httpx
+import logging
 from typing import Optional
 from app.config import get_settings
 from app.services.retry import with_retry
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class OMDBScores:
@@ -90,23 +92,41 @@ class OMDBService:
         if not self.api_key:
             return OMDBScores()
 
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                self.BASE_URL,
-                params={"apikey": self.api_key, "i": imdb_id},
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    self.BASE_URL,
+                    params={"apikey": self.api_key, "i": imdb_id},
+                )
+                
+                # Handle API limit errors
+                if resp.status_code == 401:
+                    logger.warning("⚠️ OMDB API key invalid or limit reached!")
+                    return OMDBScores()
+                if resp.status_code == 429:
+                    logger.warning("⚠️ OMDB daily limit (1000/day) reached!")
+                    return OMDBScores()
+                if resp.status_code != 200:
+                    logger.debug(f"OMDB returned {resp.status_code}")
+                    return OMDBScores()
+                    
+                data = resp.json()
+
+            if data.get("Response") == "False":
+                return OMDBScores()
+
+            return OMDBScores(
+                imdb_score=self._parse_imdb_rating(data.get("imdbRating", "")),
+                imdb_votes=self._parse_imdb_votes(data.get("imdbVotes", "")),
+                rt_critic_score=self._parse_rt_score(data.get("Ratings", [])),
+                metascore=self._parse_metascore(data.get("Metascore", "")),
             )
-            resp.raise_for_status()
-            data = resp.json()
-
-        if data.get("Response") == "False":
+        except httpx.TimeoutException:
+            logger.debug("OMDB request timed out")
             return OMDBScores()
-
-        return OMDBScores(
-            imdb_score=self._parse_imdb_rating(data.get("imdbRating", "")),
-            imdb_votes=self._parse_imdb_votes(data.get("imdbVotes", "")),
-            rt_critic_score=self._parse_rt_score(data.get("Ratings", [])),
-            metascore=self._parse_metascore(data.get("Metascore", "")),
-        )
+        except Exception as e:
+            logger.error(f"OMDB request failed: {e}")
+            return OMDBScores()
 
     @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
     async def get_scores_by_title(
@@ -137,20 +157,38 @@ class OMDBService:
         if year:
             params["y"] = year
 
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(self.BASE_URL, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(self.BASE_URL, params=params)
+                
+                # Handle API limit errors
+                if resp.status_code == 401:
+                    logger.warning("⚠️ OMDB API key invalid or limit reached!")
+                    return OMDBScores()
+                if resp.status_code == 429:
+                    logger.warning("⚠️ OMDB daily limit (1000/day) reached!")
+                    return OMDBScores()
+                if resp.status_code != 200:
+                    logger.debug(f"OMDB returned {resp.status_code}")
+                    return OMDBScores()
+                    
+                data = resp.json()
 
-        if data.get("Response") == "False":
+            if data.get("Response") == "False":
+                return OMDBScores()
+
+            return OMDBScores(
+                imdb_score=self._parse_imdb_rating(data.get("imdbRating", "")),
+                imdb_votes=self._parse_imdb_votes(data.get("imdbVotes", "")),
+                rt_critic_score=self._parse_rt_score(data.get("Ratings", [])),
+                metascore=self._parse_metascore(data.get("Metascore", "")),
+            )
+        except httpx.TimeoutException:
+            logger.debug("OMDB request timed out")
             return OMDBScores()
-
-        return OMDBScores(
-            imdb_score=self._parse_imdb_rating(data.get("imdbRating", "")),
-            imdb_votes=self._parse_imdb_votes(data.get("imdbVotes", "")),
-            rt_critic_score=self._parse_rt_score(data.get("Ratings", [])),
-            metascore=self._parse_metascore(data.get("Metascore", "")),
-        )
+        except Exception as e:
+            logger.error(f"OMDB request failed: {e}")
+            return OMDBScores()
 
 
 # Global service instance

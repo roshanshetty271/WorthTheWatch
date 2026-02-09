@@ -174,29 +174,32 @@ async def _regenerate_background(tmdb_ids: list[int]):
     from app.database import async_session
     from app.services.pipeline import generate_review_for_movie
 
-    total = len(tmdb_ids)
-    regenerated = 0
-    failed = 0
-    logger.info(f"🔄 Background regeneration started for {total} movies")
+    try:
+        total = len(tmdb_ids)
+        regenerated = 0
+        failed = 0
+        logger.info(f"🔄 Background regeneration started for {total} movies")
 
-    for i, tmdb_id in enumerate(tmdb_ids):
-        async with async_session() as db:
-            try:
-                result = await db.execute(
-                    select(Movie).where(Movie.tmdb_id == tmdb_id)
-                )
-                movie = result.scalar_one_or_none()
-                if movie:
-                    logger.info(f"♻️ [{i+1}/{total}] Regenerating: {movie.title}")
-                    await generate_review_for_movie(db, movie)
-                    await db.commit()
-                    regenerated += 1
-            except Exception as e:
-                await db.rollback()
-                failed += 1
-                logger.error(f"❌ Failed to regenerate tmdb_id {tmdb_id}: {e}")
+        for i, tmdb_id in enumerate(tmdb_ids):
+            async with async_session() as db:
+                try:
+                    result = await db.execute(
+                        select(Movie).where(Movie.tmdb_id == tmdb_id)
+                    )
+                    movie = result.scalar_one_or_none()
+                    if movie:
+                        logger.info(f"♻️ [{i+1}/{total}] Regenerating: {movie.title}")
+                        await generate_review_for_movie(db, movie)
+                        await db.commit()
+                        regenerated += 1
+                except Exception as e:
+                    await db.rollback()
+                    failed += 1
+                    logger.error(f"❌ Failed to regenerate tmdb_id {tmdb_id}: {e}")
 
-    logger.info(f"🏁 Regeneration complete: {regenerated} success, {failed} failed out of {total}")
+        logger.info(f"🏁 Regeneration complete: {regenerated} success, {failed} failed out of {total}")
+    except Exception as e:
+        logger.critical(f"🚨 Regeneration task crashed: {e}")
 
 
 # ─── Seed Top-Rated Endpoint ─────────────────────────────
@@ -238,44 +241,47 @@ async def _seed_top_rated_background(pages: int, media_type: str):
     from app.services.tmdb import tmdb_service
     from app.services.pipeline import get_or_create_movie, generate_review_for_movie
     
-    generated = 0
-    skipped = 0
-    failed = 0
-    
-    for page in range(1, pages + 1):
-        try:
-            if media_type == "movie":
-                results = await tmdb_service.get_top_rated_movies(page)
-            else:
-                results = await tmdb_service.get_top_rated_tv(page)
-            
-            for item in results:
-                tmdb_id = item["id"]
-                title = item.get("title") or item.get("name", "Unknown")
+    try:
+        generated = 0
+        skipped = 0
+        failed = 0
+        
+        for page in range(1, pages + 1):
+            try:
+                if media_type == "movie":
+                    results = await tmdb_service.get_top_rated_movies(page)
+                else:
+                    results = await tmdb_service.get_top_rated_tv(page)
                 
-                async with async_session() as db:
-                    # Skip if already in database
-                    existing = await db.execute(
-                        select(Movie).where(Movie.tmdb_id == tmdb_id)
-                    )
-                    if existing.scalar_one_or_none():
-                        skipped += 1
-                        logger.debug(f"⏭️ Skipping (exists): {title}")
-                        continue
+                for item in results:
+                    tmdb_id = item["id"]
+                    title = item.get("title") or item.get("name", "Unknown")
                     
-                    try:
-                        movie = await get_or_create_movie(db, tmdb_id, media_type)
-                        await generate_review_for_movie(db, movie)
-                        await db.commit()
-                        generated += 1
-                        logger.info(f"⭐ [{generated}] Top rated {media_type}: {title}")
-                    except Exception as e:
-                        await db.rollback()
-                        failed += 1
-                        logger.error(f"❌ Failed: {title} — {e}")
+                    async with async_session() as db:
+                        # Skip if already in database
+                        existing = await db.execute(
+                            select(Movie).where(Movie.tmdb_id == tmdb_id)
+                        )
+                        if existing.scalar_one_or_none():
+                            skipped += 1
+                            logger.debug(f"⏭️ Skipping (exists): {title}")
+                            continue
                         
-        except Exception as e:
-            logger.error(f"❌ Failed to fetch page {page}: {e}")
-    
-    logger.info(f"🏁 Top rated seed complete: {generated} new, {skipped} skipped, {failed} failed")
+                        try:
+                            movie = await get_or_create_movie(db, tmdb_id, media_type)
+                            await generate_review_for_movie(db, movie)
+                            await db.commit()
+                            generated += 1
+                            logger.info(f"⭐ [{generated}] Top rated {media_type}: {title}")
+                        except Exception as e:
+                            await db.rollback()
+                            failed += 1
+                            logger.error(f"❌ Failed: {title} — {e}")
+                            
+            except Exception as e:
+                logger.error(f"❌ Failed to fetch page {page}: {e}")
+        
+        logger.info(f"🏁 Top rated seed complete: {generated} new, {skipped} skipped, {failed} failed")
+    except Exception as e:
+        logger.critical(f"🚨 Seed top rated task crashed: {e}")
 

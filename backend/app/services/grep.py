@@ -128,10 +128,13 @@ def get_source_diversity_score(urls: list[str]) -> dict:
     """Categorize URLs by source type for diversity tracking."""
     categories = {"critic": [], "reddit": [], "user_review": [], "news": [], "other": []}
 
+    # Critic domains that DON'T block scrapers (removed rogerebert, nytimes)
     CRITIC_DOMAINS = [
-        "collider", "ign", "screenrant", "variety", "hollywoodreporter",
-        "vulture", "avclub", "indiewire", "deadline", "ew.com",
-        "empireonline", "rogerebert", "theguardian", "nytimes",
+        "collider", "ign", "screenrant", "variety", "vulture",
+        "avclub", "indiewire", "deadline", "ew.com", "empireonline",
+        "theguardian", "hollywoodreporter", "theplaylist",
+        "slashfilm", "cinemablend", "filmschoolrejects",
+        "thefilmstage", "playlist", "theringer", "polygon",
     ]
 
     for url in urls:
@@ -148,20 +151,50 @@ def get_source_diversity_score(urls: list[str]) -> dict:
     return categories
 
 
-def select_best_sources(serper_results: list[dict], max_total: int = 8) -> list[str]:
+def select_best_sources(serper_results: list[dict], max_total: int = 15) -> list[str]:
     """Pick diverse, high-quality URLs from search results."""
-    urls = [r["link"] for r in serper_results if r.get("link")]
+    
+    # Pre-filter blocked domains BEFORE categorizing (no wasted slots)
+    BLOCKED = [
+        "imdb.com", "rottentomatoes.com", "letterboxd.com",
+        "rogerebert.com", "nytimes.com", "wsj.com", 
+        "washingtonpost.com", "bloomberg.com", "newyorker.com",
+        "wired.com", "youtube.com", "youtu.be", "twitter.com",
+        "x.com", "instagram.com", "tiktok.com", "facebook.com",
+    ]
+    
+    # Deduplicate input URLs first
+    seen_urls = set()
+    unique_results = []
+    for r in serper_results:
+        link = r.get("link", "").rstrip("/").split("#")[0]
+        if link and link not in seen_urls and not any(d in link.lower() for d in BLOCKED):
+            seen_urls.add(link)
+            unique_results.append(r)
+    
+    urls = [r["link"] for r in unique_results if r.get("link")]
+    
     categories = get_source_diversity_score(urls)
 
     selected = []
-    selected.extend(categories["critic"][:4])       # 3 → 4 critic reviews
-    selected.extend(categories["reddit"][:5])       # 3 → 5 Reddit threads
-    selected.extend(categories["user_review"][:2])  # 1 → 2 user review sites
-    selected.extend(categories["other"][:1])        # 1 other source
+    selected.extend(categories["critic"][:5])       # 5 critic reviews
+    selected.extend(categories["reddit"][:5])       # 5 Reddit threads
+    selected.extend(categories["user_review"][:2])  # 2 user review sites
+    selected.extend(categories["other"][:3])        # 3 other sources
 
     # If we don't have enough from categories, fill from remaining
     if len(selected) < max_total:
         remaining = [u for u in urls if u not in selected]
         selected.extend(remaining[: max_total - len(selected)])
 
-    return selected[:max_total]
+    # Final deduplication — preserve order
+    seen = set()
+    unique_selected = []
+    for url in selected:
+        # Normalize URL (remove trailing slashes, fragments)
+        normalized = url.rstrip("/").split("#")[0]
+        if normalized not in seen:
+            seen.add(normalized)
+            unique_selected.append(url)
+
+    return unique_selected[:max_total]

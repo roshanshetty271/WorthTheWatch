@@ -169,11 +169,12 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     # ─── Step 1: SEARCH ────────────────────────────────────
     try:
-        # Two parallel searches for diverse sources
+        # Three parallel searches for diverse sources
         job_progress[tmdb_id] = "Searching for reviews..."
-        critic_results, reddit_results = await asyncio.gather(
+        critic_results, reddit_results, forum_results = await asyncio.gather(
             serper_service.search_reviews(title, year),
             serper_service.search_reddit(title, year),
+            serper_service.search_forums(title, year),
             return_exceptions=True,
         )
         # Handle individual failures gracefully
@@ -183,11 +184,14 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         if isinstance(reddit_results, Exception):
             logger.error(f"Reddit search failed: {reddit_results}")
             reddit_results = []
+        if isinstance(forum_results, Exception):
+            logger.error(f"Forum search failed: {forum_results}")
+            forum_results = []
     except Exception as e:
         logger.error(f"Serper search failed: {e}")
-        critic_results, reddit_results = [], []
+        critic_results, reddit_results, forum_results = [], [], []
 
-    all_results = critic_results + reddit_results
+    all_results = critic_results + reddit_results + forum_results
     
     # ─── Step 1b: Guardian + NYT (Phase 2) ─────────────────
     try:

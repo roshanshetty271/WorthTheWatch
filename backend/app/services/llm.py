@@ -102,7 +102,7 @@ SENTIMENT BREAKDOWN RULES:
 # ─── Synthesis Function ───────────────────────────────────
 
 async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
-    """Make LLM API call and return raw content."""
+    """Make LLM API call and return raw content with increased timeout."""
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -112,6 +112,7 @@ async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
         response_format={"type": "json_object"},
         temperature=0.7,
         max_tokens=800,
+        timeout=60.0,  # Increased timeout for slow LLM responses
     )
     return response.choices[0].message.content
 

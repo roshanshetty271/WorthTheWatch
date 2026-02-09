@@ -6,11 +6,47 @@ Free tier: 500 requests/day.
 Article Search API: https://developer.nytimes.com/docs/articlesearch-product/1/overview
 """
 
+import re
 import httpx
 import logging
 from typing import Optional
 from app.config import get_settings
 from app.services.retry import with_retry
+
+
+def _title_matches(title: str, text: str, year: str = "") -> bool:
+    """
+    Check if title appears in text.
+    For short titles (<=3 chars), use very strict matching to avoid false positives
+    like "Cover Up" matching when searching for "Up".
+    """
+    title_lower = title.lower().strip()
+    text_lower = text.lower().strip()
+    
+    if len(title_lower) <= 3:
+        # Very strict matching for short titles like "It", "Up", "Her", "Us"
+        # Must start with the title, or contain "title (year)", or be followed by punctuation
+        
+        # Check if headline starts with the title followed by space or punctuation
+        starts_with = (
+            text_lower.startswith(title_lower + " ") or 
+            text_lower.startswith(title_lower + ":") or
+            text_lower.startswith(title_lower + ",") or
+            text_lower.startswith(title_lower + " –") or
+            text_lower.startswith(title_lower + " -")
+        )
+        
+        # Check if "title (year)" appears (e.g., "Up (2009)")
+        has_year = f"{title_lower} ({year})" in text_lower if year else False
+        
+        # Check for pattern: "title review" at start
+        has_review = text_lower.startswith(f"{title_lower} review")
+        
+        return starts_with or has_year or has_review
+    else:
+        # Normal word boundary matching for longer titles
+        pattern = re.compile(r'\b' + re.escape(title_lower) + r'\b')
+        return bool(pattern.search(text_lower))
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -115,23 +151,36 @@ class NYTService:
             results = []
             docs = data.get("response", {}).get("docs", [])
             
-            for item in docs[:max_results]:
+            for item in docs:
                 headline_obj = item.get("headline", {})
+                headline = headline_obj.get("default", headline_obj.get("main", "")) if isinstance(headline_obj, dict) else str(headline_obj)
+                summary = item.get("summary", item.get("snippet", ""))
+                
+                # Post-filter: only keep articles that actually mention the movie
+                # NYT doesn't pass year, but strict position-based matching still works
+                if not _title_matches(title, headline, "") and not _title_matches(title, summary, ""):
+                    logger.debug(f"NYT: Discarding '{headline[:50]}' - doesn't mention '{title}'")
+                    continue
+                
                 bylines = item.get("bylines", [])
                 byline_str = bylines[0].get("renderedRepresentation", "") if bylines else None
                 
                 review = NYTReview(
                     url=item.get("url", item.get("web_url", "")),
-                    headline=headline_obj.get("default", headline_obj.get("main", "")) if isinstance(headline_obj, dict) else str(headline_obj),
-                    summary=item.get("summary", item.get("snippet", "")),
+                    headline=headline,
+                    summary=summary,
                     publication_date=item.get("firstPublished", "")[:10] if item.get("firstPublished") else None,
                     critics_pick=False,  # Not available in Article Search
                     reviewer=byline_str,
                 )
                 results.append(review)
+                
+                # Stop after enough valid results
+                if len(results) >= max_results:
+                    break
 
             if results:
-                logger.info(f"NYT Article Search: Found {len(results)} reviews for '{title}'")
+                logger.info(f"NYT Article Search: Found {len(results)} relevant reviews for '{title}'")
             return results
 
         except httpx.HTTPStatusError as e:
