@@ -6,6 +6,7 @@ This is the core of the app.
 
 import logging
 from datetime import date, datetime
+from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
@@ -333,17 +334,17 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     await db.flush()
     
     # ─── Step 6: ENRICH (Phase 2) ─────────────────────────
-    job_progress[tmdb_id] = "Enriching with scores and trailer..."
+    job_progress[tmdb_id] = "Finalizing your review..."
     logger.info(f"🎬 Step 5/5: Fetching OMDB scores and trailer for '{title}'")
     
     try:
-        # Parallel fetch: OMDB scores + KinoCheck trailer
+        # Parallel fetch: OMDB scores + trailer (try KinoCheck then TMDB)
         omdb_task = omdb_service.get_scores_by_title(
             title, year, "series" if movie.media_type == "tv" else "movie"
         )
-        trailer_task = kinocheck_service.get_trailer_by_tmdb_id(movie.tmdb_id, movie.media_type or "movie")
+        trailer_task = _get_best_trailer(movie.tmdb_id, movie.media_type or "movie")
         
-        omdb_scores, trailer_id = await asyncio.gather(
+        omdb_scores, trailer_url = await asyncio.gather(
             omdb_task, trailer_task, return_exceptions=True
         )
         
@@ -358,8 +359,8 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                 review.controversial = gap > 25
         
         # Apply trailer
-        if not isinstance(trailer_id, Exception) and trailer_id:
-            review.trailer_url = youtube_embed_url(trailer_id)
+        if not isinstance(trailer_url, Exception) and trailer_url:
+            review.trailer_url = trailer_url
         
         # Apply sentiment from LLM output
         review.positive_pct = llm_output.positive_pct
@@ -373,6 +374,34 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     
     job_progress.pop(tmdb_id, None)
     return review
+
+
+async def _get_best_trailer(tmdb_id: int, media_type: str) -> Optional[str]:
+    """Try KinoCheck first, then fallback to TMDB videos."""
+    # 1. Try KinoCheck (Official trailers)
+    try:
+        trailer_id = await kinocheck_service.get_trailer_by_tmdb_id(tmdb_id, media_type)
+        if trailer_id:
+            return youtube_embed_url(trailer_id)
+    except Exception:
+        pass
+
+    # 2. Fallback to TMDB (Official videos)
+    try:
+        videos = await tmdb_service.get_videos(tmdb_id, media_type)
+        if videos:
+            # helper to find best match
+            for v in videos:
+                if v.get("site") == "YouTube" and v.get("type") == "Trailer":
+                    return youtube_embed_url(v["key"])
+            
+            # If no trailer, take first result (Teaser/Clip)
+            if videos:
+                 return youtube_embed_url(videos[0]["key"])
+    except Exception:
+        pass
+        
+    return None
 
 
 async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -> Review:

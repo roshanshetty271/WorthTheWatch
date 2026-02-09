@@ -204,7 +204,8 @@ async def list_movies(
 
 @router.get("/{tmdb_id}", response_model=MovieWithReview)
 async def get_movie(tmdb_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a single movie with its review."""
+    """Get a single movie with its review. Falls back to TMDB if not in our DB."""
+    # Try our DB first
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
@@ -212,10 +213,45 @@ async def get_movie(tmdb_id: int, db: AsyncSession = Depends(get_db)):
     )
     movie = result.unique().scalar_one_or_none()
 
-    if not movie:
-        raise HTTPException(status_code=404, detail="Movie not found")
-
-    return _format_movie_with_review(movie)
+    if movie:
+        return _format_movie_with_review(movie)
+    
+    # Not in our DB — fetch from TMDB directly
+    try:
+        # Try movie first
+        tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
+        media_type = "movie"
+        
+        # If no movie found, try TV
+        if not tmdb_data or not tmdb_data.get("id"):
+            tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
+            media_type = "tv"
+        
+        if tmdb_data and tmdb_data.get("id"):
+            tmdb_data["media_type"] = media_type
+            normalized = tmdb_service.normalize_result(tmdb_data)
+            
+            # Build movie response from TMDB data
+            movie_resp = MovieResponse(
+                id=0,  # not in our DB yet
+                tmdb_id=normalized.get("tmdb_id", tmdb_id),
+                title=normalized.get("title", "Unknown"),
+                media_type=normalized.get("media_type", media_type),
+                overview=normalized.get("overview"),
+                poster_path=normalized.get("poster_path"),
+                backdrop_path=normalized.get("backdrop_path"),
+                genres=normalized.get("genres", []),
+                release_date=normalized.get("release_date"),
+                tmdb_popularity=normalized.get("tmdb_popularity"),
+                tmdb_vote_average=normalized.get("tmdb_vote_average"),
+                poster_url=tmdb_service.get_poster_url(normalized.get("poster_path")),
+                backdrop_url=tmdb_service.get_backdrop_url(normalized.get("backdrop_path")),
+            )
+            return MovieWithReview(movie=movie_resp, review=None)
+    except Exception:
+        pass
+    
+    raise HTTPException(status_code=404, detail="Movie not found")
 
 
 @router.get("/{tmdb_id}/streaming")

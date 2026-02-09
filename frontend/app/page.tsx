@@ -136,14 +136,14 @@ export default async function HomePage() {
         )}
 
         {/* Center Content: Title & Search */}
-        <div className="relative z-30 w-full max-w-2xl px-4 text-center">
+        <div className="relative z-30 w-full max-w-4xl px-4 text-center">
           <h1 className="mb-2 font-display text-3xl text-white sm:text-5xl md:text-6xl lg:text-7xl drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
             Worth the Watch<span className="text-accent-gold">?</span>
           </h1>
-          <p className="mx-auto mb-6 sm:mb-8 max-w-xs sm:max-w-md text-sm sm:text-base md:text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+          <p className="mx-auto mb-6 sm:mb-8 max-w-md sm:max-w-lg text-sm sm:text-base md:text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
             Should I stream this? The internet decides.
           </p>
-          <div className="mx-auto max-w-xl">
+          <div className="mx-auto max-w-3xl">
             <SearchBar placeholder="Search any movie or TV show..." size="lg" />
           </div>
         </div>

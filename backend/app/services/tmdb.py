@@ -232,6 +232,24 @@ class TMDBService:
         except Exception:
             return {"flatrate": [], "rent": [], "buy": [], "free": [], "ads": [], "link": ""}
 
+    async def get_videos(self, tmdb_id: int, media_type: str = "movie") -> list[dict]:
+        """
+        Get videos (trailers, teasers, clips) from TMDB.
+        Returns list of video objects, sorted by type (Trailer first).
+        """
+        endpoint = f"/{media_type}/{tmdb_id}/videos"
+        data = await self._get(endpoint)
+        results = data.get("results", [])
+        
+        # Filter for YouTube only
+        videos = [v for v in results if v.get("site") == "YouTube"]
+        
+        # Sort priority: Trailer > Teaser > Clip > Featurette
+        type_priority = {"Trailer": 0, "Teaser": 1, "Clip": 2, "Featurette": 3}
+        videos.sort(key=lambda x: type_priority.get(x.get("type"), 99))
+        
+        return videos
+
     def get_poster_url(self, path: Optional[str], size: str = "w500") -> Optional[str]:
         if not path:
             return None

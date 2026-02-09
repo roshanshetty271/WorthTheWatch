@@ -4,6 +4,8 @@ import type { Review } from "@/lib/api";
 import VerdictBadge from "./VerdictBadge";
 import SentimentBar from "./SentimentBar";
 
+import TrailerEmbed from "./TrailerEmbed";
+
 interface ReviewContentProps {
   review: Review;
 }
@@ -14,11 +16,6 @@ export default function ReviewContent({ review }: ReviewContentProps) {
       {/* Verdict */}
       <div className="flex items-center gap-4">
         <VerdictBadge verdict={review.verdict} size="lg" />
-        {review.confidence && (
-          <span className="text-xs uppercase tracking-widest text-text-muted">
-            {review.confidence} confidence
-          </span>
-        )}
         {review.controversial && (
           <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400 border border-amber-500/20">
             🔥 Controversial
@@ -81,6 +78,18 @@ export default function ReviewContent({ review }: ReviewContentProps) {
           </div>
         )}
       </div>
+
+      {/* Trailer Embed - Integrated into Review Card */}
+      {review.trailer_url && (
+        <div className="pt-2">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-text-muted">
+            Official Trailer
+          </h3>
+          <div className="overflow-hidden rounded-xl border border-surface-elevated">
+            <TrailerEmbed youtubeUrl={review.trailer_url} />
+          </div>
+        </div>
+      )}
 
       {/* Sources & Meta */}
       <div className="flex flex-wrap items-center gap-4 border-t border-surface-elevated pt-4 text-xs text-text-muted">

@@ -27,6 +27,38 @@ router = APIRouter(prefix="/search", tags=["Search"])
 IP_HASH_SALT = os.getenv("IP_HASH_SALT", "wtw-default-salt-change-in-prod")
 
 
+@router.get("/quick")
+async def quick_search(
+    q: str = Query(..., min_length=2, max_length=200),
+    db: AsyncSession = Depends(get_db),
+):
+    """Quick search for dropdown — returns TMDB results with review status."""
+    tmdb_results = await tmdb_service.search(q)
+    
+    if not tmdb_results:
+        return {"results": []}
+    
+    # Check which ones we already have reviews for
+    tmdb_ids = [r["id"] for r in tmdb_results[:8]]
+    result = await db.execute(
+        select(Movie.tmdb_id)
+        .join(Review, Movie.id == Review.movie_id)
+        .where(Movie.tmdb_id.in_(tmdb_ids))
+    )
+    reviewed_ids = set(row[0] for row in result.all())
+    
+    results = []
+    for item in tmdb_results[:8]:
+        normalized = tmdb_service.normalize_result(item)
+        results.append({
+            **normalized,
+            "has_review": item["id"] in reviewed_ids,
+            "poster_url": tmdb_service.get_poster_url(item.get("poster_path")),
+        })
+    
+    return {"results": results}
+
+
 @router.get("", response_model=SearchResult)
 async def search_movies(
     q: str = Query(..., min_length=1, max_length=200, description="Search query"),
