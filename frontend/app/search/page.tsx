@@ -219,7 +219,7 @@ function SearchContent() {
                     )}
                     <span>•</span>
                     <span className="capitalize">{generatedMovie.movie.media_type}</span>
-                    {generatedMovie.movie.tmdb_vote_average && (
+                    {generatedMovie.movie.tmdb_vote_average && generatedMovie.movie.tmdb_vote_average > 0 && (
                       <>
                         <span>•</span>
                         <span>⭐ {generatedMovie.movie.tmdb_vote_average.toFixed(1)}</span>

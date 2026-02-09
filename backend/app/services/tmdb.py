@@ -4,7 +4,9 @@ Handles movie metadata, trending, upcoming, search, and watch providers.
 Free API, ~50 req/sec, no daily limit.
 """
 
+import re
 import httpx
+import asyncio
 from datetime import date
 from typing import Optional
 from app.config import get_settings
@@ -75,17 +77,78 @@ class TMDBService:
         return await self._get(f"/tv/{tmdb_id}")
 
     async def search(self, query: str, page: int = 1) -> list[dict]:
-        """Multi-search across movies and TV."""
+        """
+        Multi-search with smart year detection.
+        
+        Supports:
+        - "Iron Man" → general multi-search
+        - "The Call 2020" → year-filtered search
+        - "The Call (2020)" → year-filtered search
+        """
+        query = query.strip()
+        
+        # Smart year detection — check for trailing year like "2020" or "(2020)"
+        year_match = re.search(r'\s*\(?((?:19|20)\d{2})\)?$', query)
+        
+        if year_match:
+            year = int(year_match.group(1))
+            clean_query = re.sub(r'\s*\(?((?:19|20)\d{2})\)?$', '', query).strip()
+            
+            if clean_query:
+                # Year detected — use specific endpoints with year filter for better accuracy
+                movie_results, tv_results = await asyncio.gather(
+                    self._search_movies(clean_query, year, page),
+                    self._search_tv(clean_query, year, page),
+                    return_exceptions=True,
+                )
+                
+                results = []
+                if isinstance(movie_results, list):
+                    results.extend(movie_results)
+                if isinstance(tv_results, list):
+                    results.extend(tv_results)
+                
+                if results:
+                    return self._filter_results(results)
+                # Fall through to general search if year-specific search found nothing
+        
+        # General multi-search (no year detected, or year search found nothing)
         data = await self._get("/search/multi", {
             "query": query,
             "page": page,
-            "include_adult": "false",  # First layer: API-level filter
+            "include_adult": "false",
         })
         results = data.get("results", [])
-        # Filter to only movies and tv
         results = [r for r in results if r.get("media_type") in ("movie", "tv")]
-        # Second layer: local filter for extra safety
         return self._filter_results(results)
+
+    async def _search_movies(self, query: str, year: int, page: int = 1) -> list[dict]:
+        """Search movies with year filter."""
+        data = await self._get("/search/movie", {
+            "query": query,
+            "page": page,
+            "primary_release_year": year,
+            "include_adult": "false",
+        })
+        results = data.get("results", [])
+        # Add media_type since /search/movie doesn't include it
+        for r in results:
+            r["media_type"] = "movie"
+        return results
+
+    async def _search_tv(self, query: str, year: int, page: int = 1) -> list[dict]:
+        """Search TV shows with year filter."""
+        data = await self._get("/search/tv", {
+            "query": query,
+            "page": page,
+            "first_air_date_year": year,
+            "include_adult": "false",
+        })
+        results = data.get("results", [])
+        # Add media_type since /search/tv doesn't include it
+        for r in results:
+            r["media_type"] = "tv"
+        return results
 
     async def get_watch_providers(self, tmdb_id: int, media_type: str = "movie", region: str = "US") -> dict:
         """

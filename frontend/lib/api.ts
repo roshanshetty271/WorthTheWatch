@@ -79,12 +79,16 @@ export interface SearchResult {
 
 export async function getMovies(params?: {
   page?: number;
+  limit?: number;
+  category?: string;
   sort?: string;
   verdict?: string;
   media_type?: string;
 }): Promise<PaginatedMovies> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.category) searchParams.set("category", params.category);
   if (params?.sort) searchParams.set("sort", params.sort);
   if (params?.verdict) searchParams.set("verdict", params.verdict);
   if (params?.media_type) searchParams.set("media_type", params.media_type);

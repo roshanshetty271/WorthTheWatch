@@ -112,7 +112,7 @@ export default function MovieCard({ data }: MovieCardProps) {
           </h3>
           <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
             {year && <span>{year}</span>}
-            {movie.tmdb_vote_average && movie.tmdb_vote_average < 7 && (
+            {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && movie.tmdb_vote_average < 7 && (
               <>
                 <span>•</span>
                 <span className="flex items-center gap-0.5">

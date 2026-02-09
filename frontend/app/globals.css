@@ -74,3 +74,13 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite ease-in-out;
 }
+
+/* ─── Scrollbar Hide (Netflix-style horizontal scroll) ─── */
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

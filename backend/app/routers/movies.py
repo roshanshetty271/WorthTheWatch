@@ -85,52 +85,110 @@ async def get_curated_sections(
         "skip_these": [_format_movie_with_review(m) for m in skip_these],
     }
 
+from typing import Optional
 
 @router.get("", response_model=PaginatedMovies)
 async def list_movies(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
-    sort: str = Query("latest", pattern="^(latest|popular|verdict|release_date)$"),
-    verdict: str = Query(None, pattern="^(WORTH IT|NOT WORTH IT|MIXED BAG)$"),
-    media_type: str = Query(None, pattern="^(movie|tv)$"),
+    category: Optional[str] = Query(None, pattern="^(trending|latest|worth-it|skip-these|mixed-bag|hidden-gems|movies|tv-shows)$"),
+    sort: Optional[str] = Query(None, pattern="^(latest|popular|verdict|release_date)$"),
+    verdict: Optional[str] = Query(None, pattern="^(WORTH IT|NOT WORTH IT|MIXED BAG)$"),
+    media_type: Optional[str] = Query(None, pattern="^(movie|tv)$"),
     db: AsyncSession = Depends(get_db),
 ):
-    """List movies with their reviews. Paginated."""
+    """
+    List movies with their reviews. Paginated.
+    
+    Category param overrides other filters when provided:
+    - trending: sort by popularity
+    - latest: sort by release date  
+    - worth-it: WORTH IT verdicts
+    - skip-these: NOT WORTH IT verdicts
+    - mixed-bag: MIXED BAG verdicts
+    - hidden-gems: WORTH IT + HIGH confidence + low popularity
+    - movies: only movies
+    - tv-shows: only TV shows
+    """
     query = select(Movie).options(joinedload(Movie.review))
-
-    # Filters
-    if media_type:
-        query = query.where(Movie.media_type == media_type)
-    if verdict:
-        query = query.join(Review).where(Review.verdict == verdict)
-
-    # Sorting
-    if sort == "latest":
-        # Sort by when the review was generated (newest reviews first)
-        # We need to join Review if not already joined
-        if not verdict:
-             query = query.join(Review, isouter=True)
-        query = query.order_by(desc(Review.generated_at).nulls_last(), desc(Movie.release_date))
-    elif sort == "release_date":
-        query = query.order_by(desc(Movie.release_date))
-    elif sort == "popular":
-        query = query.order_by(desc(Movie.tmdb_popularity))
-    elif sort == "verdict" and not verdict:
-        # Only join Review for sorting if not already joined by verdict filter
-        query = query.join(Review, isouter=True).order_by(desc(Review.generated_at))
-    elif sort == "verdict" and verdict:
-        query = query.order_by(desc(Review.generated_at))
-
-    # Count total (respecting filters)
     count_query = select(func.count()).select_from(Movie)
-    if media_type:
-        count_query = count_query.where(Movie.media_type == media_type)
-    if verdict:
-        count_query = count_query.join(Review).where(Review.verdict == verdict)
+    
+    # ─── Category-based queries (Netflix-style sections) ───────────────
+    if category:
+        if category == "trending":
+            query = query.order_by(desc(Movie.tmdb_popularity))
+            
+        elif category == "latest":
+            # Join to only show movies with reviews, sorted by review date
+            query = query.join(Review).order_by(desc(Review.generated_at))
+            count_query = count_query.join(Review)
+            
+        elif category == "worth-it":
+            query = query.join(Review).where(Review.verdict == "WORTH IT").order_by(desc(Review.generated_at))
+            count_query = count_query.join(Review).where(Review.verdict == "WORTH IT")
+            
+        elif category == "skip-these":
+            query = query.join(Review).where(Review.verdict == "NOT WORTH IT").order_by(desc(Review.generated_at))
+            count_query = count_query.join(Review).where(Review.verdict == "NOT WORTH IT")
+            
+        elif category == "mixed-bag":
+            query = query.join(Review).where(Review.verdict == "MIXED BAG").order_by(desc(Review.generated_at))
+            count_query = count_query.join(Review).where(Review.verdict == "MIXED BAG")
+            
+        elif category == "hidden-gems":
+            # WORTH IT + HIGH confidence + lower popularity
+            query = query.join(Review).where(
+                and_(
+                    Review.verdict == "WORTH IT",
+                    Review.confidence == "HIGH",
+                    Movie.tmdb_popularity < 50
+                )
+            ).order_by(desc(Review.generated_at))
+            count_query = count_query.join(Review).where(
+                and_(
+                    Review.verdict == "WORTH IT", 
+                    Review.confidence == "HIGH",
+                    Movie.tmdb_popularity < 50
+                )
+            )
+            
+        elif category == "movies":
+            query = query.where(Movie.media_type == "movie").order_by(desc(Movie.release_date))
+            count_query = count_query.where(Movie.media_type == "movie")
+            
+        elif category == "tv-shows":
+            query = query.where(Movie.media_type == "tv").order_by(desc(Movie.release_date))
+            count_query = count_query.where(Movie.media_type == "tv")
+    
+    else:
+        # ─── Legacy behavior (backward compatibility) ──────────────────
+        if media_type:
+            query = query.where(Movie.media_type == media_type)
+            count_query = count_query.where(Movie.media_type == media_type)
+        if verdict:
+            query = query.join(Review).where(Review.verdict == verdict)
+            count_query = count_query.join(Review).where(Review.verdict == verdict)
+
+        # Sorting (default: latest)
+        sort = sort or "latest"
+        if sort == "latest":
+            if not verdict:
+                query = query.join(Review, isouter=True)
+            query = query.order_by(desc(Review.generated_at).nulls_last(), desc(Movie.release_date))
+        elif sort == "release_date":
+            query = query.order_by(desc(Movie.release_date))
+        elif sort == "popular":
+            query = query.order_by(desc(Movie.tmdb_popularity))
+        elif sort == "verdict" and not verdict:
+            query = query.join(Review, isouter=True).order_by(desc(Review.generated_at))
+        elif sort == "verdict" and verdict:
+            query = query.order_by(desc(Review.generated_at))
+
+    # ─── Count total ───────────────────────────────────────────────────
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Paginate
+    # ─── Paginate ──────────────────────────────────────────────────────
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
     result = await db.execute(query)
