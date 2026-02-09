@@ -22,9 +22,9 @@ SKIP_DOMAINS = [
 # Domains that block scrapers — skip to save time
 BLOCKED_DOMAINS = [
     "imdb.com", "rottentomatoes.com", "letterboxd.com",
-    "rogerebert.com", "nytimes.com",  # Always 403
+    "rogerebert.com", "nytimes.com",
     "wsj.com", "washingtonpost.com", "bloomberg.com",
-    "newyorker.com", "wired.com",  # Paywall + block scrapers
+    "newyorker.com", "wired.com",
 ]
 
 
@@ -33,6 +33,12 @@ class ArticleReader:
     Reads articles from URLs. Two modes:
     - BeautifulSoup (default): Free forever, no API key needed
     - Jina Reader (optional): Better quality, needs API key + credits
+
+    Smart Reddit handling:
+    - Tries old.reddit.com first for ONE URL
+    - If blocked (403), skips ALL remaining Reddit direct fetches
+    - Falls back to Google cache for Reddit content
+    - Zero wasted retries
     """
 
     def __init__(self):
@@ -42,46 +48,7 @@ class ArticleReader:
         else:
             logger.info("📖 Article Reader: Using BeautifulSoup (free mode)")
 
-    async def read_url(self, url: str, timeout: float = 15.0) -> Optional[str]:
-        """Read a single URL and return clean text content."""
-        # Skip known problematic domains
-        url_lower = url.lower()
-        if any(domain in url_lower for domain in SKIP_DOMAINS + BLOCKED_DOMAINS):
-            logger.debug(f"Skipping blocked domain: {url[:50]}...")
-            return None
-
-        if self.use_jina:
-            return await self._read_with_jina(url, timeout)
-        else:
-            return await self._read_with_bs4(url, timeout)
-
-    async def _read_with_jina(self, url: str, timeout: float) -> Optional[str]:
-        """Read using Jina Reader API."""
-        try:
-            headers = {"Accept": "text/markdown"}
-            if settings.JINA_API_KEY:
-                headers["Authorization"] = f"Bearer {settings.JINA_API_KEY}"
-            
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.get(
-                    f"https://r.jina.ai/{url}",
-                    headers=headers,
-                )
-                if resp.status_code == 200 and len(resp.text) > 100:
-                    return resp.text
-                if resp.status_code == 402:
-                    logger.warning("Jina returned 402 — falling back to BeautifulSoup")
-                    return await self._read_with_bs4(url, timeout)
-            return None
-        except Exception:
-            return await self._read_with_bs4(url, timeout)
-
-    async def _read_with_bs4(self, url: str, timeout: float) -> Optional[str]:
-        """Read using httpx + BeautifulSoup. More aggressive content extraction."""
-        from bs4 import BeautifulSoup
-        
-        # Default headers
-        headers = {
+        self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
                           "Chrome/131.0.0.0 Safari/537.36",
@@ -90,236 +57,437 @@ class ArticleReader:
             "Connection": "keep-alive",
         }
 
-        try:
-            fetch_url = url
-            is_reddit = "reddit.com" in url.lower()
-            
-            # Reddit URL swap
-            if is_reddit and "old.reddit.com" not in url:
-                fetch_url = url.replace("www.reddit.com", "old.reddit.com")
-                if "old.reddit.com" not in fetch_url:
-                    fetch_url = fetch_url.replace("reddit.com", "old.reddit.com")
-                logger.info(f"🔄 Reddit URL swapped: {url[:60]} → {fetch_url[:60]}")
-            
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                follow_redirects=True,
-                headers=headers,
-            ) as client:
-                resp = await client.get(fetch_url)
-                
-                # Handle Reddit 403 with retry / Google cache
-                if resp.status_code == 403:
-                    # Retry with Safari User-Agent
-                    client.headers["User-Agent"] = (
-                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                        "Version/17.0 Safari/605.1.15"
-                    )
-                    resp = await client.get(fetch_url)
-                
-                if resp.status_code != 200:
-                    # Fallback for Reddit: Google Web Cache
-                    if is_reddit:
-                        original_url = url.replace("old.reddit.com", "www.reddit.com")
-                        cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original_url}"
-                        logger.info(f"🔄 Reddit blocked, trying Google cache: {url[:60]}")
-                        try:
-                            resp = await client.get(cache_url)
-                            if resp.status_code == 200:
-                                return self._parse_reddit_from_cache(resp.text)
-                        except Exception as e:
-                            logger.warning(f"Google cache fetch failed: {e}")
-                    
-                    return None
-                
-                html = resp.text
-                if len(html) < 500:
-                    return None
-                
-                soup = BeautifulSoup(html, "html.parser")
-                
-                # Remove junk elements
-                for tag in soup(["script", "style", "nav", "footer", "header",
-                               "aside", "iframe", "noscript", "form", "button",
-                               "svg"]):
-                    tag.decompose()
-                
-                # STRATEGY 1: Try targeted content selectors
-                content = None
-                
-                # Try common article/content containers
-                selectors = [
-                    "article",
-                    "[class*='article-body']",
-                    "[class*='post-content']",
-                    "[class*='entry-content']",
-                    "[class*='story-body']",
-                    "[class*='review-body']",
-                    "[class*='article-content']",
-                    "[class*='post-body']",
-                    "[class*='content-body']",
-                    "[class*='review-content']",
-                    "[class*='main-content']",
-                    "[class*='post_content']",
-                    "[class*='blogpost']",
-                    "[class*='single-content']",
-                    "[id='content']",
-                    "[id='main-content']",
-                    "[id='article-body']",
-                    "[role='main']",
-                    "main",
-                    ".post",
-                    ".review",
-                    ".entry",
-                ]
-                
-                for selector in selectors:
-                    found = soup.select_one(selector)
-                    if found:
-                        content = found
-                        break
-                
-                # STRATEGY 2: If no container found, use body
-                if not content:
-                    content = soup.find("body")
-                
-                if not content:
-                    return None
-                
-                # Extract ALL text paragraphs
-                paragraphs = []
-                for el in content.find_all(["p", "h2", "h3", "h4", 
-                                            "blockquote", "li", "div", "span"]):
-                    text = el.get_text(strip=True)
-                    # Be LESS strict — accept shorter paragraphs
-                    if len(text) > 20:
-                        # Skip obvious navigation/UI text
-                        skip_words = ["cookie", "subscribe", "sign up", "log in",
-                                    "newsletter", "privacy policy", "terms of",
-                                    "click here", "read more", "share this",
-                                    "advertisement", "sponsored"]
-                        if not any(sw in text.lower() for sw in skip_words):
-                            paragraphs.append(text)
-                
-                # STRATEGY 3: If paragraphs are empty, just get ALL text
-                if len(paragraphs) < 3:
-                    # Fall back to raw text extraction
-                    raw_text = content.get_text(separator="\n", strip=True)
-                    # Split into lines and keep meaningful ones
-                    lines = [line.strip() for line in raw_text.split("\n") 
-                             if len(line.strip()) > 20]
-                    if lines:
-                        paragraphs = lines
-                
-                # Deduplicate
-                seen = set()
-                unique = []
-                for p in paragraphs:
-                    key = p[:80].lower()
-                    if key not in seen:
-                        seen.add(key)
-                        unique.append(p)
-                
-                result = "\n\n".join(unique[:50])  # More paragraphs
-                
-                # Be LESS strict on minimum length
-                if len(result) > 100:  # Was 200, now 100
-                    return result
-                
-                # Log WHY parsing failed
-                html_len = len(resp.text)
-                para_count = len(paragraphs)
-                result_len = len(result)
-                logger.warning(
-                    f"⚠️ Parse failed for {url[:60]}: "
-                    f"HTML={html_len} chars, paragraphs={para_count}, "
-                    f"extracted={result_len} chars"
-                )
-                return None
-        
-        except httpx.TimeoutException:
+    # ─── Main Entry Points ────────────────────────────────
+
+    async def read_url(self, url: str, timeout: float = 15.0) -> Optional[str]:
+        """Read a single URL and return clean text content."""
+        url_lower = url.lower()
+
+        # Skip known problematic domains
+        if any(domain in url_lower for domain in SKIP_DOMAINS + BLOCKED_DOMAINS):
             return None
-        except Exception as e:
-            logger.debug(f"BS4 parse error for {url[:60]}: {e}")
-            return None
+
+        if self.use_jina:
+            return await self._read_with_jina(url, timeout)
+        else:
+            return await self._read_with_bs4(url, timeout)
 
     async def read_urls(self, urls: list[str], max_concurrent: int = 5) -> tuple[list[str], list[str]]:
         """
-        Read multiple URLs in parallel.
-        Returns (successful_articles, failed_urls).
+        Read multiple URLs with smart Reddit handling.
+
+        Strategy:
+        1. Separate Reddit URLs from non-Reddit URLs
+        2. Fetch all non-Reddit URLs in parallel (they always work)
+        3. Test ONE Reddit URL to check if blocked
+        4. If Reddit works → fetch remaining Reddit in parallel
+        5. If Reddit blocked → Google cache for all Reddit URLs
+        
+        This avoids wasting 15-20 seconds on 7 parallel Reddit 403s.
         """
-        semaphore = asyncio.Semaphore(max_concurrent)
-
-        async def _read(url: str) -> tuple[str, Optional[str]]:
-            async with semaphore:
-                content = await self.read_url(url)
-                return (url, content)
-
-        tasks = [_read(url) for url in urls]
-        # Use return_exceptions=True to prevent one failure from crashing all
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Separate Reddit and non-Reddit URLs
+        reddit_urls = [u for u in urls if "reddit.com" in u.lower()]
+        other_urls = [u for u in urls if "reddit.com" not in u.lower()]
 
         articles = []
         failed = []
-        
-        for r in results:
-            if isinstance(r, tuple):
-                url, content = r
-                if content:
-                    articles.append(content)
+
+        # ─── Step 1: Fetch non-Reddit URLs in parallel (always works) ───
+        if other_urls:
+            semaphore = asyncio.Semaphore(max_concurrent)
+
+            async def _read(url: str) -> tuple[str, Optional[str]]:
+                async with semaphore:
+                    content = await self.read_url(url)
+                    return (url, content)
+
+            tasks = [_read(url) for url in other_urls]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for r in results:
+                if isinstance(r, tuple):
+                    url, content = r
+                    if content:
+                        articles.append(content)
+                    else:
+                        failed.append(url)
                 else:
-                    failed.append(url)
-            else:
-                # Exception occurred (shouldn't happen with return_exceptions=True inside _read, but safe to handle)
-                failed.append("unknown_error")
-                logger.error(f"Error reading URL: {r}")
+                    failed.append("unknown_error")
+
+        # ─── Step 2: Handle Reddit URLs smartly ───
+        if reddit_urls:
+            reddit_articles, reddit_failed = await self._read_reddit_urls(
+                reddit_urls, max_concurrent
+            )
+            articles.extend(reddit_articles)
+            failed.extend(reddit_failed)
 
         logger.info(f"📖 Read {len(articles)}/{len(urls)} articles successfully")
         if failed:
             logger.info(f"❌ Failed URLs: {len(failed)}")
-            
+
         return articles, failed
+
+    # ─── Reddit Smart Handler ─────────────────────────────
+
+    async def _read_reddit_urls(
+        self, urls: list[str], max_concurrent: int = 5
+    ) -> tuple[list[str], list[str]]:
+        """
+        Smart Reddit fetching:
+        1. Try old.reddit.com for the FIRST URL only
+        2. If it works → fetch the rest via old.reddit.com in parallel
+        3. If blocked → skip direct fetch, use Google cache for ALL
+        """
+        if not urls:
+            return [], []
+
+        articles = []
+        failed = []
+
+        # Test first Reddit URL to see if old.reddit.com works
+        test_url = urls[0]
+        old_url = self._to_old_reddit(test_url)
+
+        logger.info(f"🔍 Testing Reddit access with: {old_url[:60]}...")
+        test_result = await self._fetch_and_parse(old_url)
+
+        if test_result:
+            # Reddit works! Fetch all remaining in parallel via old.reddit.com
+            logger.info("✅ Reddit accessible — fetching all threads via old.reddit.com")
+            articles.append(test_result)
+
+            if len(urls) > 1:
+                semaphore = asyncio.Semaphore(max_concurrent)
+                remaining = urls[1:]
+
+                async def _read_reddit(url: str) -> tuple[str, Optional[str]]:
+                    async with semaphore:
+                        old = self._to_old_reddit(url)
+                        content = await self._fetch_and_parse(old)
+                        # If individual URL fails, try cache for just that one
+                        if not content:
+                            content = await self._fetch_google_cache(url)
+                        return (url, content)
+
+                tasks = [_read_reddit(u) for u in remaining]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for r in results:
+                    if isinstance(r, tuple):
+                        url, content = r
+                        if content:
+                            articles.append(content)
+                        else:
+                            failed.append(url)
+                    else:
+                        failed.append("unknown_error")
+        else:
+            # Reddit is BLOCKED — skip direct fetch entirely
+            logger.warning(
+                f"🚫 Reddit blocked on this server — "
+                f"using Google cache for {len(urls)} URLs"
+            )
+            failed.append(test_url)
+
+            # Try Google cache for ALL Reddit URLs in parallel
+            semaphore = asyncio.Semaphore(max_concurrent)
+
+            async def _cache_reddit(url: str) -> tuple[str, Optional[str]]:
+                async with semaphore:
+                    content = await self._fetch_google_cache(url)
+                    return (url, content)
+
+            tasks = [_cache_reddit(u) for u in urls[1:]]  # Skip test URL (already failed)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for r in results:
+                if isinstance(r, tuple):
+                    url, content = r
+                    if content:
+                        articles.append(content)
+                    else:
+                        failed.append(url)
+                else:
+                    failed.append("unknown_error")
+
+        return articles, failed
+
+    # ─── Core Fetch Methods ───────────────────────────────
+
+    async def _fetch_and_parse(self, url: str, timeout: float = 15.0) -> Optional[str]:
+        """Single fetch + parse attempt. No retries. Returns clean text or None."""
+        from bs4 import BeautifulSoup
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=self.headers,
+            ) as client:
+                resp = await client.get(url)
+
+                if resp.status_code != 200:
+                    return None
+
+                html = resp.text
+                if len(html) < 500:
+                    return None
+
+                # Reddit-specific parsing for old.reddit.com
+                if "old.reddit.com" in url or "reddit.com" in url:
+                    return self._parse_reddit_html(html)
+
+                # General article parsing
+                return self._parse_article_html(html, url)
+
+        except httpx.TimeoutException:
+            return None
+        except Exception as e:
+            logger.debug(f"Fetch error for {url[:60]}: {e}")
+            return None
+
+    async def _fetch_google_cache(self, url: str, timeout: float = 15.0) -> Optional[str]:
+        """Fetch Reddit content via Google's web cache."""
+        # Normalize to www.reddit.com for cache lookup
+        original = url.replace("old.reddit.com", "www.reddit.com")
+        if "www.reddit.com" not in original and "reddit.com" in original:
+            original = original.replace("reddit.com", "www.reddit.com")
+
+        cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original}"
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=self.headers,
+            ) as client:
+                resp = await client.get(cache_url)
+                if resp.status_code == 200 and len(resp.text) > 500:
+                    return self._parse_reddit_from_cache(resp.text)
+        except Exception:
+            pass
+        return None
+
+    # ─── HTML Parsers ─────────────────────────────────────
+
+    def _parse_article_html(self, html: str, url: str = "") -> Optional[str]:
+        """Parse a general article/review page into clean text."""
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Remove junk elements
+        for tag in soup(
+            ["script", "style", "nav", "footer", "header",
+             "aside", "iframe", "noscript", "form", "button", "svg"]
+        ):
+            tag.decompose()
+
+        # STRATEGY 1: Find the main content container
+        content = None
+        selectors = [
+            "article",
+            "[class*='article-body']", "[class*='post-content']",
+            "[class*='entry-content']", "[class*='story-body']",
+            "[class*='review-body']", "[class*='article-content']",
+            "[class*='post-body']", "[class*='content-body']",
+            "[class*='review-content']", "[class*='main-content']",
+            "[class*='post_content']", "[class*='blogpost']",
+            "[class*='single-content']",
+            "[id='content']", "[id='main-content']", "[id='article-body']",
+            "[role='main']", "main", ".post", ".review", ".entry",
+        ]
+
+        for selector in selectors:
+            found = soup.select_one(selector)
+            if found:
+                content = found
+                break
+
+        # STRATEGY 2: Fall back to body
+        if not content:
+            content = soup.find("body")
+
+        if not content:
+            return None
+
+        # Extract text from paragraphs and other elements
+        paragraphs = []
+        for el in content.find_all(
+            ["p", "h2", "h3", "h4", "blockquote", "li", "div", "span"]
+        ):
+            text = el.get_text(strip=True)
+            if len(text) > 20:
+                skip_words = [
+                    "cookie", "subscribe", "sign up", "log in",
+                    "newsletter", "privacy policy", "terms of",
+                    "click here", "read more", "share this",
+                    "advertisement", "sponsored",
+                ]
+                if not any(sw in text.lower() for sw in skip_words):
+                    paragraphs.append(text)
+
+        # STRATEGY 3: Raw text fallback
+        if len(paragraphs) < 3:
+            raw_text = content.get_text(separator="\n", strip=True)
+            lines = [
+                line.strip()
+                for line in raw_text.split("\n")
+                if len(line.strip()) > 20
+            ]
+            if lines:
+                paragraphs = lines
+
+        # Deduplicate
+        seen = set()
+        unique = []
+        for p in paragraphs:
+            key = p[:80].lower()
+            if key not in seen:
+                seen.add(key)
+                unique.append(p)
+
+        result = "\n\n".join(unique[:50])
+
+        if len(result) > 100:
+            return result
+
+        # Debug: log parse failure
+        logger.warning(
+            f"⚠️ Parse failed for {url[:60]}: "
+            f"HTML={len(html)} chars, paragraphs={len(paragraphs)}, "
+            f"extracted={len(result)} chars"
+        )
+        return None
+
+    def _parse_reddit_html(self, html: str) -> Optional[str]:
+        """Parse Reddit old.reddit.com HTML for comments and post content."""
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        comments = []
+
+        # Post title
+        title_el = soup.find("a", class_="title")
+        if title_el:
+            comments.append(title_el.get_text(strip=True))
+
+        # Post body (self text)
+        post_body = soup.find("div", class_="expando")
+        if not post_body:
+            post_body = soup.find("div", class_="usertext-body")
+        if post_body:
+            text = post_body.get_text(strip=True)
+            if len(text) > 30:
+                comments.append(text)
+
+        # Comments
+        for comment in soup.find_all("div", class_="usertext-body"):
+            text = comment.get_text(strip=True)
+            if 50 < len(text) < 2000:
+                comments.append(text)
+
+        # Deduplicate
+        seen = set()
+        unique = []
+        for c in comments:
+            key = c[:80].lower()
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+
+        result = "\n\n".join(unique[:30])
+        return result if len(result) > 100 else None
 
     def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
         """Parse Reddit content from Google's cached HTML."""
         from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(html, "html.parser")
-        
-        # Remove Google's cache header/banner
+
+        # Remove Google's cache header
         for div in soup.find_all("div", id="google-cache-hdr"):
             div.decompose()
-        for div in soup.find_all("div", style=lambda s: s and "CACHE" in s.upper() if s else False):
+        for div in soup.find_all(
+            "div",
+            style=lambda s: s and "CACHE" in s.upper() if s else False,
+        ):
             div.decompose()
-        
-        # Get ALL text content aggressively
+
         body = soup.find("body") or soup
-        
-        # Remove scripts, styles, nav
+
+        # Remove junk
         for tag in body(["script", "style", "nav", "footer"]):
             tag.decompose()
-        
+
         # Get raw text
         raw_text = body.get_text(separator="\n", strip=True)
-        
-        # Split into lines, keep meaningful ones
+
         lines = []
+        skip = [
+            "cache", "google", "disclaimer", "snapshot",
+            "log in", "sign up", "get the app", "reddit premium",
+            "user agreement", "privacy policy", "content policy",
+        ]
+
         for line in raw_text.split("\n"):
             line = line.strip()
-            if len(line) > 30 and len(line) < 3000:
-                # Skip Google cache UI text
-                skip = ["cache", "google", "disclaimer", "snapshot", 
-                       "log in", "sign up", "get the app", "reddit premium",
-                       "user agreement", "privacy policy", "content policy"]
+            if 30 < len(line) < 3000:
                 if not any(s in line.lower() for s in skip):
                     lines.append(line)
-        
-        result = "\n\n".join(lines[:40])
-        
-        if len(result) > 100:
-            return result
-        return None
+
+        # Deduplicate
+        seen = set()
+        unique = []
+        for line in lines:
+            key = line[:80].lower()
+            if key not in seen:
+                seen.add(key)
+                unique.append(line)
+
+        result = "\n\n".join(unique[:40])
+        return result if len(result) > 100 else None
+
+    # ─── Jina Reader (optional) ───────────────────────────
+
+    async def _read_with_jina(self, url: str, timeout: float) -> Optional[str]:
+        """Read using Jina Reader API."""
+        try:
+            headers = {"Accept": "text/markdown"}
+            if settings.JINA_API_KEY:
+                headers["Authorization"] = f"Bearer {settings.JINA_API_KEY}"
+
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.get(
+                    f"https://r.jina.ai/{url}",
+                    headers=headers,
+                )
+                if resp.status_code == 200 and len(resp.text) > 100:
+                    return resp.text
+                if resp.status_code == 402:
+                    logger.warning("Jina 402 — falling back to BeautifulSoup")
+                    return await self._fetch_and_parse(url)
+            return None
+        except Exception:
+            return await self._fetch_and_parse(url)
+
+    # ─── Utilities ────────────────────────────────────────
+
+    @staticmethod
+    def _to_old_reddit(url: str) -> str:
+        """Convert any reddit.com URL to old.reddit.com."""
+        result = url.replace("www.reddit.com", "old.reddit.com")
+        if "old.reddit.com" not in result:
+            result = result.replace("reddit.com", "old.reddit.com")
+        return result
+
+    # Keep backward compatibility — single URL read still works
+    async def _read_with_bs4(self, url: str, timeout: float) -> Optional[str]:
+        """Backward compatible single-URL read."""
+        return await self._fetch_and_parse(url, timeout)
 
 
-# Keep the same variable name so nothing else needs to change
+# Singleton — same interface as before
 jina_service = ArticleReader()
