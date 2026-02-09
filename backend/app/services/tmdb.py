@@ -11,6 +11,7 @@ import logging
 from datetime import date
 from typing import Optional
 from app.config import get_settings
+from app.services.safety import is_safe_content
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -74,47 +75,66 @@ class TMDBService:
         return {}
 
     def _filter_results(self, items: list[dict]) -> list[dict]:
-        """Filter out adult/porn content. Does NOT filter R-rated normal movies."""
+        """Filter out adult/porn content and spam."""
         filtered = []
         for item in items:
-            # Skip porn — TMDB marks XXX content with adult=True
-            # This does NOT affect R-rated movies like Deadpool or John Wick
-            if item.get("adult", False):
-                continue
             # Skip items without a title
             if not (item.get("title") or item.get("name")):
                 continue
+                
+            # Use upgraded safety check from dedicated service
+            if not is_safe_content(item):
+                continue
+                
             filtered.append(item)
         return filtered
 
     async def get_trending(self, media_type: str = "all", time_window: str = "day", page: int = 1) -> list[dict]:
         """Get trending movies/tv. media_type: 'all', 'movie', 'tv'"""
-        data = await self._get(f"/trending/{media_type}/{time_window}", {"page": page})
+        data = await self._get(f"/trending/{media_type}/{time_window}", {
+            "page": page,
+            "include_adult": "false"
+        })
         return self._filter_results(data.get("results", []))
 
     async def get_now_playing(self, page: int = 1) -> list[dict]:
         """Movies currently in theaters."""
-        data = await self._get("/movie/now_playing", {"page": page})
+        data = await self._get("/movie/now_playing", {
+            "page": page,
+            "include_adult": "false"
+        })
         return self._filter_results(data.get("results", []))
 
     async def get_upcoming(self, page: int = 1) -> list[dict]:
         """Movies coming soon — for pre-computation."""
-        data = await self._get("/movie/upcoming", {"page": page})
+        data = await self._get("/movie/upcoming", {
+            "page": page,
+            "include_adult": "false"
+        })
         return self._filter_results(data.get("results", []))
 
     async def get_popular_tv(self, page: int = 1) -> list[dict]:
         """Popular TV shows."""
-        data = await self._get("/tv/popular", {"page": page})
+        data = await self._get("/tv/popular", {
+            "page": page,
+            "include_adult": "false"
+        })
         return self._filter_results(data.get("results", []))
 
     async def get_top_rated_movies(self, page: int = 1) -> list[dict]:
         """Highest rated movies on TMDB."""
-        data = await self._get("/movie/top_rated", {"page": page})
+        data = await self._get("/movie/top_rated", {
+            "page": page,
+            "include_adult": "false"
+        })
         return self._filter_results(data.get("results", []))
 
     async def get_top_rated_tv(self, page: int = 1) -> list[dict]:
         """Highest rated TV shows on TMDB."""
-        data = await self._get("/tv/top_rated", {"page": page})
+        data = await self._get("/tv/top_rated", {
+            "page": page,
+            "include_adult": "false"
+        })
         return self._filter_results(data.get("results", []))
 
     async def get_movie_details(self, tmdb_id: int) -> dict:

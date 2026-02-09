@@ -82,7 +82,7 @@ function SearchContent() {
             Found {result.tmdb_results.length} Titles
           </h2>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-6">
             {result.tmdb_results.map((movie) => {
               // Check if we have a review for this movie in our DB
               // The API returns 'movie' if there's an exact DB match, but we want to check

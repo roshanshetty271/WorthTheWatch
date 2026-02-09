@@ -81,7 +81,7 @@ function HorizontalSection({
       </div>
 
       {/* Horizontal Scroll */}
-      <div className="flex gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
         {movies.map((item) => (
           <div
             key={item.movie.tmdb_id}
@@ -117,7 +117,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
+      <section className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden">
         {/* Background Image */}
         {featured ? (
           <div className="absolute inset-0 z-0">
@@ -190,7 +190,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           NETFLIX-STYLE SECTIONS — Horizontal Scroll
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mx-auto max-w-7xl py-24 sm:px-6">
+      <div className="py-12 sm:py-24">
         {hasAnySections ? (
           <div className="space-y-2">
             {sectionsWithData.map((section) => (

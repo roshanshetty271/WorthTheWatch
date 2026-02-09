@@ -68,7 +68,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
             <span className="font-display text-base sm:text-lg text-accent-gold flex items-center gap-2">
                 📺 Watch On
             </span>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 {streamingOptions.map((provider) => (
                     <div
                         key={provider.provider_id}

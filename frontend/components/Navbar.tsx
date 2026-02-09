@@ -70,14 +70,14 @@ export default function Navbar() {
                 `}
             />
 
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3 md:px-8 md:py-4">
                 <Link href="/" className="flex items-center gap-2 group">
                     <span className="font-display text-xl sm:text-2xl text-accent-gold drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] group-hover:drop-shadow-[0_0_12px_rgba(234,179,8,0.5)] transition-all duration-300">
                         Worth the Watch?
                     </span>
                 </Link>
 
-                <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                     {/* Browse Dropdown */}
                     <div className="relative">
                         <button

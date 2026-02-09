@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models import Movie, Review
 from app.schemas import MovieResponse, ReviewResponse, MovieWithReview, PaginatedMovies
 from app.services.tmdb import tmdb_service
+from app.services.safety import is_safe_content
 
 router = APIRouter()
 
@@ -168,7 +169,11 @@ async def get_movie(
                 detected_type = "tv"
         
         if tmdb_data and tmdb_data.get("id"):
-            tmdb_data["media_type"] = media_type
+            # Security Check: Enforce safety filter even for direct ID lookups
+            if not is_safe_content(tmdb_data):
+                raise HTTPException(status_code=404, detail="Movie not found (blocked)")
+
+            tmdb_data["media_type"] = detected_type
             normalized = tmdb_service.normalize_result(tmdb_data)
             
             # Build movie response from TMDB data

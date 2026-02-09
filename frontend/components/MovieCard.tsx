@@ -130,9 +130,9 @@ export default function MovieCard({ data }: MovieCardProps) {
           - Title with Dynamic Shadow
           - Metadata
         */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
+        <div className="absolute bottom-0 left-0 right-0 z-20 p-3 sm:p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
           {/* Title */}
-          <h3 className={`font-display text-lg font-bold leading-tight text-white transition-all duration-300 group-hover:text-white ${verdictStyle.titleShadow}`}>
+          <h3 className={`font-display text-base sm:text-lg font-bold leading-tight text-white transition-all duration-300 group-hover:text-white ${verdictStyle.titleShadow}`}>
             {movie.title}
           </h3>
 

@@ -33,7 +33,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[70vh] flex flex-col justify-between overflow-hidden">
+            <section className="relative min-h-[55vh] md:min-h-[70vh] flex flex-col justify-between overflow-hidden">
                 {/* Background Image */}
                 {movie.backdrop_url ? (
                     <div className="absolute inset-0 z-0">
@@ -56,7 +56,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     <div className="mx-auto max-w-7xl">
                         <Link
                             href="/"
-                            className="group inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-all hover:bg-black/60 hover:text-white hover:scale-110"
+                            className="group inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-all hover:bg-black/60 hover:text-white hover:scale-110"
                             aria-label="Back to Home"
                         >
                             <svg
@@ -79,10 +79,10 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 {/* Movie Info Overlay */}
                 <div className="relative z-20 w-full px-4 pb-8 sm:px-6">
                     <div className="mx-auto max-w-7xl">
-                        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-8">
+                        <div className="flex flex-col gap-6 md:flex-row md:items-end md:gap-8">
                             {/* Poster */}
                             {movie.poster_url && (
-                                <div className="relative mx-auto h-64 w-44 shrink-0 overflow-hidden rounded-xl shadow-2xl sm:mx-0 sm:h-72 sm:w-48 border-2 border-white/10">
+                                <div className="relative mx-auto h-56 w-40 shrink-0 overflow-hidden rounded-xl shadow-2xl md:mx-0 md:h-72 md:w-52 border-2 border-white/10">
                                     <Image
                                         src={movie.poster_url}
                                         alt={movie.title}
@@ -94,12 +94,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             )}
 
                             {/* Info */}
-                            <div className="flex-1 space-y-3 text-center sm:text-left">
-                                <h1 className="font-display text-3xl text-white drop-shadow-lg sm:text-4xl md:text-5xl">
+                            <div className="flex-1 space-y-3 text-center md:text-left">
+                                <h1 className="font-display text-2xl text-white drop-shadow-lg md:text-5xl">
                                     {movie.title}
                                 </h1>
 
-                                <div className="flex flex-wrap items-center justify-center gap-2 text-sm sm:justify-start">
+                                <div className="flex flex-wrap items-center justify-center gap-2 text-sm md:justify-start">
                                     {year && (
                                         <span className="rounded-full bg-white/10 backdrop-blur-sm px-3 py-1 text-white/90">
                                             {year}
@@ -124,14 +124,14 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                                 {/* Verdict Badge */}
                                 {review && (
-                                    <div className="pt-2">
+                                    <div className="pt-2 flex justify-center md:justify-start">
                                         <VerdictBadge verdict={review.verdict} size="lg" />
                                     </div>
                                 )}
 
                                 {/* Where to Watch - ONLY SHOW IF REVIEW EXISTS */}
                                 {review && (
-                                    <div className="pt-3 animate-fade-in">
+                                    <div className="pt-3 animate-fade-in flex flex-wrap justify-center md:justify-start">
                                         <StreamingAvailability tmdbId={movie.tmdb_id} />
                                     </div>
                                 )}
