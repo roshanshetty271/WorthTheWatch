@@ -86,9 +86,35 @@ async def cron_daily(
     """
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
-
+    
     result = await run_daily_sync(db, max_new=20)
     return {"status": "completed", **result}
+
+
+@app.post("/api/refresh")
+async def manual_refresh(
+    secret: str = "",
+    max_refresh: int = 10,
+    background_tasks: BackgroundTasks = None,
+):
+    """Manually trigger Smart Refresh for recent movies."""
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    
+    background_tasks.add_task(_refresh_background, max_refresh)
+    return {"status": "started", "max_refresh": max_refresh}
+
+
+async def _refresh_background(max_refresh: int):
+    from app.database import async_session
+    from app.jobs.daily_sync import smart_refresh
+    
+    async with async_session() as db:
+        try:
+            result = await smart_refresh(db, max_refresh=max_refresh)
+            logger.info(f"🔄 Manual refresh result: {result}")
+        except Exception as e:
+            logger.error(f"❌ Manual refresh failed: {e}")
 
 
 # ─── Seed Endpoint (dev only) ─────────────────────────────

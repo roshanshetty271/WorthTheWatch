@@ -92,5 +92,105 @@ async def run_daily_sync(db: AsyncSession, max_new: int = 20):
             failed += 1
             logger.error(f"  ❌ Failed: {title} — {e}")
 
-    logger.info(f"🏁 Daily sync complete: {generated} generated, {failed} failed")
-    return {"generated": generated, "failed": failed, "total_new": len(new_items)}
+    logger.info(f"🏁 Daily sync seeding complete: {generated} generated, {failed} failed")
+    
+    # ─── STEP 2: Smart Refresh ───
+    logger.info("🔄 Starting Smart Refresh for recent movies...")
+    refresh_stats = await smart_refresh(db, max_refresh=10)
+    
+    return {
+        "generated": generated, 
+        "failed": failed, 
+        "total_new": len(new_items),
+        "refreshed": refresh_stats["refreshed"],
+        "refresh_failed": refresh_stats["failed"]
+    }
+
+
+async def smart_refresh(db: AsyncSession, max_refresh: int = 10):
+    """
+    Re-review movies based on age and staleness.
+    
+    Rules:
+    - Released < 14 days ago:  refresh if review is > 24 hours old
+    - Released 14-30 days ago: refresh if review is > 3 days old
+    - Released 30-90 days ago: refresh if review is > 7 days old  
+    - Released 90+ days ago:   NEVER refresh (consensus is locked)
+    """
+    from datetime import date, datetime, timedelta
+    from sqlalchemy.orm import joinedload
+    
+    today = date.today()
+    now = datetime.utcnow()
+    
+    # Query movies with reviews, ordered by release date (newest first)
+    result = await db.execute(
+        select(Movie)
+        .options(joinedload(Movie.review))
+        .where(Movie.release_date.isnot(None))
+        .order_by(Movie.release_date.desc())
+    )
+    movies = result.unique().scalars().all()
+    
+    candidates = []
+    
+    for movie in movies:
+        if not movie.review or not movie.release_date:
+            continue
+        
+        days_since_release = (today - movie.release_date).days
+        review_age = now - movie.review.generated_at if movie.review.generated_at else timedelta(days=999)
+        review_age_hours = review_age.total_seconds() / 3600
+        
+        needs_refresh = False
+        reason = ""
+        
+        # Brand new (< 14 days): refresh every 24 hours
+        if days_since_release < 14:
+            if review_age_hours > 24:
+                needs_refresh = True
+                reason = f"New release ({days_since_release}d old), review is {review_age_hours:.0f}h old"
+        
+        # Recent (14-30 days): refresh every 3 days
+        elif days_since_release < 30:
+            if review_age_hours > 72:
+                needs_refresh = True
+                reason = f"Recent ({days_since_release}d old), review is {review_age_hours/24:.0f}d old"
+        
+        # Settling (30-90 days): refresh every 7 days
+        elif days_since_release < 90:
+            if review_age_hours > 168:
+                needs_refresh = True
+                reason = f"Settling ({days_since_release}d old), review is {review_age_hours/24:.0f}d old"
+        
+        # Old (90+ days): skip — consensus is locked
+        else:
+            continue
+        
+        if needs_refresh:
+            candidates.append((movie, reason))
+    
+    if not candidates:
+        logger.info("🔄 Smart Refresh: No movies need refreshing")
+        return {"refreshed": 0, "failed": 0}
+    
+    logger.info(f"🔄 Smart Refresh: {len(candidates)} movies need refreshing (processing max {max_refresh})")
+    
+    refreshed = 0
+    failed = 0
+    
+    for movie, reason in candidates[:max_refresh]:
+        try:
+            logger.info(f"🔄 Refreshing: {movie.title} — {reason}")
+            # Re-generate review (this overwrites the existing one in place or updates logic)
+            # Ensure generate_review_for_movie handles updates correctly
+            await generate_review_for_movie(db, movie)
+            await db.commit()
+            refreshed += 1
+        except Exception as e:
+            await db.rollback()
+            failed += 1
+            logger.error(f"❌ Refresh failed for {movie.title}: {e}")
+    
+    logger.info(f"🔄 Smart Refresh complete: {refreshed} refreshed, {failed} failed")
+    return {"refreshed": refreshed, "failed": failed}
