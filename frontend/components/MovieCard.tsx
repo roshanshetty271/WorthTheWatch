@@ -8,121 +8,148 @@ interface MovieCardProps {
   data: MovieWithReview;
 }
 
-// Clean verdict config - NO emojis, just elegant colors
+// Verdict Styles - keeping consistency visuals but making them pop more
 const VERDICT_STYLES: Record<string, {
-  dotColor: string;
-  bgColor: string;
+  borderColor: string;
+  glowColor: string;
   textColor: string;
   label: string;
+  gradient: string;
+  titleShadow: string;
 }> = {
   "WORTH IT": {
-    dotColor: "bg-emerald-400",
-    bgColor: "bg-emerald-500/20",
-    textColor: "text-emerald-400",
-    label: "Worth It"
+    borderColor: "border-emerald-500/50",
+    glowColor: "group-hover:shadow-emerald-500/20",
+    textColor: "text-emerald-300",
+    label: "Worth It",
+    gradient: "from-emerald-500/20 to-transparent",
+    titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]"
   },
   "NOT WORTH IT": {
-    dotColor: "bg-rose-400",
-    bgColor: "bg-rose-500/20",
-    textColor: "text-rose-400",
-    label: "Skip"
+    borderColor: "border-rose-500/50",
+    glowColor: "group-hover:shadow-rose-500/20",
+    textColor: "text-rose-300",
+    label: "Skip",
+    gradient: "from-rose-500/20 to-transparent",
+    titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(251,113,133,0.6)]"
   },
   "MIXED BAG": {
-    dotColor: "bg-amber-400",
-    bgColor: "bg-amber-500/20",
-    textColor: "text-amber-400",
-    label: "Mixed"
+    borderColor: "border-amber-500/50",
+    glowColor: "group-hover:shadow-amber-500/20",
+    textColor: "text-amber-300",
+    label: "Mixed",
+    gradient: "from-amber-500/20 to-transparent",
+    titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]"
   },
 };
 
 export default function MovieCard({ data }: MovieCardProps) {
   const { movie, review } = data;
   const year = movie.release_date ? new Date(movie.release_date).getFullYear() : "";
-  const verdictStyle = review ? VERDICT_STYLES[review.verdict] || VERDICT_STYLES["MIXED BAG"] : null;
+
+  // Default style if no review yet
+  const verdictStyle = review
+    ? VERDICT_STYLES[review.verdict] || VERDICT_STYLES["MIXED BAG"]
+    : {
+      borderColor: "border-white/10",
+      glowColor: "group-hover:shadow-white/10",
+      textColor: "text-white/70",
+      label: "Unrated",
+      gradient: "from-white/5 to-transparent",
+      titleShadow: ""
+    };
 
   return (
     <Link href={`/movie/${movie.tmdb_id}`}>
-      <div className="movie-card group cursor-pointer overflow-hidden rounded-xl bg-surface-card border border-white/5 transition-all duration-300 hover:border-white/15 hover:bg-surface-elevated">
-        {/* Poster */}
-        <div className="relative aspect-[2/3] overflow-hidden">
+      {/* 
+        Card Container 
+        - 3D Hover Lift
+        - Glow effect based on verdict
+        - Full rounded corners
+      */}
+      <div className={`
+        group relative aspect-[2/3] w-full overflow-hidden rounded-2xl 
+        bg-surface-card transition-all duration-500 ease-out
+        hover:-translate-y-2 hover:shadow-2xl ${verdictStyle.glowColor}
+      `}>
+
+        {/* Poster Image - Full Bleed */}
+        <div className="absolute inset-0 z-0">
           {movie.poster_url ? (
             <Image
               src={movie.poster_url}
               alt={movie.title}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+              priority={false}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-surface-elevated">
               <span className="text-4xl text-text-muted">🎬</span>
             </div>
           )}
-
-          {/* Always visible gradient at bottom - helps with any poster color */}
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
-
-          {/* Media type pill - top right */}
-          <div className="absolute right-2 top-2">
-            <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/70 backdrop-blur-sm">
-              {movie.media_type}
-            </span>
-          </div>
-
-          {/* TMDB Score - top left (only if 7+) */}
-          {movie.tmdb_vote_average && movie.tmdb_vote_average >= 7 && (
-            <div className="absolute left-2 top-2">
-              <span className="flex items-center gap-0.5 rounded bg-black/50 px-1.5 py-0.5 text-xs font-medium text-accent-gold backdrop-blur-sm">
-                ★ {movie.tmdb_vote_average.toFixed(1)}
-              </span>
-            </div>
-          )}
-
-          {/* Verdict + View Review - always visible at bottom */}
-          <div className="absolute inset-x-0 bottom-0 p-3">
-            <div className="flex items-center justify-between">
-              {/* Verdict pill - clean, minimal */}
-              {review && verdictStyle && (
-                <span className={`
-                  inline-flex items-center gap-1.5 rounded-full px-2.5 py-1
-                  ${verdictStyle.bgColor} backdrop-blur-sm
-                `}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${verdictStyle.dotColor}`} />
-                  <span className={`text-[11px] font-semibold uppercase tracking-wide ${verdictStyle.textColor}`}>
-                    {verdictStyle.label}
-                  </span>
-                </span>
-              )}
-
-              {/* View indicator - always visible */}
-              <span className="flex items-center gap-1 text-[11px] font-medium text-white/60 transition-colors group-hover:text-white">
-                View
-                <svg className="h-3 w-3 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Info Section */}
-        <div className="p-3">
-          <h3 className="font-display text-sm leading-tight text-text-primary line-clamp-2 group-hover:text-white transition-colors">
+        {/* 
+          Overlays 
+          - Gradient for readability (Stronger at bottom for white posters)
+          - Colored tint based on verdict (very subtle)
+        */}
+        <div className="absolute inset-0 z-10 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className={`absolute inset-0 z-10 bg-gradient-to-b ${verdictStyle.gradient} opacity-0 transition-opacity duration-500 group-hover:opacity-100 mix-blend-soft-light`} />
+
+        {/* 
+          Top Glass Bar 
+          - Floating Rating Badge
+        */}
+        <div className="absolute left-0 top-0 z-20 flex w-full justify-between p-3">
+          {verdictStyle && review ? (
+            <span className={`
+              inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1 
+              backdrop-blur-md transition-colors ${verdictStyle.borderColor}
+            `}>
+              <span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor] ${verdictStyle.textColor.replace('text-', 'bg-')}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${verdictStyle.textColor}`}>
+                {verdictStyle.label}
+              </span>
+            </span>
+          ) : (
+            <span className="opacity-0" /> // Spacer
+          )}
+
+          {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-medium text-accent-gold backdrop-blur-md">
+              ★ {movie.tmdb_vote_average.toFixed(1)}
+            </span>
+          )}
+        </div>
+
+        {/* 
+          Bottom Glass Content
+          - Title with Dynamic Shadow
+          - Metadata
+        */}
+        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
+          {/* Title */}
+          <h3 className={`font-display text-lg font-bold leading-tight text-white transition-all duration-300 group-hover:text-white ${verdictStyle.titleShadow}`}>
             {movie.title}
           </h3>
-          <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+
+          {/* Metadata Line */}
+          <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/70">
             {year && <span>{year}</span>}
-            {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && movie.tmdb_vote_average < 7 && (
+            {movie.media_type && (
               <>
-                <span>•</span>
-                <span className="flex items-center gap-0.5">
-                  <span className="text-accent-gold">★</span>
-                  {movie.tmdb_vote_average.toFixed(1)}
-                </span>
+                <span className="h-1 w-1 rounded-full bg-white/30" />
+                <span className="capitalize">{movie.media_type}</span>
               </>
             )}
           </div>
+
+
         </div>
+
       </div>
     </Link>
   );

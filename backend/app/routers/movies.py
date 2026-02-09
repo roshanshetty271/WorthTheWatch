@@ -6,86 +6,9 @@ Endpoints for listing and retrieving movies with reviews.
 import math
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, desc, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select, func, desc, and_, or_
 
-from app.database import get_db
-from app.models import Movie, Review
-from app.schemas import MovieWithReview, MovieResponse, ReviewResponse, PaginatedMovies
-from app.services.tmdb import tmdb_service
-
-router = APIRouter(prefix="/movies", tags=["Movies"])
-
-
-@router.get("/sections/curated")
-async def get_curated_sections(
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get curated homepage sections.
-    
-    Returns:
-        {
-            "this_week": [...],     # Latest releases with verdicts
-            "hidden_gems": [...],   # WORTH IT + low popularity
-            "skip_these": [...],    # NOT WORTH IT verdicts
-        }
-    """
-    now = datetime.utcnow()
-    week_ago = now - timedelta(days=7)
-    
-    # This Week's Verdicts - Movies released in past 7 days with reviews
-    this_week_query = (
-        select(Movie)
-        .options(joinedload(Movie.review))
-        .join(Review)
-        .where(Movie.release_date >= week_ago.date())
-        .order_by(desc(Movie.release_date))
-        .limit(8)
-    )
-    
-    # Hidden Gems - WORTH IT + lower popularity (underrated)
-    hidden_gems_query = (
-        select(Movie)
-        .options(joinedload(Movie.review))
-        .join(Review)
-        .where(
-            and_(
-                Review.verdict == "WORTH IT",
-                Movie.tmdb_popularity < 50  # Less popular = hidden gem
-            )
-        )
-        .order_by(desc(Review.generated_at))
-        .limit(8)
-    )
-    
-    # Skip These - NOT WORTH IT verdicts
-    skip_these_query = (
-        select(Movie)
-        .options(joinedload(Movie.review))
-        .join(Review)
-        .where(Review.verdict == "NOT WORTH IT")
-        .order_by(desc(Review.generated_at))
-        .limit(8)
-    )
-    
-    # Execute all queries
-    this_week_result = await db.execute(this_week_query)
-    hidden_gems_result = await db.execute(hidden_gems_query)
-    skip_these_result = await db.execute(skip_these_query)
-    
-    this_week = this_week_result.unique().scalars().all()
-    hidden_gems = hidden_gems_result.unique().scalars().all()
-    skip_these = skip_these_result.unique().scalars().all()
-    
-    return {
-        "this_week": [_format_movie_with_review(m) for m in this_week],
-        "hidden_gems": [_format_movie_with_review(m) for m in hidden_gems],
-        "skip_these": [_format_movie_with_review(m) for m in skip_these],
-    }
-
-from typing import Optional
+# ... (rest of imports)
 
 @router.get("", response_model=PaginatedMovies)
 async def list_movies(
@@ -97,19 +20,7 @@ async def list_movies(
     media_type: Optional[str] = Query(None, pattern="^(movie|tv)$"),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    List movies with their reviews. Paginated.
-    
-    Category param overrides other filters when provided:
-    - trending: sort by popularity
-    - latest: sort by release date  
-    - worth-it: WORTH IT verdicts
-    - skip-these: NOT WORTH IT verdicts
-    - mixed-bag: MIXED BAG verdicts
-    - hidden-gems: WORTH IT + HIGH confidence + low popularity
-    - movies: only movies
-    - tv-shows: only TV shows
-    """
+    # ... (function body start)
     query = select(Movie).options(joinedload(Movie.review))
     count_query = select(func.count()).select_from(Movie)
     
@@ -157,8 +68,19 @@ async def list_movies(
             count_query = count_query.where(Movie.media_type == "movie")
             
         elif category == "tv-shows":
-            query = query.where(Movie.media_type == "tv").order_by(desc(Movie.release_date))
-            count_query = count_query.where(Movie.media_type == "tv")
+            # Filter out "NOT WORTH IT" (Skip)
+            query = query.join(Review, isouter=True).where(
+                and_(
+                    Movie.media_type == "tv",
+                    or_(Review.verdict != "NOT WORTH IT", Review.verdict.is_(None))
+                )
+            ).order_by(desc(Movie.release_date))
+            count_query = count_query.join(Review, isouter=True).where(
+                and_(
+                    Movie.media_type == "tv",
+                    or_(Review.verdict != "NOT WORTH IT", Review.verdict.is_(None))
+                )
+            )
     
     else:
         # ─── Legacy behavior (backward compatibility) ──────────────────

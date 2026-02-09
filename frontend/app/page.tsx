@@ -81,11 +81,11 @@ function HorizontalSection({
       </div>
 
       {/* Horizontal Scroll */}
-      <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
         {movies.map((item) => (
           <div
             key={item.movie.tmdb_id}
-            className="snap-start shrink-0 w-[150px] sm:w-[160px] md:w-[180px]"
+            className="snap-start shrink-0 w-[160px] sm:w-[190px] md:w-[220px]"
           >
             <MovieCard data={item} />
           </div>
@@ -135,8 +135,8 @@ export default async function HomePage() {
           <div className="absolute inset-0 z-0 bg-gradient-to-b from-black via-surface to-surface" />
         )}
 
-        {/* Center Content: Title & Search */}
-        <div className="relative z-30 w-full max-w-4xl px-4 text-center">
+        {/* Center Content: Title & Search (Lifted slightly for space) */}
+        <div className="relative z-30 w-full max-w-4xl px-4 text-center mb-32 sm:mb-40">
           <h1 className="mb-2 font-display text-3xl text-white sm:text-5xl md:text-6xl lg:text-7xl drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
             Worth the Watch<span className="text-accent-gold">?</span>
           </h1>
@@ -190,7 +190,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           NETFLIX-STYLE SECTIONS — Horizontal Scroll
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mx-auto max-w-7xl py-8 sm:px-6">
+      <div className="mx-auto max-w-7xl py-24 sm:px-6">
         {hasAnySections ? (
           <div className="space-y-2">
             {sectionsWithData.map((section) => (
