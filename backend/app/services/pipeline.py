@@ -321,6 +321,25 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         nyt_results = search_results[4] if not isinstance(search_results[4], Exception) else []
         omdb_data = search_results[5] if not isinstance(search_results[5], Exception) else None
 
+        # Extract OMDB data (IMDb, Metacritic, RT)
+        omdb_data = search_results[5] if not isinstance(search_results[5], Exception) else None
+        
+        # Vote Count Sanity Check
+        # Avoid matching a popular movie (TMDB) with an obscure one (IMDb) just by title/year
+        if omdb_data and omdb_data.imdb_votes and movie.tmdb_vote_count:
+            tmdb_votes = movie.tmdb_vote_count
+            imdb_votes = omdb_data.imdb_votes
+            
+            # Heuristic: If TMDB has > 1000 votes but IMDb has < 1000, it's likely a bad match
+            # (IMDb usually has MORE votes than TMDB for popular movies)
+            if tmdb_votes > 1000 and imdb_votes < 1000:
+                logger.warning(
+                    f"⚠️ REJECTING IMDb Match: Suspiciously low votes. "
+                    f"TMDB: {tmdb_votes} vs IMDb: {imdb_votes}. "
+                    f"Likely matched a short film or obscure duplicate."
+                )
+                omdb_data = None  # Discard bad data
+        
         # Extract IMDb score early for verdict overrides
         imdb_score = None
         imdb_votes = None

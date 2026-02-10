@@ -34,6 +34,7 @@ export interface Movie {
   tmdb_vote_average: number | null;
   poster_url: string | null;
   backdrop_url: string | null;
+  runtime?: number | null;
 }
 
 export interface Review {
