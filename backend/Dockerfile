@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev \
+    && apt-get install -y --no-install-recommends gcc libpq-dev libxml2-dev libxslt-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
