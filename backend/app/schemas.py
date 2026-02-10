@@ -142,3 +142,7 @@ class GenerationStatus(BaseModel):
 class HealthCheck(BaseModel):
     status: str = "ok"
     version: str = "1.0.0"
+    database: Optional[str] = None
+    tmdb: Optional[str] = None
+    llm: Optional[str] = None
+    serper: Optional[str] = None

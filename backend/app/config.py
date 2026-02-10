@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # App
     APP_NAME: str = "Worth the Watch?"
+    ENVIRONMENT: str = "development"  # "development" or "production"
     DEBUG: bool = False
     ALLOWED_ORIGINS: str = "http://localhost:3000,https://worththewatch.vercel.app"
 

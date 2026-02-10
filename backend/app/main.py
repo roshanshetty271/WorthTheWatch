@@ -48,6 +48,9 @@ app = FastAPI(
     description="AI-powered movie review aggregation. The internet decides.",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
+    openapi_url="/openapi.json" if settings.ENVIRONMENT == "development" else None,
 )
 
 # CORS — allow frontend origins
@@ -69,8 +72,86 @@ app.include_router(search.router, prefix="/api", tags=["search"])
 # ─── Health Check ─────────────────────────────────────────
 
 @app.get("/health", response_model=HealthCheck)
-async def health_check():
-    return HealthCheck()
+async def health_check(
+    check_services: bool = False,
+    secret: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Health check endpoint.
+    - Standard: Returns simple "ok".
+    - Deep: Checks DB, TMDB, LLM, Serper (requires secret).
+    """
+    if not check_services:
+        return HealthCheck(status="ok")
+    
+    # Verify secret for deep check (prevents valid credit drain)
+    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret for deep check")
+
+    health_status = {
+        "status": "ok", 
+        "database": "unknown",
+        "tmdb": "unknown",
+        "llm": "unknown",
+        "serper": "unknown"
+    }
+
+    # 1. Database Check
+    try:
+        await db.execute(select(1))
+        health_status["database"] = "connected"
+    except Exception as e:
+        logger.error(f"Health DB fail: {e}")
+        health_status["database"] = "disconnected"
+        health_status["status"] = "degraded"
+
+    # 2. TMDB Check (Fetch config - lightweight)
+    try:
+        from app.services.tmdb import tmdb_service
+        await tmdb_service.get_movie_details(550) # Fight Club
+        health_status["tmdb"] = "connected"
+    except Exception as e:
+        logger.error(f"Health TMDB fail: {e}")
+        health_status["tmdb"] = "disconnected"
+        health_status["status"] = "degraded"
+
+    # 3. LLM Check (Simple generation)
+    try:
+        if settings.OPENAI_API_KEY or settings.DEEPSEEK_API_KEY:
+             # Just check if client is initialized, don't burn generation credits unnecessarily
+             # unless we explicitly want to test the API key validity.
+             # User asked to "monitor if... you've run out of credits"
+             # So we MUST try a minimal call.
+             from app.services.llm import llm_client, llm_model
+             await llm_client.chat.completions.create(
+                 model=llm_model,
+                 messages=[{"role": "user", "content": "hi"}],
+                 max_tokens=1
+             )
+             health_status["llm"] = "connected"
+        else:
+             health_status["llm"] = "not_configured"
+    except Exception as e:
+        logger.error(f"Health LLM fail: {e}")
+        health_status["llm"] = "error"
+        health_status["status"] = "degraded"
+
+    # 4. Serper Check (Simple search)
+    try:
+        if settings.SERPER_API_KEY:
+            from app.services.serper import serper_service
+            # This costs 1 credit. Use sparingly.
+            await serper_service.search_reviews("test", "2024", "movie")
+            health_status["serper"] = "connected"
+        else:
+            health_status["serper"] = "not_configured"
+    except Exception as e:
+        logger.error(f"Health Serper fail: {e}")
+        health_status["serper"] = "error"
+        health_status["status"] = "degraded"
+
+    return HealthCheck(**health_status)
 
 
 # ─── Cron Endpoint ────────────────────────────────────────
