@@ -37,6 +37,12 @@ async def lifespan(app: FastAPI):
     logger.info("🎬 Worth the Watch? — Starting up...")
     await init_db()
     logger.info("✅ Database initialized")
+    
+    # Warm up fuzzy search cache in background
+    from app.services.tmdb import tmdb_service
+    import asyncio
+    asyncio.create_task(tmdb_service.refresh_popular_cache())
+    
     yield
     logger.info("👋 Shutting down...")
 

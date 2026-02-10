@@ -57,7 +57,7 @@ function SearchContent() {
       {/* Search Header */}
       <div>
         <h1 className="mb-4 font-display text-2xl text-text-primary">Search</h1>
-        <SearchBar initialQuery={query} size="lg" disableDropdown={true} />
+        <SearchBar initialQuery={query} size="lg" />
       </div>
 
       {/* Loading */}

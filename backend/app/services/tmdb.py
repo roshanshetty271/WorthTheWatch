@@ -12,6 +12,7 @@ from datetime import date
 from typing import Optional
 from app.config import get_settings
 from app.services.safety import is_safe_content
+from rapidfuzz import process, fuzz
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -26,6 +27,10 @@ class TMDBService:
     def __init__(self):
         self.base = settings.TMDB_BASE_URL
         self.image_base = settings.TMDB_IMAGE_BASE
+        # Cache for "Did you mean?" fuzzy search
+        # Stores tuples of (title, popularity)
+        self.popular_titles_cache: list[tuple[str, float]] = []
+        self._cache_lock = asyncio.Lock()
 
     async def _get(self, endpoint: str, params: dict = None) -> dict:
         """Make TMDB API request with error handling and retry."""
@@ -189,7 +194,25 @@ class TMDBService:
         })
         results = data.get("results", [])
         results = [r for r in results if r.get("media_type") in ("movie", "tv")]
-        return self._filter_results(results)
+        filtered = self._filter_results(results)
+        # Sort by Significance (Vote Count) to prioritize blockbusters
+        # "The Martian" (high votes) should beat "Martin" (low votes) even if "Martin" is a closer string match
+        
+        high_tier = []
+        low_tier = []
+        
+        for item in filtered:
+            # Penalize obscure titles with < 100 votes
+            if item.get("vote_count", 0) < 100:
+                low_tier.append(item)
+            else:
+                high_tier.append(item)
+        
+        # Sort both tiers by Vote Count DESC (primary) and Popularity DESC (secondary)
+        high_tier.sort(key=lambda x: (x.get("vote_count", 0), x.get("popularity", 0)), reverse=True)
+        low_tier.sort(key=lambda x: (x.get("vote_count", 0), x.get("popularity", 0)), reverse=True)
+        
+        return high_tier + low_tier
 
     async def _search_movies(self, query: str, year: int, page: int = 1) -> list[dict]:
         """Search movies with year filter."""
@@ -306,6 +329,77 @@ class TMDBService:
             "tmdb_vote_average": item.get("vote_average"),
             "tmdb_vote_count": item.get("vote_count"),
         }
+
+
+    async def refresh_popular_cache(self):
+        """
+        Background task: Fetch top ~2000 popular movies to support fuzzy search.
+        Runs once on startup (or periodically).
+        """
+        if self.popular_titles_cache:
+            return  # Already populated
+
+        logger.info("🎬 Warming up fuzzy search cache with popular movies...")
+        try:
+            # Fetch generic popular + top rated to get a good mix of blockbusters
+            # We'll fetch 50 pages of each (approx 2000 items total) to keep it fast but useful
+            tasks = []
+            for page in range(1, 51):
+                tasks.append(self.get_trending(media_type="movie", time_window="week", page=page))
+                tasks.append(self.get_top_rated_movies(page=page))
+            
+            # Execute in batches to be nice to API
+            batch_size = 10
+            all_results = []
+            for i in range(0, len(tasks), batch_size):
+                batch = tasks[i:i+batch_size]
+                results = await asyncio.gather(*batch, return_exceptions=True)
+                for res in results:
+                    if isinstance(res, list):
+                        all_results.extend(res)
+                await asyncio.sleep(0.2)  # tiny pause
+            
+            # Deduplicate by ID and store (title, popularity)
+            unique_movies = {}
+            for m in all_results:
+                if m.get("id") and m.get("title"):
+                    unique_movies[m["id"]] = (m["title"], m.get("popularity", 0))
+            
+            async with self._cache_lock:
+                self.popular_titles_cache = list(unique_movies.values())
+            
+            logger.info(f"✅ Fuzzy cache warmed: {len(self.popular_titles_cache)} titles ready.")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to warm up fuzzy cache: {e}")
+
+    async def fuzzy_search(self, query: str) -> Optional[dict]:
+        """
+        Find a close match for a typo'd query using popular movie cache.
+        Returns: {"suggestion": "Correct Title", "results": [TMDB_Objects...]} or None
+        """
+        if not self.popular_titles_cache or len(query) < 3:
+            return None
+
+        # valid matches must be at least 80% similar
+        # extractOne returns (match, score, index)
+        # We search against just the titles
+        titles = [t[0] for t in self.popular_titles_cache]
+        match = process.extractOne(query, titles, scorer=fuzz.ratio)
+        
+        if match:
+            best_title, score, idx = match
+            if score >= 80:
+                logger.info(f"🔍 Fuzzy match found: '{query}' -> '{best_title}' ({score}%)")
+                # Perform a real search for the corrected title
+                results = await self.search(best_title)
+                return {
+                    "suggestion": best_title,
+                    "results": results,
+                    "score": score
+                }
+        
+        return None
 
 
 tmdb_service = TMDBService()

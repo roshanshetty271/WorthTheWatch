@@ -35,17 +35,20 @@ export default function SearchBar({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [didYouMean, setDidYouMean] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Debounced search
   useEffect(() => {
-    if (query.length < 3) {
+    if (query.length < 2) {
       setResults([]);
       setShowDropdown(false);
       return;
     }
 
+    // Don't clear results immediately to prevent flickering
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
@@ -53,15 +56,17 @@ export default function SearchBar({
         if (res.ok) {
           const data = await res.json();
           setResults(data.results || []);
+          setDidYouMean(data.did_you_mean || false);
+          setSuggestion(data.suggestion || null);
           // Only show dropdown if NOT disabled
-          setShowDropdown(!disableDropdown && data.results?.length > 0);
+          setShowDropdown(!disableDropdown && (data.results?.length > 0 || data.did_you_mean));
         }
       } catch (e) {
         console.error("Search failed:", e);
       } finally {
         setLoading(false);
       }
-    }, 500);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [query, disableDropdown]);
@@ -93,6 +98,26 @@ export default function SearchBar({
       setShowDropdown(false);
     }
   }
+
+  // Highlight matching text (fuzzy-ish)
+  const getHighlightedText = (text: string, highlight: string) => {
+    if (!highlight.trim()) return text;
+    // Split query by space to highlight individual words if needed, 
+    // but for now simple case-insensitive match for the whole chunk or fallback
+    // We'll trust the browser's find logic style for now, but here we just regex replace
+    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) =>
+          part.toLowerCase() === highlight.toLowerCase() ? (
+            <span key={i} className="font-bold text-accent-gold">{part}</span>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
+  };
 
   const isLarge = size === "lg";
 
@@ -168,57 +193,74 @@ export default function SearchBar({
 
       {/* Dropdown Results */}
       {showDropdown && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden max-h-[60vh] overflow-y-auto overscroll-contain">
-          {results.map((movie) => {
-            const year = movie.release_date
-              ? new Date(movie.release_date).getFullYear()
-              : "";
-            const posterUrl =
-              movie.poster_url ||
-              (movie.poster_path
-                ? `https://image.tmdb.org/t/p/w92${movie.poster_path}`
-                : null);
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden max-h-[60vh] flex flex-col">
 
-            return (
-              <Link
-                href={`/movie/${movie.tmdb_id}?type=${movie.media_type}`}
-                key={movie.tmdb_id}
-                onClick={() => setShowDropdown(false)}
-                className="flex items-center gap-3 p-3 hover:bg-surface-hover transition-colors cursor-pointer border-b border-surface-elevated last:border-b-0"
-              >
-                {posterUrl ? (
-                  <Image
-                    src={posterUrl}
-                    alt={movie.title}
-                    width={40}
-                    height={56}
-                    className="w-10 h-14 rounded object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-14 rounded bg-surface-elevated flex items-center justify-center flex-shrink-0">
-                    <span className="text-text-muted text-xs">🎬</span>
+          {/* Correction Banner */}
+          {suggestion && (
+            <div className="px-4 py-3 bg-accent-gold/10 border-b border-accent-gold/20 flex-shrink-0">
+              <p className="text-xs text-text-primary">
+                Showing results for <span className="font-bold text-accent-gold">{suggestion}</span>.
+                <br />
+                <span className="opacity-60">Search instead for </span>
+                <span className="italic opacity-60">"{query}"</span>?
+              </p>
+            </div>
+          )}
+
+          <div className="overflow-y-auto overscroll-contain flex-1">
+            {results.map((movie) => {
+              const year = movie.release_date
+                ? new Date(movie.release_date).getFullYear()
+                : "";
+              const posterUrl =
+                movie.poster_url ||
+                (movie.poster_path
+                  ? `https://image.tmdb.org/t/p/w92${movie.poster_path}`
+                  : null);
+
+              return (
+                <Link
+                  href={`/movie/${movie.tmdb_id}?type=${movie.media_type}`}
+                  key={movie.tmdb_id}
+                  onClick={() => setShowDropdown(false)}
+                  className="flex items-center gap-3 p-3 hover:bg-surface-hover transition-colors cursor-pointer border-b border-surface-elevated last:border-b-0"
+                >
+                  {posterUrl ? (
+                    <Image
+                      src={posterUrl}
+                      alt={movie.title}
+                      width={40}
+                      height={56}
+                      className="w-10 h-14 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-14 rounded bg-surface-elevated flex items-center justify-center flex-shrink-0">
+                      <span className="text-text-muted text-xs">🎬</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {getHighlightedText(movie.title, suggestion || (didYouMean ? "" : query))}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {year && `${year} • `}
+                      <span className="capitalize">{movie.media_type}</span>
+                      {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
+                        <> • ⭐ {movie.tmdb_vote_average.toFixed(1)}</>
+                      )}
+                    </p>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">
-                    {movie.title}
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {year && `${year} • `}
-                    <span className="capitalize">{movie.media_type}</span>
-                    {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
-                      <> • ⭐ {movie.tmdb_vote_average.toFixed(1)}</>
-                    )}
-                  </p>
-                </div>
-                {movie.has_review && (
-                  <span className="text-xs text-verdict-worth font-medium flex-shrink-0">
-                    ✅ Reviewed
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+                  {movie.has_review && (
+                    <span className="text-xs text-verdict-worth font-medium flex-shrink-0">
+                      ✅ Reviewed
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+            {/* Explicit spacer to force scrollability past last item */}
+            <div className="h-16 w-full flex-shrink-0" aria-hidden="true" />
+          </div>
         </div>
       )}
 

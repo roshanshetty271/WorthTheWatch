@@ -121,10 +121,10 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden">
-        {/* Background Image */}
+      <section className="relative flex min-h-[100dvh] flex-col items-center justify-center">
+        {/* Background Image - Wrapped in overflow-hidden for zoom effect */}
         {featured ? (
-          <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 z-0 overflow-hidden">
             <Image
               src={featured.movie.backdrop_url!}
               alt={featured.movie.title}

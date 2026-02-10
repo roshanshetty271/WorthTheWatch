@@ -451,54 +451,49 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         f"(from {total_chars} raw chars)"
     )
     
-    # ─── STEP: Append Reddit snippets AFTER grep ───
-    # This is critical — snippets must ALWAYS reach the LLM
-    # They bypass grep because they're already opinion text
-    snippet_text = ""
+    # ─── OPTIMIZATION: Lazy Reddit-First Truncation ───
+    # We want to give Reddit (audience) priority in the context window.
+    # 1. Truncate critics to ~3000 chars (approx 500-600 words)
+    # 2. Preserve up to 2000 chars of Reddit (approx 300-400 words)
+    # 3. Assemble: Reddit FIRST, Critics SECOND
+    
+    CRITIC_BUDGET = 3000
+    REDDIT_BUDGET = 2000
+    
+    # 1. Truncate Critics
+    critic_text = filtered_opinions[:CRITIC_BUDGET]
+    # Clean cut at last period to avoid fragmented sentences
+    last_period = critic_text.rfind('.')
+    if last_period > 0:
+        critic_text = critic_text[:last_period+1]
+        
+    # 2. Prepare Reddit (No truncation usually needed, but cap just in case)
+    reddit_text = ""
     if reddit_snippets:
-        snippet_text = "\n\n".join(reddit_snippets[:10])
-        filtered_opinions = (
-            filtered_opinions 
-            + "\n\n--- What Reddit Thinks ---\n\n" 
-            + snippet_text
-        )
-        logger.info(
-            f"💬 Appended {len(snippet_text)} chars of Reddit snippets "
-            f"(bypassed grep — pure crowd opinion)"
-        )
-        logger.info(
-            f"📊 TOTAL to LLM: {len(filtered_opinions)} chars "
-            f"(filtered articles + Reddit snippets)"
-        )
+        reddit_text = "\n\n".join(reddit_snippets)
+        if len(reddit_text) > REDDIT_BUDGET:
+             reddit_text = reddit_text[:REDDIT_BUDGET]
+             last_r_period = reddit_text.rfind('.')
+             if last_r_period > 0:
+                 reddit_text = reddit_text[:last_r_period+1]
 
-    # ─── STEP: Truncate to LLM limit ───
-    # Make sure snippets don't get cut off by truncation
-    # If we have to truncate, keep at least the snippet portion
-    MAX_LLM_CHARS = 18000
-    
-    if len(filtered_opinions) > MAX_LLM_CHARS:
-        if snippet_text:
-            # Reserve space for snippets at the end
-            snippet_reserve = min(len(snippet_text) + 50, 5000)
-            article_limit = MAX_LLM_CHARS - snippet_reserve
-            
-            # Find where the snippet section starts
-            snippet_marker = "--- What Reddit Thinks ---"
-            marker_pos = filtered_opinions.find(snippet_marker)
-            
-            if marker_pos > 0:
-                article_part = filtered_opinions[:marker_pos][:article_limit]
-                snippet_part = filtered_opinions[marker_pos:][:snippet_reserve]
-                filtered_opinions = article_part + "\n\n" + snippet_part
-            else:
-                filtered_opinions = filtered_opinions[:MAX_LLM_CHARS]
-        else:
-            filtered_opinions = filtered_opinions[:MAX_LLM_CHARS]
-    
-    logger.info(f"📨 Sending {len(filtered_opinions)} chars to LLM")
+    # 3. Assemble Final Input
+    if reddit_text:
+        final_opinions = f"""AUDIENCE REACTIONS (from Reddit/Forums):
+{reddit_text}
 
-    if not filtered_opinions or len(filtered_opinions) < 50:
-        # Use raw snippets as fallback
+CRITICAL CONTEXT (Professional Reviews):
+{critic_text}"""
+    else:
+        final_opinions = f"""CRITICAL CONTEXT (Professional Reviews):
+{critic_text}"""
+
+    filtered_opinions = final_opinions
+
+    logger.info(f"📨 Sending ~{len(filtered_opinions)} chars to LLM (Optimized: Reddit + Truncated Critics)")
+
+    if len(filtered_opinions) < 100 and not reddit_text:
+        # Use raw snippets as fallback if we have absolutely nothing
         filtered_opinions = "\n\n".join(
             f"{r['title']}: {r['snippet']}" for r in all_results[:15]
         )

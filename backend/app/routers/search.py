@@ -35,11 +35,42 @@ async def quick_search(
     """Quick search for dropdown — returns TMDB results with review status."""
     tmdb_results = await tmdb_service.search(q)
     
+    suggestion = None
+    is_fuzzy = False
+
+    # 1. Exact/Partial Search Results found?
     if not tmdb_results:
-        return {"results": []}
+        # 2. Try Advanced Fuzzy Search (Prioritize "The Martian" over random substrings)
+        fuzzy_match = await tmdb_service.fuzzy_search(q)
+        if fuzzy_match:
+            tmdb_results = fuzzy_match["results"][:3]
+            suggestion = fuzzy_match["suggestion"]
+            is_fuzzy = True
+        
+        # 3. If Fuzzy fails, try Recursive Trimming (for simple suffix typos)
+        if not tmdb_results:
+            trimmed_q = q
+            while len(trimmed_q) > 3 and not tmdb_results:
+                trimmed_q = trimmed_q[:-1]
+                tmdb_results = await tmdb_service.search(trimmed_q)
+                if tmdb_results:
+                    # Don't set is_fuzzy=True for simple substring matches if 
+                    # we want to avoid the "Did you mean..." being weird.
+                    # But the user might want to know why they are seeing "Demetri Martin" for "martia"
+                    # Actually, if it's a substring match, the results might just be valid partial matches.
+                    # Let's set fuzzy=True but maybe suppress the generic banner if suggestion is None?
+                    is_fuzzy = True
+                    tmdb_results = tmdb_results[:3]
+                    break
+
+    if not tmdb_results:
+        return {"results": [], "did_you_mean": False, "suggestion": None}
     
     # Check which ones we already have reviews for
-    tmdb_ids = [r["id"] for r in tmdb_results[:8]]
+    # Limit: Normal=8, Fuzzy=3
+    limit = 3 if is_fuzzy else 8
+    tmdb_ids = [r["id"] for r in tmdb_results[:limit]]
+    
     result = await db.execute(
         select(Movie.tmdb_id)
         .join(Review, Movie.id == Review.movie_id)
@@ -48,7 +79,7 @@ async def quick_search(
     reviewed_ids = set(row[0] for row in result.all())
     
     results = []
-    for item in tmdb_results[:8]:
+    for item in tmdb_results[:limit]:
         normalized = tmdb_service.normalize_result(item)
         results.append({
             **normalized,
@@ -56,7 +87,7 @@ async def quick_search(
             "poster_url": tmdb_service.get_poster_url(item.get("poster_path")),
         })
     
-    return {"results": results}
+    return {"results": results, "did_you_mean": is_fuzzy, "suggestion": suggestion}
 
 
 @router.get("", response_model=SearchResult)
@@ -80,7 +111,7 @@ async def search_movies(
         select(Movie)
         .options(joinedload(Movie.review))
         .where(Movie.title.ilike(f"%{q}%"))
-        .limit(5)
+        .limit(8)
     )
     db_movies = result.unique().scalars().all()
 
@@ -109,6 +140,10 @@ async def search_movies(
 
     # ALWAYS search TMDB for disambiguation options
     tmdb_results = await tmdb_service.search(q)
+
+    # Fuzzy Fallback for full search page too
+    if not tmdb_results and len(q) > 3:
+        tmdb_results = await tmdb_service.search(q[:-1])
 
     if not tmdb_results and not db_match:
         return SearchResult(
