@@ -55,14 +55,25 @@ def _title_matches(title: str, headline: str, snippet: str = "", year: str = "")
     
     if len(title_words) <= 3:
         # SHORT TITLE: Strict headline-only matching
+        # Must appear in headline with word boundaries
         
-        # Super-Strict for basic single words like "Space", "Love", "Crash"
+        # ONE WORD TITLE: "Space", "Up", "Her"
         if len(title_words) == 1:
-            pattern = rf'(?:^|\s){safe_title}(?:\s*[\(\[\-–:]|\s*{year}|\s*review|\s*$)'
+            # Extremely high false positive risk
+            # Require exact title match: "Space review" or "Space (2001)"
+            # NOT "space odyssey" or "lesbian space princess"
+            # The word must not be part of a larger title phrase at all
+            
+            # Regex: Start of string OR space + TITLE + (punctuation OR year OR review/film/movie OR end of string)
+            # This ensures "Space" matches "Space review" but NOT "Space Odyssey" 
+            pattern = rf'(?:^|\s){safe_title}(?:\s*[\(\[\-–:]|\s*{year}|\s*review|\s*film|\s*movie|\s*$)'
+            
             if not re.search(pattern, headline_lower):
                 return False
+                
+            return True
 
-        # Must appear in headline with word boundaries
+        # 2-3 WORD TITLE:
         # Pattern: \bTITLE\b
         pattern = rf'\b{safe_title}\b'
         
@@ -111,7 +122,6 @@ class GuardianService:
         title: str,
         year: Optional[str] = None,
         max_results: int = 5,
-        search_query: Optional[str] = None,
     ) -> list[GuardianArticle]:
         """
         Search The Guardian for film reviews.
@@ -120,7 +130,6 @@ class GuardianService:
             title: Movie or TV show title
             year: Optional release year for filtering
             max_results: Maximum number of results (default: 5)
-            search_query: Optional explicit query string to use
             
         Returns:
             List of GuardianArticle objects
@@ -128,16 +137,13 @@ class GuardianService:
         if not self.api_key:
             return []
 
-        if search_query:
-            query = search_query
-        else:
-            # Sanitize title for API (remove punctuation that breaks the search)
-            clean_title = title.replace(":", "").replace(";", "").replace("  ", " ")
-            
-            # Build search query - include year for better specificity
-            query = f'"{clean_title}"'
-            if year:
-                query += f" {year}"
+        # Sanitize title for API (remove punctuation that breaks the search)
+        clean_title = title.replace(":", "").replace(";", "").replace("  ", " ")
+        
+        # Build search query - include year for better specificity
+        query = f'"{clean_title}"'
+        if year:
+            query += f" {year}"
 
         params = {
             "api-key": self.api_key,

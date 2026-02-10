@@ -95,7 +95,6 @@ class NYTService:
         self,
         title: str,
         max_results: int = 5,
-        search_query: Optional[str] = None,
     ) -> list[NYTReview]:
         """
         Search NYT for movie reviews using Article Search API.
@@ -103,7 +102,6 @@ class NYTService:
         Args:
             title: Movie title to search
             max_results: Maximum number of results (default: 5)
-            search_query: Optional query override
             
         Returns:
             List of NYTReview objects
@@ -112,7 +110,7 @@ class NYTService:
             return []
 
         # First try Article Search API (more reliable)
-        results = await self._search_via_article_api(title, max_results, search_query)
+        results = await self._search_via_article_api(title, max_results)
         
         # Fallback to legacy Movie Reviews API if no results
         if not results:
@@ -121,22 +119,17 @@ class NYTService:
         return results
 
     async def _search_via_article_api(
-        self, title: str, max_results: int, search_query: Optional[str] = None
+        self, title: str, max_results: int
     ) -> list[NYTReview]:
         """Search using Article Search API filtered for movie reviews."""
         # New filter syntax as of April 8, 2025:
         # section.name for section, typeOfMaterials for type
         fq = 'typeOfMaterials:Review AND section.name:Movies'
         
-        if search_query:
-            query = search_query
-        else:
-             # Sanitize title (remove colons/semicolons)
-             query = f'"{title.replace(":", "").replace(";", "").replace("  ", " ")}"'
-
         params = {
             "api-key": self.api_key,
-            "q": query,
+            # Sanitize title (remove colons/semicolons) to avoid 400 Bad Request
+            "q": f'"{title.replace(":", "").replace(";", "").replace("  ", " ")}"',
             "fq": fq,
             "sort": "relevance",
         }
