@@ -33,6 +33,7 @@ const config: Config = {
       fontFamily: {
         display: ['"DM Serif Display"', "Georgia", "serif"],
         body: ['"DM Sans"', "system-ui", "sans-serif"],
+        "serif-body": ['"Lora"', "serif"],
         mono: ['"JetBrains Mono"', "monospace"],
       },
       animation: {
