@@ -187,15 +187,15 @@ class ArticleReader:
             # If it failed/returned None, then blocked=True.
             
             if reddit_blocked:
-                # Try Google Cache for remaining Reddit URLs
-                count = len(reddit_urls) - 1
+                # Try Google Cache for remaining Reddit URLs (Limit 3)
+                count = min(len(reddit_urls) - 1, 3)
                 if count > 0:
                     logger.warning(
                         f"🚫 Reddit blocked/failed — trying cache for "
-                        f"{count} remaining URLs"
+                        f"{count} URLs (limited to 3)"
                     )
                     cache_tasks = []
-                    for url in reddit_urls[1:]:
+                    for url in reddit_urls[1:4]:
                         if not self._google_cache_blocked:
                             cache_tasks.append(
                                 asyncio.create_task(self._fetch_google_cache(url, timeout))

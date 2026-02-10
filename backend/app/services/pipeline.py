@@ -451,33 +451,37 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         f"(from {total_chars} raw chars)"
     )
     
-    # ─── OPTIMIZATION: Lazy Reddit-First Truncation ───
+    # ─── OPTIMIZATION: Prioritize Reddit, but use FULL context window ───
     # We want to give Reddit (audience) priority in the context window.
-    # 1. Truncate critics to ~3000 chars (approx 500-600 words)
-    # 2. Preserve up to 2000 chars of Reddit (approx 300-400 words)
-    # 3. Assemble: Reddit FIRST, Critics SECOND
+    # But we have 128k context with GPT-4o-mini, so we should use ~18k chars easily.
+    # No need to aggressively truncate to 5k.
     
-    CRITIC_BUDGET = 3000
-    REDDIT_BUDGET = 2000
+    MAX_LLM_CHARS = 18000
     
-    # 1. Truncate Critics
-    critic_text = filtered_opinions[:CRITIC_BUDGET]
-    # Clean cut at last period to avoid fragmented sentences
-    last_period = critic_text.rfind('.')
-    if last_period > 0:
-        critic_text = critic_text[:last_period+1]
-        
-    # 2. Prepare Reddit (No truncation usually needed, but cap just in case)
+    # 1. Prepare Reddit Text
     reddit_text = ""
     if reddit_snippets:
         reddit_text = "\n\n".join(reddit_snippets)
-        if len(reddit_text) > REDDIT_BUDGET:
-             reddit_text = reddit_text[:REDDIT_BUDGET]
-             last_r_period = reddit_text.rfind('.')
-             if last_r_period > 0:
-                 reddit_text = reddit_text[:last_r_period+1]
+    
+    # 2. Calculate remaining budget for critics
+    if reddit_text:
+        # Reserve space for Reddit (up to 3000 chars roughly, or whatever it is)
+        # We process Reddit first, so we just subtract its length from the budget
+        valuable_reddit_len = min(len(reddit_text), 5000) # Cap Reddit impact on budget if it's huge
+        critic_limit = MAX_LLM_CHARS - valuable_reddit_len
+    else:
+        critic_limit = MAX_LLM_CHARS
 
-    # 3. Assemble Final Input
+    # 3. Truncate Critics if needed
+    critic_text = filtered_opinions
+    if len(critic_text) > critic_limit:
+        critic_text = critic_text[:critic_limit]
+        # Clean cut at last period
+        last_period = critic_text.rfind('.')
+        if last_period > 0:
+            critic_text = critic_text[:last_period+1]
+        
+    # 4. Assemble Final Input: Reddit FIRST
     if reddit_text:
         final_opinions = f"""AUDIENCE REACTIONS (from Reddit/Forums):
 {reddit_text}
@@ -490,7 +494,7 @@ CRITICAL CONTEXT (Professional Reviews):
 
     filtered_opinions = final_opinions
 
-    logger.info(f"📨 Sending ~{len(filtered_opinions)} chars to LLM (Optimized: Reddit + Truncated Critics)")
+    logger.info(f"📨 Sending {len(filtered_opinions)} chars to LLM (Reddit First + Critics)")
 
     if len(filtered_opinions) < 100 and not reddit_text:
         # Use raw snippets as fallback if we have absolutely nothing
