@@ -7,9 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (force rebuild - added lxml deps)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev libxml2-dev libxslt-dev \
+    && apt-get install -y --no-install-recommends \
+       gcc libpq-dev libxml2-dev libxslt-dev \
+    && pip install --no-cache-dir lxml \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
