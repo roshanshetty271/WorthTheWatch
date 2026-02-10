@@ -8,26 +8,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Worth the Watch? brand colors — cinematic dark theme
+        // Worth the Watch? brand colors — "Organic Editorial" (Matte/Zinc)
         surface: {
-          DEFAULT: "#0a0a0f",
-          card: "#12121a",
-          elevated: "#1a1a25",
-          hover: "#222233",
+          DEFAULT: "#09090b", // Zinc 950 (Ink Black)
+          card: "#18181b",    // Zinc 900
+          elevated: "#27272a", // Zinc 800
+          hover: "#27272a",   // Zinc 800 (Hover state)
         },
         accent: {
-          gold: "#d4a843",
-          goldLight: "#e8c76a",
+          gold: "#fbbf24",     // Amber 400 (Popcorn/Cinema Gold)
+          goldLight: "#fcd34d", // Amber 300
         },
         verdict: {
-          worth: "#22c55e",
-          skip: "#ef4444",
-          mixed: "#f59e0b",
+          worth: "#22c55e",    // Green 500
+          skip: "#ef4444",     // Red 500
+          mixed: "#f59e0b",    // Amber 500
         },
         text: {
-          primary: "#f0ece4",
-          secondary: "#8a8694",
-          muted: "#5a5666",
+          primary: "#fafafa",  // Zinc 50 (High contrast)
+          secondary: "#a1a1aa", // Zinc 400
+          muted: "#71717a",    // Zinc 500
         },
       },
       fontFamily: {

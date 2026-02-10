@@ -136,14 +136,15 @@ export default async function HomePage() {
         )}
 
         {/* Center Content: Title & Search (Lifted slightly for space) */}
-        <div className="relative z-30 w-full max-w-4xl px-4 text-center mb-32 sm:mb-40">
-          <h1 className="mb-2 font-display text-3xl text-white sm:text-5xl md:text-6xl lg:text-7xl drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
-            Worth the Watch<span className="text-accent-gold">?</span>
+        <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-32 mb-32 sm:mb-40">
+          <h1 className="mb-4 font-bold text-3xl text-white sm:text-5xl md:text-6xl tracking-tight drop-shadow-xl">
+            Stop scrolling. <br className="hidden sm:block" />
+            <span className="text-accent-gold">Start watching.</span>
           </h1>
-          <p className="mx-auto mb-6 sm:mb-8 max-w-md sm:max-w-lg text-sm sm:text-base md:text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
-            Should I stream this? The internet decides.
+          <p className="mx-auto mb-8 max-w-lg text-base sm:text-xl text-white/80 font-medium drop-shadow-md">
+            Cut through the noise with AI-powered verdicts.
           </p>
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-xl sm:max-w-2xl mb-12">
             <SearchBar placeholder="Search any movie or TV show..." size="lg" />
           </div>
         </div>

@@ -10,6 +10,7 @@ body {
   @apply bg-surface text-text-primary font-body;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Matte finish - no background gradients */
 }
 
 /* ─── Scrollbar ─────────────────────────────────────── */
@@ -17,9 +18,11 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   @apply bg-surface;
 }
+
 ::-webkit-scrollbar-thumb {
   @apply bg-surface-hover rounded-full;
 }
@@ -29,9 +32,11 @@ body {
 .verdict-worth {
   @apply bg-verdict-worth/15 text-verdict-worth border border-verdict-worth/30;
 }
+
 .verdict-skip {
   @apply bg-verdict-skip/15 text-verdict-skip border border-verdict-skip/30;
 }
+
 .verdict-mixed {
   @apply bg-verdict-mixed/15 text-verdict-mixed border border-verdict-mixed/30;
 }
@@ -41,36 +46,42 @@ body {
 .movie-card {
   @apply transition-all duration-300 ease-out;
 }
+
 .movie-card:hover {
   @apply -translate-y-1;
-  box-shadow: 0 8px 30px rgba(212, 168, 67, 0.08);
+  box-shadow: 0 8px 30px rgba(251, 191, 36, 0.1);
 }
 
 /* ─── Gradient Overlays ─────────────────────────────── */
 
+/* ─── Matte Gradient Overlays ─────────────────────── */
+
 .gradient-bottom {
-  background: linear-gradient(to top, #0a0a0f 0%, transparent 100%);
+  background: linear-gradient(to top, #09090b 0%, transparent 100%);
 }
 
 .gradient-top {
-  background: linear-gradient(to bottom, #0a0a0f 0%, transparent 50%);
+  background: linear-gradient(to bottom, #09090b 0%, transparent 60%);
 }
 
 /* ─── Loading Shimmer ───────────────────────────────── */
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .skeleton {
   @apply bg-surface-elevated rounded;
-  background-image: linear-gradient(
-    90deg,
-    #12121a 0%,
-    #1a1a25 40%,
-    #12121a 80%
-  );
+  background-image: linear-gradient(90deg,
+      #27272a 0%,
+      #3f3f46 40%,
+      #27272a 80%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite ease-in-out;
 }
@@ -80,6 +91,7 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

@@ -132,9 +132,9 @@ export default function SearchBar({
           }}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className={`w-full border bg-surface-card text-text-primary placeholder-text-muted transition-all ${focused
+          className={`w-full border bg-surface-card/50 backdrop-blur-xl text-text-primary placeholder-text-muted transition-all ${focused
             ? "border-accent-gold/50 ring-2 ring-accent-gold/20 shadow-lg shadow-accent-gold/5"
-            : "border-surface-elevated hover:border-surface-hover"
+            : "border-white/10 hover:border-white/20 hover:bg-surface-card/80"
             } ${isLarge
               ? "rounded-2xl py-4 pl-12 pr-24 sm:pr-28 text-base sm:text-lg placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
               : "rounded-xl py-2.5 pl-10 pr-16 sm:pr-20 text-sm placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
