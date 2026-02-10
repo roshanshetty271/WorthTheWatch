@@ -31,3 +31,6 @@ fake-useragent>=1.5.1
 
 # XML/HTML Parsing (Speed)
 lxml>=5.0.0
+
+# Fuzzy Search (Typo Handling)
+rapidfuzz>=3.11.0
