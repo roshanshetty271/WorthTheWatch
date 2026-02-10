@@ -190,7 +190,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           NETFLIX-STYLE SECTIONS — Horizontal Scroll
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="py-12 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24">
         {hasAnySections ? (
           <div className="space-y-2">
             {sectionsWithData.map((section) => (
