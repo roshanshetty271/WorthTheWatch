@@ -151,6 +151,8 @@ async def synthesize_review(
     sources_count: int,
     tmdb_score: float = 0.0,
     tmdb_vote_count: int = 0,
+    imdb_score: float = None,
+    imdb_votes: int = None,
     confidence_tier: str = "MEDIUM",
     articles_read: int = 0,
     reddit_sources: int = 0,
@@ -189,9 +191,17 @@ RULES:
 - Speak with full authority — the internet has spoken.
 - Do NOT mention source counts in the review text."""
 
+    
+    if imdb_score:
+        score_context = f"IMDb Rating: {imdb_score}/10 based on {imdb_votes or 'N/A'} votes (IMDb is highly trusted, use this as a strong signal)"
+        if tmdb_score:
+            score_context += f"\nTMDB User Rating: {tmdb_score}/10 (for reference)"
+    else:
+        score_context = f"TMDB User Rating: {tmdb_score}/10 (based on {tmdb_vote_count} votes)"
+
     user_prompt = f"""Movie/Show: {title} ({year})
 Genre: {genres}
-TMDB User Rating: {tmdb_score}/10 (based on {tmdb_vote_count} votes)
+{score_context}
 Description: {overview}
 
 {data_context}
