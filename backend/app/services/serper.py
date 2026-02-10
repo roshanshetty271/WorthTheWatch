@@ -23,7 +23,7 @@ class SerperService:
     async def search(self, query: str, num_results: int = 10) -> list[dict]:
         """Search Google via Serper. Returns list of {title, link, snippet}."""
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with httpx.AsyncClient(timeout=5) as client:
                 resp = await client.post(
                     self.url,
                     headers=self.headers,
@@ -66,28 +66,31 @@ class SerperService:
             logger.error(f"Serper search failed: {e}")
             return []
 
-    async def search_reviews(self, title: str, year: str = "") -> list[dict]:
+    async def search_reviews(self, title: str, year: str = "", media_type: str = "movie") -> list[dict]:
         """Search for critic review articles."""
         try:
-            query = f'"{title}" {year} review'.strip()
+            type_hint = "TV series" if media_type == "tv" else "movie"
+            query = f'"{title}" {year} {type_hint} review'.strip()
             return await self.search(query, num_results=20)
         except Exception as e:
             logger.error(f"search_reviews failed for '{title}': {e}")
             return []
 
-    async def search_reddit(self, title: str, year: str = "") -> list[dict]:
+    async def search_reddit(self, title: str, year: str = "", media_type: str = "movie") -> list[dict]:
         """Search Reddit discussions via Google."""
         try:
-            query = f'"{title}" {year} site:reddit.com review discussion'.strip()
+            type_hint = "TV show" if media_type == "tv" else "movie"
+            query = f'"{title}" {year} {type_hint} reddit'.strip()
             return await self.search(query, num_results=15)
         except Exception as e:
             logger.error(f"search_reddit failed for '{title}': {e}")
             return []
 
-    async def search_forums(self, title: str, year: str = "") -> list[dict]:
+    async def search_forums(self, title: str, year: str = "", media_type: str = "movie") -> list[dict]:
         """Search for forum discussions, blog posts, and user opinions."""
         try:
-            query = f'"{title}" {year} review discussion opinions worth watching'.strip()
+            type_hint = "TV show" if media_type == "tv" else "movie"
+            query = f'"{title}" {year} {type_hint} review discussion opinions worth watching'.strip()
             return await self.search(query, num_results=10)
         except Exception as e:
             logger.error(f"search_forums failed for '{title}': {e}")

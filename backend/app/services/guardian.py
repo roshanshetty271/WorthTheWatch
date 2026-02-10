@@ -43,34 +43,26 @@ class GuardianArticle:
 def _title_matches(title: str, text: str, year: str = "") -> bool:
     """
     Check if title appears in text.
-    For short titles (<=3 chars), use very strict matching to avoid false positives
-    like "Cover Up" matching when searching for "Up".
+    For short titles (<=3 words), use specific strict matching to avoid false positives.
     """
     title_lower = title.lower().strip()
     text_lower = text.lower().strip()
     
-    if len(title_lower) <= 3:
-        # Very strict matching for short titles like "It", "Up", "Her", "Us"
-        # Must start with the title, or contain "title (year)", or be followed by punctuation
+    title_words = title_lower.split()
+    
+    if len(title_words) <= 3:
+        # Short title: require exact match with word boundaries and specific following context
+        # "the call" should match "the call review", "the call (2013)"
+        # but NOT "the call of the wild"
         
-        # Check if headline starts with the title followed by space or punctuation
-        starts_with = (
-            text_lower.startswith(title_lower + " ") or 
-            text_lower.startswith(title_lower + ":") or
-            text_lower.startswith(title_lower + ",") or
-            text_lower.startswith(title_lower + " –") or
-            text_lower.startswith(title_lower + " -")
-        )
+        safe_title = re.escape(title_lower)
+        # Pattern: \bTITLE\b followed by (punctuation/year/review-words/end-of-string)
+        # We also allow it if it's at the VERY END of the string
+        pattern = rf'\b{safe_title}\b(?:\s*[\(\[\-–:]|\s*{year}|\s*review|\s*film|\s*movie|\s*$)'
         
-        # Check if "title (year)" appears (e.g., "Up (2009)")
-        has_year = f"{title_lower} ({year})" in text_lower if year else False
-        
-        # Check for pattern: "title review" at start
-        has_review = text_lower.startswith(f"{title_lower} review")
-        
-        return starts_with or has_year or has_review
+        return bool(re.search(pattern, text_lower))
     else:
-        # Normal word boundary matching for longer titles
+        # Longer title: simple word boundary check is usually enough
         pattern = re.compile(r'\b' + re.escape(title_lower) + r'\b')
         return bool(pattern.search(text_lower))
 

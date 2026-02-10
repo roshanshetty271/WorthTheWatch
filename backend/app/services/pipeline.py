@@ -304,12 +304,13 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         # Run ALL searches in parallel — Serper + Guardian + NYT
         logger.info(f"🚀 Step 1/4: Launching parallel searches for '{title}'...")
         search_results = await asyncio.gather(
-            serper_service.search_reviews(search_title, year),
-            serper_service.search_reddit(search_title, year),
-            serper_service.search_forums(search_title, year),
+            serper_service.search_reviews(search_title, year, movie.media_type or "movie"),
+            serper_service.search_reddit(search_title, year, movie.media_type or "movie"),
+            serper_service.search_forums(search_title, year, movie.media_type or "movie"),
             guardian_service.search_film_reviews(search_title, year),
             nyt_service.search_reviews(search_title),
             omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
+            _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
             return_exceptions=True,
         )
         
@@ -320,9 +321,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         guardian_results = search_results[3] if not isinstance(search_results[3], Exception) else []
         nyt_results = search_results[4] if not isinstance(search_results[4], Exception) else []
         omdb_data = search_results[5] if not isinstance(search_results[5], Exception) else None
-
-        # Extract OMDB data (IMDb, Metacritic, RT)
-        omdb_data = search_results[5] if not isinstance(search_results[5], Exception) else None
+        trailer_url = search_results[6] if not isinstance(search_results[6], Exception) else None
         
         # Vote Count Sanity Check
         # Avoid matching a popular movie (TMDB) with an obscure one (IMDb) just by title/year
@@ -581,22 +580,28 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                 and override_votes and override_votes > 500
                 and llm_output.verdict != "WORTH IT"
             ):
-                if llm_output.positive_pct and llm_output.positive_pct >= 45:
+                # Sanity check: Don't override if LLM had strong negative signals
+                criticism_count = len(llm_output.criticism_points or [])
+                praise_count = len(llm_output.praise_points or [])
+                
+                # If LLM found MORE criticisms than praise, respect the LLM
+                if criticism_count > praise_count:
                     logger.info(
-                        f"⭐ High Score Privilege: {movie.title} "
-                        f"({score_source} {override_score}, {override_votes} votes) "
-                        f"{llm_output.verdict} → WORTH IT"
+                        f"⚠️ High Score Privilege BLOCKED for {title}: "
+                        f"{criticism_count} criticisms > {praise_count} praise — "
+                        f"LLM found genuine issues despite high score"
+                    )
+                elif llm_output.positive_pct and llm_output.positive_pct < 45:
+                    logger.info(
+                        f"⚠️ High Score Privilege BLOCKED for {title}: "
+                        f"only {llm_output.positive_pct}% positive"
+                    )
+                else:
+                    logger.info(
+                        f"⭐ High Score Privilege: {title} "
+                        f"({score_source} {override_score}) → WORTH IT"
                     )
                     llm_output.verdict = "WORTH IT"
-                else:
-                    # Edge case: high score but LLM found very negative articles
-                    # Split the difference
-                    logger.info(
-                        f"⚠️ High Score Conflict: {movie.title} "
-                        f"({score_source} {override_score} but only {llm_output.positive_pct}% positive) "
-                        f"→ MIXED BAG"
-                    )
-                    llm_output.verdict = "MIXED BAG"
             
             # NOT WORTH IT requires strong negative signal (Relaxed cutoff)
             if llm_output.verdict == "NOT WORTH IT" and pos > 60:
@@ -729,32 +734,30 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     
     # ─── Step 6: ENRICH (Phase 2) ─────────────────────────
     job_progress[tmdb_id] = "Finalizing your review..."
-    logger.info(f"🎬 Step 5/5: Fetching trailer for '{title}' (OMDB already done)")
+    
+    # Trailer was already fetched in Step 1 parallel search
+    if trailer_url:
+        logger.info(f"🎬 Trailer already fetched: {trailer_url}")
+    else:
+        logger.info(f"🎬 No trailer found in Step 1 (or failed)")
+        
+    # Apply OMDB scores (using data fetched in Step 1)
+    # Apply OMDB scores (using data fetched in Step 1)
+    if omdb_data:
+        review.imdb_score = omdb_data.imdb_score
+        review.rt_critic_score = omdb_data.rt_critic_score
+        review.metascore = omdb_data.metascore
+        # Calculate controversial flag (RT critic vs audience gap > 25)
+        # We can only do this if we have both, currently we might lack audience score
+        if omdb_data.rt_critic_score and review.rt_audience_score:
+            gap = abs(omdb_data.rt_critic_score - review.rt_audience_score)
+            review.controversial = gap > 25
+    
+    # Apply trailer
+    if not isinstance(trailer_url, Exception) and trailer_url:
+        review.trailer_url = trailer_url
     
     try:
-        # Step 5: Enrichment — only fetch trailer (OMDB already done)
-        enrichment_results = await asyncio.gather(
-            _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
-            return_exceptions=True,
-        )
-        
-        trailer_url = enrichment_results[0] if not isinstance(enrichment_results[0], Exception) else None
-        
-        # Apply OMDB scores (using data fetched in Step 1)
-        if omdb_data:
-            review.imdb_score = omdb_data.imdb_score
-            review.rt_critic_score = omdb_data.rt_critic_score
-            review.metascore = omdb_data.metascore
-            # Calculate controversial flag (RT critic vs audience gap > 25)
-            # We can only do this if we have both, currently we might lack audience score
-            if omdb_data.rt_critic_score and review.rt_audience_score:
-                gap = abs(omdb_data.rt_critic_score - review.rt_audience_score)
-                review.controversial = gap > 25
-        
-        # Apply trailer
-        if not isinstance(trailer_url, Exception) and trailer_url:
-            review.trailer_url = trailer_url
-        
         # Apply sentiment from LLM output
         review.positive_pct = llm_output.positive_pct
         review.negative_pct = llm_output.negative_pct
@@ -763,7 +766,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         
         await db.flush()
     except Exception as e:
-        logger.warning(f"Phase 2 enrichment failed: {e}")
+        logger.warning(f"Final flush failed: {e}")
     
     job_progress.pop(tmdb_id, None)
     return review

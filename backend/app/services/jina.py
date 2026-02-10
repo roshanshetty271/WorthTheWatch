@@ -82,58 +82,142 @@ class ArticleReader:
 
     async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0) -> tuple[list[str], list[str]]:
         """
-        Read multiple URLs with smart Reddit handling.
-
-        Strategy:
-        1. Separate Reddit URLs from non-Reddit URLs
-        2. Fetch all non-Reddit URLs in parallel (they always work)
-        3. Test ONE Reddit URL to check if blocked
-        4. If Reddit works → fetch remaining Reddit in parallel
-        5. If Reddit blocked → Google cache for all Reddit URLs
-        
-        This avoids wasting 15-20 seconds on 7 parallel Reddit 403s.
+        Race to 5: Fire all non-Reddit URLs immediately.
+        Return as soon as 5 quality articles are collected.
+        Cancel remaining tasks to save time.
         """
-        # Separate Reddit and non-Reddit URLs
-        self._google_cache_blocked = False  # Reset for each batch
+        self._google_cache_blocked = False
+        
+        # Separate Reddit and non-Reddit
         reddit_urls = [u for u in urls if "reddit.com" in u.lower()]
         other_urls = [u for u in urls if "reddit.com" not in u.lower()]
-
+        
         articles = []
         failed = []
-
-        # ─── Step 1: Fetch non-Reddit URLs in parallel (always works) ───
-        if other_urls:
-            semaphore = asyncio.Semaphore(max_concurrent)
-
-            async def _read(url: str) -> tuple[str, Optional[str]]:
-                async with semaphore:
-                    content = await self.read_url(url, timeout=timeout)
-                    return (url, content)
-
-            tasks = [_read(url) for url in other_urls]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for r in results:
-                if isinstance(r, tuple):
-                    url, content = r
-                    if content:
-                        articles.append(content)
-                    else:
-                        failed.append(url)
-                else:
-                    failed.append("unknown_error")
-
-        # ─── Step 2: Handle Reddit URLs smartly ───
+        MIN_ARTICLE_CHARS = 500
+        TARGET_ARTICLES = 5
+        
+        # ─── Fire ALL non-Reddit URLs at once (no semaphore!) ───
+        tasks = {}
+        for url in other_urls:
+            # Create task for direct fetch
+            task = asyncio.create_task(self._fetch_and_parse(url, timeout))
+            tasks[task] = url
+        
+        # Also fire Reddit test in parallel with non-Reddit
+        reddit_test_task = None
         if reddit_urls:
-            reddit_articles, reddit_failed = await self._read_reddit_urls(
-                reddit_urls, max_concurrent, timeout=timeout
+            test_url = self._to_old_reddit(reddit_urls[0])
+            reddit_test_task = asyncio.create_task(
+                self._fetch_and_parse(test_url, timeout)
             )
-            articles.extend(reddit_articles)
-            failed.extend(reddit_failed)
+            tasks[reddit_test_task] = reddit_urls[0]
+            
+        logger.info(f"🚀 Burst Mode: Launched {len(tasks)} fetches simultaneously (Race to {TARGET_ARTICLES})")
+        
+        # ─── Race: process results as they arrive ───
+        # We wrap as_completed to handle results
+        if tasks:
+            for coro in asyncio.as_completed(tasks.keys()):
+                try:
+                    result = await coro
+                    
+                    if result and len(result) > MIN_ARTICLE_CHARS:
+                        articles.append(result)
+                        # Check if we won the race
+                        if len(articles) >= TARGET_ARTICLES:
+                            logger.info(
+                                f"⚡ Race to {TARGET_ARTICLES} won! "
+                                f"Got {len(articles)} quality articles. Cancelling rest."
+                            )
+                            break
+                except Exception:
+                    pass
+        
+        # ─── Cancel remaining tasks & Collect stats ───
+        cancelled_count = 0
+        for task, url in tasks.items():
+            if not task.done():
+                task.cancel()
+                cancelled_count += 1
+                failed.append(url)
+            else:
+                # Task finished, check if it was a failure (None result)
+                try:
+                    res = task.result()
+                    if not res:
+                        failed.append(url)
+                except Exception:
+                    failed.append(url)
+        
+        if cancelled_count:
+            logger.info(f"🏁 Cancelled {cancelled_count} pending fetches")
+
+        # ─── Reddit phase: only if we need more articles ───
+        # Check if the test Reddit task succeeded (if we waited for it)
+        reddit_blocked = True
+        if reddit_test_task:
+            if reddit_test_task.done() and not reddit_test_task.cancelled():
+                 # It finished naturally
+                res = reddit_test_task.result()
+                if res and len(res) > MIN_ARTICLE_CHARS:
+                    reddit_blocked = False
+            elif reddit_test_task.cancelled():
+                # We cancelled it because we won the race - assume it might have worked?
+                # Actually if we won the race, we don't care about Reddit anymore unless...
+                # wait, if len(articles) >= TARGET, we are done. 
+                # This block only runs if we NEED more articles.
+                pass
+
+        if reddit_urls and len(articles) < TARGET_ARTICLES:
+            logger.info(f"🤔 Need more articles ({len(articles)}/{TARGET_ARTICLES}) — checking Reddit...")
+            
+            # If the test task was cancelled, we don't know if Reddit works.
+            # But usually if we need more articles, we would have waited for it.
+            # If it failed/returned None, then blocked=True.
+            
+            if reddit_blocked:
+                # Try Google Cache for remaining Reddit URLs
+                count = len(reddit_urls) - 1
+                if count > 0:
+                    logger.warning(
+                        f"🚫 Reddit blocked/failed — trying cache for "
+                        f"{count} remaining URLs"
+                    )
+                    cache_tasks = []
+                    for url in reddit_urls[1:]:
+                        if not self._google_cache_blocked:
+                            cache_tasks.append(
+                                asyncio.create_task(self._fetch_google_cache(url, timeout))
+                            )
+                    
+                    if cache_tasks:
+                        cache_results = await asyncio.gather(
+                            *cache_tasks, return_exceptions=True
+                        )
+                        for r in cache_results:
+                            if isinstance(r, str) and len(r) > MIN_ARTICLE_CHARS:
+                                articles.append(r)
+            else:
+                # Reddit works — fetch remaining in parallel
+                logger.info("✅ Reddit works — fetching remaining threads")
+                remaining_tasks = []
+                for url in reddit_urls[1:]:
+                    old = self._to_old_reddit(url)
+                    remaining_tasks.append(
+                        asyncio.create_task(self._fetch_and_parse(old, timeout))
+                    )
+                if remaining_tasks:
+                    reddit_results = await asyncio.gather(
+                        *remaining_tasks, return_exceptions=True
+                    )
+                    for r in reddit_results:
+                        if isinstance(r, str) and len(r) > MIN_ARTICLE_CHARS:
+                            articles.append(r)
 
         logger.info(f"📖 Read {len(articles)}/{len(urls)} articles successfully")
         if failed:
-            logger.info(f"❌ Failed URLs: {len(failed)}")
+            logger.info(f"❌ Failed/cancelled URLs: {len(failed)}")
 
         return articles, failed
 
