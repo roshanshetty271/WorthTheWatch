@@ -79,6 +79,14 @@ class MovieWithReview(BaseModel):
 
 # ─── LLM Output Schema ───────────────────────────────────
 
+# Strict Taxonomy for Verdict DNA
+ALLOWED_TAGS = {
+    "Fast-Paced", "Slow-Burn", "Action-Packed", "Cerebral",
+    "Feel-Good", "Dark", "Gritty", "Whimsical", "Funny",
+    "Gory", "Violent", "Sexy", "Family-Friendly",
+    "Mind-Bending", "Dialogue-Heavy", "Visual-Masterpiece"
+}
+
 class LLMReviewOutput(BaseModel):
     """Expected JSON output from the LLM synthesis step."""
     review_text: str
@@ -87,10 +95,27 @@ class LLMReviewOutput(BaseModel):
     criticism_points: list[str] = Field(default_factory=list)
     vibe: str = ""
     confidence: str = Field(default="MEDIUM", pattern=r"^(HIGH|MEDIUM|LOW)$")
+    
+    # Verdict DNA
+    tags: list[str] = Field(default_factory=list, description="List of 3-5 tags from the allowed list")
+    best_quote: str = Field(default="", description="The single most memorable or funny quote from the opinions")
+    quote_source: str = Field(default="", description="Source of the quote (e.g. 'Reddit User', 'NYT Critic')")
+
     # Sentiment breakdown (Phase 2)
     positive_pct: Optional[int] = None
     negative_pct: Optional[int] = None
     mixed_pct: Optional[int] = None
+
+    @field_validator('tags', mode='after')
+    @classmethod
+    def validate_tags(cls, v):
+        # Title case and filter based on ALLOWED_TAGS
+        clean_tags = []
+        for tag in v:
+            normalized = tag.strip().title().replace(" ", "-")
+            if normalized in ALLOWED_TAGS:
+                clean_tags.append(normalized)
+        return clean_tags[:5]  # Max 5 tags
 
 
 # ─── API Response Wrappers ────────────────────────────────

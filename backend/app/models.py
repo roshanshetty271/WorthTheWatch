@@ -67,6 +67,11 @@ class Review(Base):
     trailer_url = Column(String(500), nullable=True)
     last_refreshed_at = Column(DateTime, nullable=True)
 
+    # Verdict DNA (Phase 3)
+    tags = Column(JSON, default=[])  # ["Fast-Paced", "Gory"]
+    best_quote = Column(Text, nullable=True)
+    quote_source = Column(String(255), nullable=True)
+
     # Relationship
     movie = relationship("Movie", back_populates="review")
 

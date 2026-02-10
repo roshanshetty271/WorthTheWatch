@@ -8,7 +8,7 @@ import json
 import logging
 from openai import AsyncOpenAI
 from app.config import get_settings
-from app.schemas import LLMReviewOutput
+from app.schemas import LLMReviewOutput, ALLOWED_TAGS
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -210,7 +210,12 @@ Opinions gathered from {sources_count} sources across the internet:
 
 {opinions}
 
-Write your "Worth the Watch?" review based on these real internet opinions."""
+Write your "Worth the Watch?" review based on these real internet opinions.
+
+MANDATORY INSTRUCTIONS:
+1. Select 3-5 tags STRICTLY from this list: {', '.join(sorted(ALLOWED_TAGS))}. Do not invent new tags.
+2. Extract the single most memorable, funny, or insightful quote from the opinions.
+3. Be specific in praise/criticism."""
 
     content = None
     used_model = None

@@ -48,8 +48,14 @@ export interface Review {
   imdb_score: number | null;
   rt_critic_score: number | null;
   rt_audience_score: number | null;
+  // Verdict DNA
+  tags?: string[];
+  best_quote?: string;
+  quote_source?: string;
+
   metascore: number | null;
   controversial: boolean;
+
   // Phase 2 additions
   trailer_url: string | null;
   positive_pct: number | null;

@@ -9,6 +9,7 @@ import httpx
 import logging
 from typing import Optional
 from app.config import get_settings
+from fake_useragent import UserAgent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -58,6 +59,11 @@ class ArticleReader:
         }
         
         self._google_cache_blocked = False
+        try:
+            self.ua = UserAgent()
+        except Exception:
+            self.ua = None  # Fallback if initialization fails
+
 
     # ─── Main Entry Points ────────────────────────────────
 
@@ -227,10 +233,15 @@ class ArticleReader:
         from bs4 import BeautifulSoup
 
         try:
+            # User-Agent Rotation
+            headers = self.headers.copy()
+            if self.ua:
+                headers["User-Agent"] = self.ua.random
+
             async with httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
-                headers=self.headers,
+                headers=headers,
             ) as client:
                 resp = await client.get(url)
 

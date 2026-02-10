@@ -56,7 +56,36 @@ export default function ReviewContent({ review }: ReviewContentProps) {
             &ldquo;{review.vibe}&rdquo;
           </h3>
         )}
+
+        {/* Verdict DNA: Tags */}
+        {review.tags && review.tags.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2 pt-2">
+            {review.tags.map((tag) => (
+              <span
+                key={tag}
+                className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
+              >
+                {tag.replace(/-/g, " ")}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Verdict DNA: Best Quote */}
+      {review.best_quote && (
+        <div className="relative mx-auto max-w-2xl rounded-xl border-l-4 border-accent-gold bg-accent-gold/5 p-6 shadow-sm">
+          <span className="absolute -top-4 -left-2 text-6xl text-accent-gold/20 font-serif leading-none">“</span>
+          <p className="relative text-lg font-medium italic text-text-primary/95 text-center leading-relaxed">
+            {review.best_quote}
+          </p>
+          {review.quote_source && (
+            <p className="mt-3 text-center text-xs font-bold uppercase tracking-widest text-accent-gold/70">
+              — {review.quote_source}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Review Text - Readable Paragraphs */}
       <div className="prose prose-invert max-w-none">

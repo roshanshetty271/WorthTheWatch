@@ -674,6 +674,12 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         existing.criticism_points = llm_output.criticism_points
         existing.vibe = llm_output.vibe
         existing.confidence = llm_output.confidence
+        
+        # Save Verdict DNA
+        existing.tags = llm_output.tags
+        existing.best_quote = llm_output.best_quote
+        existing.quote_source = llm_output.quote_source
+        
         existing.sources_count = len(selected_urls)
         existing.sources_urls = selected_urls
         existing.llm_model = llm_model
@@ -688,6 +694,12 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             criticism_points=llm_output.criticism_points,
             vibe=llm_output.vibe,
             confidence=llm_output.confidence,
+            
+            # Save Verdict DNA
+            tags=llm_output.tags,
+            best_quote=llm_output.best_quote,
+            quote_source=llm_output.quote_source,
+            
             sources_count=len(selected_urls),
             sources_urls=selected_urls,
             llm_model=llm_model,
