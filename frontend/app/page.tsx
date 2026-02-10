@@ -81,7 +81,7 @@ function HorizontalSection({
       </div>
 
       {/* Horizontal Scroll */}
-      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scroll-pl-4 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
         {movies.map((item) => (
           <div
             key={item.movie.tmdb_id}
