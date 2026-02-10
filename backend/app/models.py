@@ -72,6 +72,15 @@ class Review(Base):
     best_quote = Column(Text, nullable=True)
     quote_source = Column(String(255), nullable=True)
 
+    # Review Voice & Critics vs Reddit (Phase 4)
+    hook = Column(Text, nullable=True)
+    who_should_watch = Column(Text, nullable=True)
+    who_should_skip = Column(Text, nullable=True)
+    critic_sentiment = Column(String(20), nullable=True)  # 'positive', 'mixed', 'negative'
+    reddit_sentiment = Column(String(20), nullable=True)  # 'positive', 'mixed', 'negative'
+    critics_agree_with_reddit = Column(Boolean, nullable=True)
+    tension_point = Column(Text, nullable=True)
+
     # Relationship
     movie = relationship("Movie", back_populates="review")
 

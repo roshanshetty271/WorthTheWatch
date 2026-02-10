@@ -68,6 +68,20 @@ class ReviewResponse(BaseModel):
     positive_pct: Optional[int] = None
     negative_pct: Optional[int] = None
     mixed_pct: Optional[int] = None
+    
+    # Verdict DNA
+    tags: Optional[list[str]] = None
+    best_quote: Optional[str] = None
+    quote_source: Optional[str] = None
+    
+    # Review Voice & Critics vs Reddit
+    hook: Optional[str] = None
+    who_should_watch: Optional[str] = None
+    who_should_skip: Optional[str] = None
+    critic_sentiment: Optional[str] = None
+    reddit_sentiment: Optional[str] = None
+    critics_agree_with_reddit: Optional[bool] = None
+    tension_point: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -100,6 +114,15 @@ class LLMReviewOutput(BaseModel):
     tags: list[str] = Field(default_factory=list, description="List of 3-5 tags from the allowed list")
     best_quote: str = Field(default="", description="The single most memorable or funny quote from the opinions")
     quote_source: str = Field(default="", description="Source of the quote (e.g. 'Reddit User', 'NYT Critic')")
+
+    # Review Voice & Critics vs Reddit
+    hook: str = Field(default="", description="One punchy sentence, max 20 words")
+    who_should_watch: str = Field(default="", description="One sentence: who specifically will love this")
+    who_should_skip: str = Field(default="", description="One sentence: who specifically should skip")
+    critic_sentiment: str = Field(pattern=r"^(positive|mixed|negative|)$", default="")
+    reddit_sentiment: str = Field(pattern=r"^(positive|mixed|negative|)$", default="")
+    critics_agree_with_reddit: bool = Field(default=True)
+    tension_point: str = Field(default="", description="One sentence about where critics and Reddit agree or disagree")
 
     # Sentiment breakdown (Phase 2)
     positive_pct: Optional[int] = None

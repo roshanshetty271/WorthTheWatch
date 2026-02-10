@@ -714,6 +714,16 @@ CRITICAL CONTEXT (Professional Reviews):
         existing.best_quote = llm_output.best_quote
         existing.quote_source = llm_output.quote_source
         
+        # Save Review Voice & Critics vs Reddit
+        existing.hook = llm_output.hook
+        existing.who_should_watch = llm_output.who_should_watch
+        existing.who_should_skip = llm_output.who_should_skip
+        existing.critic_sentiment = llm_output.criticism_points # WAIT - this maps to criticism_points?? NO! Fix map
+        existing.critic_sentiment = llm_output.critic_sentiment
+        existing.reddit_sentiment = llm_output.reddit_sentiment
+        existing.critics_agree_with_reddit = llm_output.critics_agree_with_reddit
+        existing.tension_point = llm_output.tension_point
+        
         existing.sources_count = len(selected_urls)
         existing.sources_urls = selected_urls
         existing.llm_model = llm_model
@@ -733,6 +743,15 @@ CRITICAL CONTEXT (Professional Reviews):
             tags=llm_output.tags,
             best_quote=llm_output.best_quote,
             quote_source=llm_output.quote_source,
+            
+            # Save Review Voice & Critics vs Reddit
+            hook=llm_output.hook,
+            who_should_watch=llm_output.who_should_watch,
+            who_should_skip=llm_output.who_should_skip,
+            critic_sentiment=llm_output.critic_sentiment,
+            reddit_sentiment=llm_output.reddit_sentiment,
+            critics_agree_with_reddit=llm_output.critics_agree_with_reddit,
+            tension_point=llm_output.tension_point,
             
             sources_count=len(selected_urls),
             sources_urls=selected_urls,
