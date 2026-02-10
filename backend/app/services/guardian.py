@@ -40,31 +40,55 @@ class GuardianArticle:
         }
 
 
-def _title_matches(title: str, text: str, year: str = "") -> bool:
+def _title_matches(title: str, headline: str, snippet: str = "", year: str = "") -> bool:
     """
     Check if title appears in text.
-    For short titles (<=3 words), use specific strict matching to avoid false positives.
+    For short titles (<=3 words), use specific strict matching on HEADLINE ONLY.
     """
     title_lower = title.lower().strip()
-    text_lower = text.lower().strip()
+    headline_lower = headline.lower().strip()
     
     title_words = title_lower.split()
     
+    import re
+    safe_title = re.escape(title_lower)
+    
     if len(title_words) <= 3:
-        # Short title: require exact match with word boundaries and specific following context
-        # "the call" should match "the call review", "the call (2013)"
-        # but NOT "the call of the wild"
+        # SHORT TITLE: Strict headline-only matching
+        # Must appear in headline with word boundaries
         
-        safe_title = re.escape(title_lower)
-        # Pattern: \bTITLE\b followed by (punctuation/year/review-words/end-of-string)
-        # We also allow it if it's at the VERY END of the string
-        pattern = rf'\b{safe_title}\b(?:\s*[\(\[\-–:]|\s*{year}|\s*review|\s*film|\s*movie|\s*$)'
+        # Pattern: \bTITLE\b
+        pattern = rf'\b{safe_title}\b'
         
-        return bool(re.search(pattern, text_lower))
+        match = re.search(pattern, headline_lower)
+        if not match:
+            return False
+            
+        # Extra check: title shouldn't be a SUBSTRING of a longer title phrase
+        # Check what comes AFTER the title match
+        after = headline_lower[match.end():].strip()
+        
+        # If followed by "of", "and", "in", "the" -> likely wrong movie
+        # e.g. "Past Lives of the Rich"
+        # But allow "Past Lives review", "Past Lives (2023)", "Past Lives:"
+        if after:
+            first_word = after.split()[0]
+            if first_word in ("of", "and", "in", "the", "for", "with", "from"):
+                # "Past Lives of..." -> REJECT
+                return False
+                
+        # DO NOT check snippet for short titles — too noisy
+        return True
+
     else:
-        # Longer title: simple word boundary check is usually enough
+        # LONGER TITLE: simple word boundary check on headline OR snippet is fine
         pattern = re.compile(r'\b' + re.escape(title_lower) + r'\b')
-        return bool(pattern.search(text_lower))
+        if pattern.search(headline_lower):
+            return True
+        if snippet and pattern.search(snippet.lower()):
+            return True
+            
+        return False
 
 
 class GuardianService:
@@ -138,8 +162,8 @@ class GuardianService:
                 snippet = fields.get("trailText", "")
                 
                 # Post-filter: only keep articles that actually mention the movie
-                if not _title_matches(title, headline, year or "") and not _title_matches(title, snippet, year or ""):
-                    logger.debug(f"Guardian: Discarding '{headline[:50]}' - doesn't mention '{title}'")
+                if not _title_matches(title, headline, snippet, year or ""):
+                    logger.debug(f"Guardian: Discarding '{headline[:50]}' - doesn't match '{title}'")
                     continue
                 
                 article = GuardianArticle(

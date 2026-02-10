@@ -28,3 +28,6 @@ beautifulsoup4>=4.12.0
 
 # Robustness
 fake-useragent>=1.5.1
+
+# XML/HTML Parsing (Speed)
+lxml>=5.0.0

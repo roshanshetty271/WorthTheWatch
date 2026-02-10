@@ -7,33 +7,62 @@ No LLM call needed. Runs in milliseconds.
 from difflib import SequenceMatcher
 
 # ─── Positive signals: paragraphs likely containing opinions ───
+# ─── Positive signals: paragraphs likely containing opinions ───
 OPINION_KEYWORDS = [
     # Positive sentiment
     "loved", "amazing", "masterpiece", "brilliant", "stunning",
     "best", "incredible", "perfect", "must watch", "blown away",
     "captivating", "gripping", "phenomenal", "outstanding", "superb",
     "heartfelt", "moving", "beautifully", "powerful", "compelling",
+    "enjoyable", "entertaining", "engaging", "solid", "decent",
+    "touching", "emotional", "hilarious", "funny", "laugh", 
+    "cried", "tears", "iconic", "memorable",
+    
     # Negative sentiment
     "boring", "terrible", "waste", "disappointed", "awful",
     "worst", "overrated", "mediocre", "skip", "dragged", "cringe",
     "forgettable", "predictable", "shallow", "annoying", "tedious",
     "unwatchable", "laughable", "weak", "bland", "generic",
+    "cliché", "messy", "disappointing", "frustrating", "pointless",
+    "underwhelming", "pretentious",
+    
     # Opinion indicators
     "i think", "i felt", "in my opinion", "honestly",
     "the problem is", "what works", "what doesn't",
     "my take", "genuinely", "surprisingly", "unfortunately",
-    "have to say", "worth watching", "not worth",
-    # Craft-specific
-    "the acting", "the writing", "the pacing", "the ending",
-    "the cinematography", "the soundtrack", "the plot",
-    "performances", "direction", "script", "dialogue",
-    "chemistry", "tension", "atmosphere", "tone",
-    "character development", "special effects", "score",
-    # Verdict signals
-    "recommend", "worth", "stream", "skip", "watch",
-    "rating", "/10", "out of 10", "stars", "verdict",
-    "thumbs up", "thumbs down", "must-see", "must see",
+    "have to say", "worth watching", "not worth", "worth your time",
+    "don't bother", "waste of time", "highly recommend",
+    
+    # Craft-specific (Broadened)
+    "acting", "writing", "pacing", "cinematography", "directing",
+    "direction", "screenplay", "script", "dialogue", "visuals",
+    "visual style", "shot beautifully", "editing", "score",
+    "soundtrack", "music", "performances", "performance",
+    "chemistry", "casting", "atmosphere", "tone", "world-building",
+    "character development", "special effects", "vfx", "cgi",
+    "storyline", "plot was", "plot is", "story was", "story is",
+    "ending was", "ending is", "third act", "finale",
+    
+    # Verdict/Rating signals
+    "recommend", "worth", "stream", "watch", "avoid",
+    "rating", "/10", "out of 10", "out of 5", "stars", "verdict",
+    "thumbs up", "thumbs down", "must-see", "must see", "grade",
+    "A+", "A-", "B+", "B-", "C+", "C-", "D+", "D-", "F",
+    
+    # Awards/Comparison
+    "oscar", "academy award", "nominated", "award", "best picture",
+    "underrated", "overhyped", "underhyped", "better than",
+    "worse than", "compared to", "reminds me of",
 ]
+
+# High-impact keywords that justify keeping short paragraphs (30-100 chars)
+STRONG_KEYWORDS = {
+    "masterpiece", "terrible", "brilliant", "awful", "boring", 
+    "amazing", "loved", "hated", "worst", "best", "perfect", 
+    "garbage", "waste", "must-see", "must see", "skip", "avoid",
+    "incredible", "stunning", "phenomenal", "unwatchable",
+    "heartbreaking", "hilarious", "10/10", "0/10", "5/5", "A+"
+}
 
 # ─── Negative signals: paragraphs to DISCARD ───
 DISCARD_SIGNALS = [
@@ -65,7 +94,7 @@ def extract_opinion_paragraphs(articles: list[str], max_paragraphs: int = 40) ->
     Process:
     1. Split each article into paragraphs
     2. Discard paragraphs matching negative signals (plot summaries, ads, etc.)
-    3. Keep paragraphs with 2+ opinion keyword hits
+    3. Keep paragraphs with opinion keyword hits based on length rules
     4. Deduplicate near-identical paragraphs
     5. Return top N most opinion-rich paragraphs
     """
@@ -77,8 +106,8 @@ def extract_opinion_paragraphs(articles: list[str], max_paragraphs: int = 40) ->
             para_stripped = para.strip()
             para_lower = para_stripped.lower()
 
-            # Skip too short or too long paragraphs
-            if len(para_stripped) < 50 or len(para_stripped) > 2000:
+            # Length filter: Allow short punchy opinions (30+ chars)
+            if len(para_stripped) < 30 or len(para_stripped) > 2000:
                 continue
 
             # NEGATIVE GREP — discard paragraphs matching discard signals
@@ -89,8 +118,22 @@ def extract_opinion_paragraphs(articles: list[str], max_paragraphs: int = 40) ->
             # POSITIVE GREP — count opinion keyword hits
             keyword_hits = sum(1 for kw in OPINION_KEYWORDS if kw in para_lower)
 
-            # 2+ opinion signals = relevant
-            if keyword_hits >= 2:
+            # Adaptive Threshold logic
+            is_relevant = False
+            
+            if len(para_stripped) > 100:
+                # Normal paragraph: 1 keyword is sufficient if it's a real opinion
+                if keyword_hits >= 1:
+                    is_relevant = True
+            else:
+                # Short paragraph (30-100 chars): Requires 1 STRONG keyword
+                # "This is a masterpiece." -> kept
+                # "The movie is long." -> discarded (visual check)
+                strong_hits = sum(1 for skw in STRONG_KEYWORDS if skw in para_lower)
+                if strong_hits >= 1:
+                    is_relevant = True
+
+            if is_relevant:
                 relevant.append((keyword_hits, para_stripped))
 
     # Sort by keyword density (most opinion-rich first)

@@ -7,12 +7,22 @@ Set USE_JINA=True in .env to use Jina Reader instead.
 import asyncio
 import httpx
 import logging
-from typing import Optional
+import time
+from typing import Optional, List, Dict
+from bs4 import BeautifulSoup
 from app.config import get_settings
 from fake_useragent import UserAgent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# Try to use lxml for speed, fall back to html.parser
+try:
+    import lxml
+    HTML_PARSER = "lxml"
+except ImportError:
+    HTML_PARSER = "html.parser"
+    logger.warning("🐌 lxml not found — falling back to slower html.parser")
 
 # Domains that won't work with simple scraping — skip them entirely
 SKIP_DOMAINS = [
@@ -314,8 +324,8 @@ class ArticleReader:
 
     async def _fetch_and_parse(self, url: str, timeout: float = 8.0) -> Optional[str]:
         """Single fetch + parse attempt. No retries. Returns clean text or None."""
-        from bs4 import BeautifulSoup
-
+        t_start = time.time()
+        
         try:
             # User-Agent Rotation
             headers = self.headers.copy()
@@ -328,6 +338,7 @@ class ArticleReader:
                 headers=headers,
             ) as client:
                 resp = await client.get(url)
+                t_fetch = time.time() - t_start
 
                 if resp.status_code != 200:
                     return None
@@ -336,12 +347,40 @@ class ArticleReader:
                 if len(html) < 500:
                     return None
 
-                # Reddit-specific parsing for old.reddit.com
-                if "old.reddit.com" in url or "reddit.com" in url:
-                    return self._parse_reddit_html(html)
+                # Quick pre-check: does this page look like a review?
+                # Prevents parsing 200KB pages that are just error pages or unrelated
+                review_signals = [
+                    "movie", "film", "performance", "director", "acting",
+                    "plot", "story", "character", "scene", "rating",
+                    "review", "recommend", "verdict", "opinion",
+                ]
+                html_lower = html.lower()
+                signal_count = sum(1 for word in review_signals if word in html_lower)
+                
+                if signal_count < 2:
+                    logger.debug(f"⏭️ Skipping parse for {url[:40]}... — only {signal_count} review signals")
+                    return None
 
-                # General article parsing
-                return self._parse_article_html(html, url)
+                # Optimization: Reddit snippets often come from JSON/special pages
+                # For now we treat all as HTML, but we parse them differently
+                result = None
+                if "old.reddit.com" in url or "reddit.com" in url:
+                    result = self._parse_reddit_html(html)
+                else:
+                    result = self._parse_article_html(html, url)
+                
+                t_total = time.time() - t_start
+                t_parse = t_total - t_fetch
+                
+                # Log slow parses to identify bottlenecks
+                if t_parse > 0.5:
+                    logger.warning(
+                        f"🐌 Slow parse: {url[:50]}... "
+                        f"fetch={t_fetch:.2f}s parse={t_parse:.2f}s "
+                        f"html={len(html)//1024}KB"
+                    )
+
+                return result
 
         except httpx.TimeoutException:
             return None
@@ -359,10 +398,15 @@ class ArticleReader:
         cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original}"
 
         try:
+            # User-Agent Rotation
+            headers = self.headers.copy()
+            if self.ua:
+                headers["User-Agent"] = self.ua.random
+
             async with httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
-                headers=self.headers,
+                headers=headers,
             ) as client:
                 resp = await client.get(cache_url)
 
@@ -391,9 +435,9 @@ class ArticleReader:
 
     def _parse_article_html(self, html: str, url: str = "") -> Optional[str]:
         """Parse a general article/review page into clean text."""
-        from bs4 import BeautifulSoup
+        # from bs4 import BeautifulSoup  <-- Removed, now at top level
 
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, HTML_PARSER)
 
         # Remove junk elements
         for tag in soup(
@@ -481,9 +525,9 @@ class ArticleReader:
 
     def _parse_reddit_html(self, html: str) -> Optional[str]:
         """Parse Reddit old.reddit.com HTML for comments and post content."""
-        from bs4 import BeautifulSoup
-
-        soup = BeautifulSoup(html, "html.parser")
+        # from bs4 import BeautifulSoup <-- Removed
+        
+        soup = BeautifulSoup(html, HTML_PARSER)
 
         comments = []
 
@@ -520,10 +564,9 @@ class ArticleReader:
         return result if len(result) > 100 else None
 
     def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
-        """Parse Reddit content from Google's cached HTML."""
-        from bs4 import BeautifulSoup
-
-        soup = BeautifulSoup(html, "html.parser")
+        """Extract Reddit content from a Google Cache wrapper."""
+        # Google Cache often puts the real content in a 'pre' or specific div
+        soup = BeautifulSoup(html, HTML_PARSER)
 
         # Remove Google's cache header
         for div in soup.find_all("div", id="google-cache-hdr"):
