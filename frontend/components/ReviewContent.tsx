@@ -61,7 +61,7 @@ export default function ReviewContent({ review }: ReviewContentProps) {
           <VerdictBadge verdict={review.verdict} size="lg" />
 
           {/* Divided Badge if Critics/Reddit disagree */}
-          {review.critics_agree_with_reddit === false && (
+          {review.critic_sentiment && review.reddit_sentiment && review.critic_sentiment !== review.reddit_sentiment && (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
               <span>⚡</span> Divided
             </span>
@@ -89,102 +89,50 @@ export default function ReviewContent({ review }: ReviewContentProps) {
         )}
       </div>
 
-      {/* 3. CRITICS VS REDDIT (New) */}
+      {/* 3. CRITICS VS REDDIT (Premium Glass Cards) */}
       {(review.critic_sentiment || review.reddit_sentiment) && (
-        <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+        <div className="grid grid-cols-2 gap-4 max-w-3xl mx-auto">
           {/* Critics Box */}
-          <div className={`rounded-xl p-4 text-center border backdrop-blur-sm transition-all ${review.critic_sentiment === "positive" ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_-5px_rgba(16,185,129,0.2)]" :
-              review.critic_sentiment === "negative" ? "bg-red-500/10 border-red-500/20 shadow-[0_0_15px_-5px_rgba(239,68,68,0.2)]" :
-                "bg-amber-500/10 border-amber-500/20"
-            }`}>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-60 mb-1">📰 Critics</div>
-            <div className={`text-lg md:text-xl font-bold ${review.critic_sentiment === "positive" ? "text-emerald-400" :
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-surface-elevated/30 p-6 text-center shadow-lg backdrop-blur-md transition-all hover:bg-surface-elevated/40">
+            {/* Subtle gradient based on sentiment */}
+            <div className={`absolute inset-0 opacity-10 ${review.critic_sentiment === "positive" ? "bg-gradient-to-br from-emerald-500 to-transparent" :
+              review.critic_sentiment === "negative" ? "bg-gradient-to-br from-red-500 to-transparent" :
+                "bg-gradient-to-br from-amber-500 to-transparent"
+              }`} />
+
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-text-muted">Critics</span>
+              <span className={`text-2xl font-display ${review.critic_sentiment === "positive" ? "text-emerald-400" :
                 review.critic_sentiment === "negative" ? "text-red-400" :
                   "text-amber-400"
-              }`}>
-              {review.critic_sentiment === "positive" ? "👍 Loved It" :
-                review.critic_sentiment === "negative" ? "👎 Panned It" :
-                  "🤷 Mixed"}
+                }`}>
+                {review.critic_sentiment === "positive" ? "Loved It" :
+                  review.critic_sentiment === "negative" ? "Panned It" :
+                    "Mixed"}
+              </span>
             </div>
           </div>
 
           {/* Reddit Box */}
-          <div className={`rounded-xl p-4 text-center border backdrop-blur-sm transition-all ${review.reddit_sentiment === "positive" ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_-5px_rgba(16,185,129,0.2)]" :
-              review.reddit_sentiment === "negative" ? "bg-red-500/10 border-red-500/20 shadow-[0_0_15px_-5px_rgba(239,68,68,0.2)]" :
-                "bg-amber-500/10 border-amber-500/20"
-            }`}>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-60 mb-1">💬 Reddit</div>
-            <div className={`text-lg md:text-xl font-bold ${review.reddit_sentiment === "positive" ? "text-emerald-400" :
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-surface-elevated/30 p-6 text-center shadow-lg backdrop-blur-md transition-all hover:bg-surface-elevated/40">
+            {/* Subtle gradient based on sentiment */}
+            <div className={`absolute inset-0 opacity-10 ${review.reddit_sentiment === "positive" ? "bg-gradient-to-br from-emerald-500 to-transparent" :
+              review.reddit_sentiment === "negative" ? "bg-gradient-to-br from-red-500 to-transparent" :
+                "bg-gradient-to-br from-amber-500 to-transparent"
+              }`} />
+
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-text-muted">Reddit</span>
+              <span className={`text-2xl font-display ${review.reddit_sentiment === "positive" ? "text-emerald-400" :
                 review.reddit_sentiment === "negative" ? "text-red-400" :
                   "text-amber-400"
-              }`}>
-              {review.reddit_sentiment === "positive" ? "👍 Loved It" :
-                review.reddit_sentiment === "negative" ? "👎 Hated It" :
-                  "🤷 Divided"}
+                }`}>
+                {review.reddit_sentiment === "positive" ? "Loved It" :
+                  review.reddit_sentiment === "negative" ? "Hated It" :
+                    "Divided"}
+              </span>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Tension Point */}
-      {review.tension_point && (
-        <div className="text-center px-6">
-          <p className="text-sm md:text-base text-white/60 italic">
-            {review.critics_agree_with_reddit ? "🤝" : "⚡"} {review.tension_point}
-          </p>
-        </div>
-      )}
-
-
-      {/* 4. VERDICT DNA: BEST QUOTE */}
-      {review.best_quote && (
-        <div className="relative mx-auto max-w-2xl rounded-xl border-l-4 border-accent-gold bg-accent-gold/5 p-6 shadow-sm mt-6">
-          <span className="absolute -top-4 -left-2 text-6xl text-accent-gold/20 font-serif leading-none">“</span>
-          <p className="relative text-lg font-medium italic text-text-primary/95 text-center leading-relaxed">
-            {review.best_quote}
-          </p>
-          {review.quote_source && (
-            <p className="mt-3 text-center text-xs font-bold uppercase tracking-widest text-accent-gold/70">
-              — {review.quote_source}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* 5. REVIEW TEXT */}
-      <div className="prose prose-invert max-w-none pt-4">
-        <div className="space-y-4 text-lg leading-relaxed text-text-primary/90 font-light">
-          {paragraphs.map((para, index) => (
-            <p key={index} className={index === 0 ? "first-letter:float-left first-letter:mr-3 first-letter:text-5xl first-letter:font-display first-letter:text-accent-gold first-letter:leading-none" : ""}>
-              {para}
-            </p>
-          ))}
-        </div>
-      </div>
-
-      {/* 6. WHO SHOULD WATCH / SKIP (New) */}
-      {(review.who_should_watch || review.who_should_skip) && (
-        <div className="grid gap-4 sm:grid-cols-2 pt-2">
-          {review.who_should_watch && (
-            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
-              <div className="text-xs text-emerald-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                <span>🎯</span> Who Should Watch
-              </div>
-              <div className="text-sm md:text-base text-gray-300 leading-snug">
-                {review.who_should_watch}
-              </div>
-            </div>
-          )}
-          {review.who_should_skip && (
-            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-              <div className="text-xs text-red-500 font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                <span>⏭️</span> Who Should Skip
-              </div>
-              <div className="text-sm md:text-base text-gray-300 leading-snug">
-                {review.who_should_skip}
-              </div>
-            </div>
-          )}
         </div>
       )}
 

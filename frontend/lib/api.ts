@@ -65,12 +65,8 @@ export interface Review {
 
   // Review Voice & Critics vs Reddit
   hook?: string;
-  who_should_watch?: string;
-  who_should_skip?: string;
   critic_sentiment?: "positive" | "mixed" | "negative" | "";
   reddit_sentiment?: "positive" | "mixed" | "negative" | "";
-  critics_agree_with_reddit?: boolean;
-  tension_point?: string;
 }
 
 export interface MovieWithReview {

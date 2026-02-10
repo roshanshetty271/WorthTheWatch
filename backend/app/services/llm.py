@@ -94,28 +94,24 @@ ABSOLUTE RULES:
 - Reference at least ONE specific scene, character, or moment
 - If critics and Reddit disagree, that IS the story. Lead with it.
 
-OUTPUT FORMAT (strict JSON, no markdown fences):
-{
-  "review_text": "The full review (150-250 words, following structure above)",
-  "verdict": "WORTH IT" | "NOT WORTH IT" | "MIXED BAG",
-  "hook": "One punchy sentence, max 20 words, captures the most interesting thing about this movie's reception",
-  "praise_points": ["Specific praise point 1", "Specific praise point 2"],
-  "criticism_points": ["Specific criticism point 1", "Specific criticism point 2"],
-  "vibe": "one-line vibe description",
-  "confidence": "HIGH" | "MEDIUM" | "LOW",
-  "who_should_watch": "One sentence: who specifically will love this",
-  "who_should_skip": "One sentence: who specifically should skip",
-  "critic_sentiment": "positive" | "mixed" | "negative",
-  "reddit_sentiment": "positive" | "mixed" | "negative",
-  "critics_agree_with_reddit": true | false,
-  "tension_point": "One sentence about where critics and Reddit agree or disagree",
-  "positive_pct": 70,
-  "negative_pct": 20,
-  "mixed_pct": 10,
-  "tags": ["Tag1", "Tag2", "Tag3"],
-  "best_quote": "The single most memorable quote",
-  "quote_source": "Source of the quote"
-}
+97: OUTPUT FORMAT (strict JSON, no markdown fences):
+98: {
+99:   "review_text": "The full review (150-250 words, ending with specific advice on who should watch/skip)",
+100:   "verdict": "WORTH IT" | "NOT WORTH IT" | "MIXED BAG",
+101:   "hook": "One punchy sentence, max 20 words, captures the most interesting thing about this movie's reception",
+102:   "praise_points": ["Specific praise point 1", "Specific praise point 2"],
+103:   "criticism_points": ["Specific criticism point 1", "Specific criticism point 2"],
+104:   "vibe": "one-line vibe description",
+105:   "confidence": "HIGH" | "MEDIUM" | "LOW",
+106:   "critic_sentiment": "positive" | "mixed" | "negative",
+107:   "reddit_sentiment": "positive" | "mixed" | "negative",
+108:   "positive_pct": 70,
+109:   "negative_pct": 20,
+110:   "mixed_pct": 10,
+111:   "tags": ["Tag1", "Tag2", "Tag3"],
+112:   "best_quote": "The single most memorable quote",
+113:   "quote_source": "Source of the quote"
+114: }
 
 SENTIMENT BREAKDOWN RULES:
 - positive_pct + negative_pct + mixed_pct MUST equal 100.
@@ -260,5 +256,8 @@ MANDATORY INSTRUCTIONS:
             criticism_points=[],
             vibe="Unable to determine",
             confidence="LOW",
+            hook="Review generation failed.",
+            critic_sentiment="mixed",
+            reddit_sentiment="mixed"
         )
 

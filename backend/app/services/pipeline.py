@@ -716,13 +716,15 @@ CRITICAL CONTEXT (Professional Reviews):
         
         # Save Review Voice & Critics vs Reddit
         existing.hook = llm_output.hook
-        existing.who_should_watch = llm_output.who_should_watch
-        existing.who_should_skip = llm_output.who_should_skip
-        existing.critic_sentiment = llm_output.criticism_points # WAIT - this maps to criticism_points?? NO! Fix map
+        # Removed text fields merged into review text
+        # existing.who_should_watch = llm_output.who_should_watch
+        # existing.who_should_skip = llm_output.who_should_skip
+        
+        # existing.critic_sentiment = llm_output.criticism_points # OLD BUG
         existing.critic_sentiment = llm_output.critic_sentiment
         existing.reddit_sentiment = llm_output.reddit_sentiment
-        existing.critics_agree_with_reddit = llm_output.critics_agree_with_reddit
-        existing.tension_point = llm_output.tension_point
+        # existing.critics_agree_with_reddit = llm_output.critics_agree_with_reddit
+        # existing.tension_point = llm_output.tension_point
         
         existing.sources_count = len(selected_urls)
         existing.sources_urls = selected_urls
