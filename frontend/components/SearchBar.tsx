@@ -28,7 +28,8 @@ export default function SearchBar({
   initialQuery = "",
   size = "lg",
   placeholder = "Search any movie or TV show...",
-}: SearchBarProps) {
+  disableDropdown = false,
+}: SearchBarProps & { disableDropdown?: boolean }) {
   const [query, setQuery] = useState(initialQuery);
   const [focused, setFocused] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -52,7 +53,8 @@ export default function SearchBar({
         if (res.ok) {
           const data = await res.json();
           setResults(data.results || []);
-          setShowDropdown(data.results?.length > 0);
+          // Only show dropdown if NOT disabled
+          setShowDropdown(!disableDropdown && data.results?.length > 0);
         }
       } catch (e) {
         console.error("Search failed:", e);
@@ -62,7 +64,7 @@ export default function SearchBar({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, disableDropdown]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -166,7 +168,7 @@ export default function SearchBar({
 
       {/* Dropdown Results */}
       {showDropdown && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden max-h-[60vh] overflow-y-auto overscroll-contain">
           {results.map((movie) => {
             const year = movie.release_date
               ? new Date(movie.release_date).getFullYear()
