@@ -309,6 +309,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             serper_service.search_forums(search_title, year),
             guardian_service.search_film_reviews(search_title, year),
             nyt_service.search_reviews(search_title),
+            omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
             return_exceptions=True,
         )
         
@@ -318,6 +319,16 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         serper_forums = search_results[2] if not isinstance(search_results[2], Exception) else []
         guardian_results = search_results[3] if not isinstance(search_results[3], Exception) else []
         nyt_results = search_results[4] if not isinstance(search_results[4], Exception) else []
+        omdb_data = search_results[5] if not isinstance(search_results[5], Exception) else None
+
+        # Extract IMDb score early for verdict overrides
+        imdb_score = None
+        imdb_votes = None
+        if omdb_data:
+            imdb_score = omdb_data.imdb_score
+            imdb_votes = omdb_data.imdb_votes
+            if imdb_score:
+                logger.info(f"🎬 IMDb: {imdb_score}/10 ({imdb_votes or '?'} votes)")
 
         # Log failures
         if isinstance(search_results[0], Exception): logger.error(f"Critic search failed: {search_results[0]}")
@@ -525,6 +536,8 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             sources_count=len(articles),
             tmdb_score=movie.tmdb_vote_average or 0.0,
             tmdb_vote_count=movie.tmdb_vote_count or 0,
+            imdb_score=imdb_score,
+            imdb_votes=imdb_votes,
             confidence_tier=confidence_stats["confidence_tier"],
             articles_read=confidence_stats["articles_read"],
             reddit_sources=confidence_stats["reddit_sources"],
@@ -537,24 +550,31 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             
 
             # High Score Privilege — crowd has spoken
+            # Use IMDb if available (more reliable), else TMDB
+            override_score = imdb_score if imdb_score else movie.tmdb_vote_average
+            override_votes = imdb_votes if imdb_votes else (movie.tmdb_vote_count or 0)
+            score_source = "IMDb" if imdb_score else "TMDB"
+
+            logger.info(f"📊 Using {score_source} score for overrides: {override_score}/10 ({override_votes} votes)")
+
             if (
-                movie.tmdb_vote_average and movie.tmdb_vote_average > 7.5
-                and movie.tmdb_vote_count and movie.tmdb_vote_count > 500
+                override_score and override_score > 7.5
+                and override_votes and override_votes > 500
                 and llm_output.verdict != "WORTH IT"
             ):
                 if llm_output.positive_pct and llm_output.positive_pct >= 45:
                     logger.info(
                         f"⭐ High Score Privilege: {movie.title} "
-                        f"(TMDB {movie.tmdb_vote_average}, {movie.tmdb_vote_count} votes) "
+                        f"({score_source} {override_score}, {override_votes} votes) "
                         f"{llm_output.verdict} → WORTH IT"
                     )
                     llm_output.verdict = "WORTH IT"
                 else:
-                    # Edge case: high TMDB but LLM found very negative articles
+                    # Edge case: high score but LLM found very negative articles
                     # Split the difference
                     logger.info(
                         f"⚠️ High Score Conflict: {movie.title} "
-                        f"(TMDB {movie.tmdb_vote_average} but only {llm_output.positive_pct}% positive) "
+                        f"({score_source} {override_score} but only {llm_output.positive_pct}% positive) "
                         f"→ MIXED BAG"
                     )
                     llm_output.verdict = "MIXED BAG"
@@ -565,58 +585,57 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                 llm_output.verdict = "MIXED BAG"
         
         # ─── Low Score Safety Net ───
-        # If TMDB score is below 6.0 with decent vote count,
+        # If score is below 6.0 with decent vote count,
         # the movie is generally considered bad. The LLM should not 
-        # give it WORTH IT unless the internet OVERWHELMINGLY disagrees 
-        # with the TMDB score.
+        # give it WORTH IT unless the internet OVERWHELMINGLY disagrees.
+        
+        # Check determined override score
         if (
-            movie.tmdb_vote_average and movie.tmdb_vote_average < 6.0
-            and movie.tmdb_vote_count and movie.tmdb_vote_count > 100
+            override_score and override_score < 6.0
+            and override_votes and override_votes > 100
             and llm_output.verdict == "WORTH IT"
         ):
             # Only allow WORTH IT if positive sentiment is very strong (80%+)
-            # This means the internet genuinely loves it despite low TMDB
             if llm_output.positive_pct and llm_output.positive_pct >= 80:
                 logger.info(
                     f"⚠️ Low Score Override ALLOWED: {title} "
-                    f"(TMDB {movie.tmdb_vote_average} but {llm_output.positive_pct}% positive — "
-                    f"internet disagrees with TMDB)"
+                    f"({score_source} {override_score} but {llm_output.positive_pct}% positive — "
+                    f"internet disagrees)"
                 )
-                # Keep WORTH IT — internet genuinely loves it
+                # Keep WORTH IT
             else:
                 logger.info(
                     f"⚠️ Low Score Safety Net: {title} "
-                    f"(TMDB {movie.tmdb_vote_average}, {movie.tmdb_vote_count} votes, "
+                    f"({score_source} {override_score}, {override_votes} votes, "
                     f"positive only {llm_output.positive_pct}%) "
                     f"WORTH IT → MIXED BAG"
                 )
                 llm_output.verdict = "MIXED BAG"
         
-        # Movies below 5.0 TMDB with 200+ votes should NEVER be WORTH IT
-        # These are objectively bad movies by crowd consensus
+        # Movies below 5.0 with 200+ votes should NEVER be WORTH IT
         if (
-            movie.tmdb_vote_average and movie.tmdb_vote_average < 5.0
-            and movie.tmdb_vote_count and movie.tmdb_vote_count > 200
+            override_score and override_score < 5.0
+            and override_votes and override_votes > 200
             and llm_output.verdict == "WORTH IT"
         ):
             logger.info(
                 f"🚫 Hard Low Score Override: {title} "
-                f"(TMDB {movie.tmdb_vote_average}, {movie.tmdb_vote_count} votes) "
+                f"({score_source} {override_score}, {override_votes} votes) "
                 f"WORTH IT → NOT WORTH IT"
             )
             llm_output.verdict = "NOT WORTH IT"
         
-        # Movies between 5.0-6.0 TMDB that LLM says WORTH IT → downgrade to MIXED BAG
+        # Movies between 5.0-6.0 that LLM says WORTH IT → downgrade to MIXED BAG
         # unless internet is overwhelmingly positive
         if (
-            movie.tmdb_vote_average and 5.0 <= movie.tmdb_vote_average < 6.0
-            and movie.tmdb_vote_count and movie.tmdb_vote_count > 200
+            override_score and 5.0 <= override_score < 6.0
+            and override_votes and override_votes > 200
             and llm_output.verdict == "WORTH IT"
             and (not llm_output.positive_pct or llm_output.positive_pct < 80)
         ):
             logger.info(
                 f"⚠️ Low Score Safety Net: {title} "
-                f"(TMDB {movie.tmdb_vote_average}) WORTH IT → MIXED BAG"
+                f"({score_source} {override_score}) WORTH IT → MIXED BAG"
             )
             llm_output.verdict = "MIXED BAG"
 
@@ -679,32 +698,26 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     
     # ─── Step 6: ENRICH (Phase 2) ─────────────────────────
     job_progress[tmdb_id] = "Finalizing your review..."
-    logger.info(f"🎬 Step 5/5: Fetching OMDB scores and trailer for '{title}'")
+    logger.info(f"🎬 Step 5/5: Fetching trailer for '{title}' (OMDB already done)")
     
     try:
-        # Step 5: Enrichment — all in parallel
+        # Step 5: Enrichment — only fetch trailer (OMDB already done)
         enrichment_results = await asyncio.gather(
-            omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
             _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
             return_exceptions=True,
         )
         
-        omdb_scores = enrichment_results[0] if not isinstance(enrichment_results[0], Exception) else None
-        trailer_url = enrichment_results[1] if not isinstance(enrichment_results[1], Exception) else None
+        trailer_url = enrichment_results[0] if not isinstance(enrichment_results[0], Exception) else None
         
-        # Apply OMDB scores
-        if not isinstance(omdb_scores, Exception) and omdb_scores:
-            review.imdb_score = omdb_scores.imdb_score
-            review.rt_critic_score = omdb_scores.rt_critic_score
-            # Note: OMDB doesn't return audience score in the standard response, 
-            # so we'll just use what we have. If we had it, we'd save it here.
-            # review.rt_audience_score = omdb_scores.rt_audience_score 
-            review.metascore = omdb_scores.metascore
-            
+        # Apply OMDB scores (using data fetched in Step 1)
+        if omdb_data:
+            review.imdb_score = omdb_data.imdb_score
+            review.rt_critic_score = omdb_data.rt_critic_score
+            review.metascore = omdb_data.metascore
             # Calculate controversial flag (RT critic vs audience gap > 25)
             # We can only do this if we have both, currently we might lack audience score
-            if omdb_scores.rt_critic_score and review.rt_audience_score:
-                gap = abs(omdb_scores.rt_critic_score - review.rt_audience_score)
+            if omdb_data.rt_critic_score and review.rt_audience_score:
+                gap = abs(omdb_data.rt_critic_score - review.rt_audience_score)
                 review.controversial = gap > 25
         
         # Apply trailer
