@@ -55,8 +55,14 @@ def _title_matches(title: str, headline: str, snippet: str = "", year: str = "")
     
     if len(title_words) <= 3:
         # SHORT TITLE: Strict headline-only matching
-        # Must appear in headline with word boundaries
         
+        # Super-Strict for basic single words like "Space", "Love", "Crash"
+        if len(title_words) == 1:
+            pattern = rf'(?:^|\s){safe_title}(?:\s*[\(\[\-–:]|\s*{year}|\s*review|\s*$)'
+            if not re.search(pattern, headline_lower):
+                return False
+
+        # Must appear in headline with word boundaries
         # Pattern: \bTITLE\b
         pattern = rf'\b{safe_title}\b'
         
@@ -105,6 +111,7 @@ class GuardianService:
         title: str,
         year: Optional[str] = None,
         max_results: int = 5,
+        search_query: Optional[str] = None,
     ) -> list[GuardianArticle]:
         """
         Search The Guardian for film reviews.
@@ -113,6 +120,7 @@ class GuardianService:
             title: Movie or TV show title
             year: Optional release year for filtering
             max_results: Maximum number of results (default: 5)
+            search_query: Optional explicit query string to use
             
         Returns:
             List of GuardianArticle objects
@@ -120,10 +128,16 @@ class GuardianService:
         if not self.api_key:
             return []
 
-        # Build search query - include year for better specificity
-        query = f'"{title}"'
-        if year:
-            query += f" {year}"
+        if search_query:
+            query = search_query
+        else:
+            # Sanitize title for API (remove punctuation that breaks the search)
+            clean_title = title.replace(":", "").replace(";", "").replace("  ", " ")
+            
+            # Build search query - include year for better specificity
+            query = f'"{clean_title}"'
+            if year:
+                query += f" {year}"
 
         params = {
             "api-key": self.api_key,
