@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class SerperService:
+    BLOCKLIST = [
+        "reelgood.com", "gatsby.tv", "moviefone.com", "streamin.co", 
+        "freemoviescinema", "teepublic.com", "themoviedb.org", "imdb.com",
+        "justwatch.com", "rottentomatoes.com", "metacritic.com", "simkl.com",
+        "facebook.com", "instagram.com", "twitter.com", "tiktok.com", "youtube.com"
+    ]
+
     def __init__(self):
         self.url = "https://google.serper.dev/search"
         self.headers = {
@@ -52,9 +59,15 @@ class SerperService:
 
             results = []
             for item in data.get("organic", []):
+                link = item.get("link", "")
+                
+                # Blocklist filter
+                if any(blocked in link.lower() for blocked in self.BLOCKLIST):
+                    continue
+                    
                 results.append({
                     "title": item.get("title", ""),
-                    "link": item.get("link", ""),
+                    "link": link,
                     "snippet": item.get("snippet", ""),
                 })
             return results
@@ -70,7 +83,8 @@ class SerperService:
         """Search for critic review articles."""
         try:
             type_hint = "TV series" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {type_hint} review'.strip()
+            # Force "review opinion" to avoid streaming sites
+            query = f'"{title}" {year} {type_hint} review opinion'.strip()
             return await self.search(query, num_results=20)
         except Exception as e:
             logger.error(f"search_reviews failed for '{title}': {e}")

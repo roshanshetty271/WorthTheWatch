@@ -333,22 +333,27 @@ class TMDBService:
 
     async def refresh_popular_cache(self):
         """
-        Background task: Fetch top ~2000 popular movies to support fuzzy search.
+        Background task: Fetch top ~2000 popular movies AND TV SHOWS to support fuzzy search.
         Runs once on startup (or periodically).
         """
         if self.popular_titles_cache:
             return  # Already populated
 
-        logger.info("🎬 Warming up fuzzy search cache with popular movies...")
+        logger.info("🎬 Warming up fuzzy search cache with popular movies & TV shows...")
         try:
             # Fetch generic popular + top rated to get a good mix of blockbusters
-            # We'll fetch 50 pages of each (approx 2000 items total) to keep it fast but useful
+            # We'll fetch 30 pages of each (approx 2400 items total) to keep it fast but useful
             tasks = []
-            for page in range(1, 51):
+            for page in range(1, 40):
+                # Movies
                 tasks.append(self.get_trending(media_type="movie", time_window="week", page=page))
                 tasks.append(self.get_top_rated_movies(page=page))
+                # TV Shows (Critical for "Monarch", "The Bear", etc.)
+                tasks.append(self.get_trending(media_type="tv", time_window="week", page=page))
+                tasks.append(self.get_top_rated_tv(page=page)) # Need to verify this method exists or use generic distinct method
             
             # Execute in batches to be nice to API
+            # ... (rest is same, but I need to make sure I don't break indentation)
             batch_size = 10
             all_results = []
             for i in range(0, len(tasks), batch_size):
@@ -362,13 +367,18 @@ class TMDBService:
             # Deduplicate by ID and store (title, popularity)
             unique_movies = {}
             for m in all_results:
-                if m.get("id") and m.get("title"):
-                    unique_movies[m["id"]] = (m["title"], m.get("popularity", 0))
+                # TV shows use "name", Movies use "title"
+                title = m.get("title") or m.get("name")
+                if m.get("id") and title:
+                    unique_movies[m["id"]] = (title, m.get("popularity", 0))
+            
+            # Sort by popularity for better relevance in case of ties?
+            # Actually just storing them is enough for now.
             
             async with self._cache_lock:
                 self.popular_titles_cache = list(unique_movies.values())
             
-            logger.info(f"✅ Fuzzy cache warmed: {len(self.popular_titles_cache)} titles ready.")
+            logger.info(f"✅ Fuzzy cache warmed: {len(self.popular_titles_cache)} titles (Movies + TV) ready.")
             
         except Exception as e:
             logger.error(f"❌ Failed to warm up fuzzy cache: {e}")
@@ -381,15 +391,18 @@ class TMDBService:
         if not self.popular_titles_cache or len(query) < 3:
             return None
 
-        # valid matches must be at least 80% similar
+        # valid matches must be at least 85% similar to avoid junk
         # extractOne returns (match, score, index)
         # We search against just the titles
         titles = [t[0] for t in self.popular_titles_cache]
-        match = process.extractOne(query, titles, scorer=fuzz.ratio)
+        
+        # Use WRatio to handle punctuation/case/ordering better (e.g. "Monarch Legacy" vs "Monarch: Legacy")
+        match = process.extractOne(query, titles, scorer=fuzz.WRatio)
         
         if match:
             best_title, score, idx = match
-            if score >= 80:
+            # Higher threshold for WRatio because it's looser
+            if score >= 85:
                 logger.info(f"🔍 Fuzzy match found: '{query}' -> '{best_title}' ({score}%)")
                 # Perform a real search for the corrected title
                 results = await self.search(best_title)

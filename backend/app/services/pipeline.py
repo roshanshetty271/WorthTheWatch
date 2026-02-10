@@ -301,11 +301,13 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     # ─── Step 1: SEARCH ────────────────────────────────────
     # ─── Step 1: Search for Reviews ───────────────────────────
+    # ─── Step 1: Search for Reviews ───────────────────────────
     # If TV show, append "TV series" to query to avoid generic matches (e.g. "Space" -> "Space TV series")
+    # DO NOT include year here — it is passed separately to services!
     if movie.media_type == "tv":
-        search_query = f"{search_title} TV series {year}"
+        search_query = f"{search_title} TV series"
     else:
-        search_query = f"{search_title} {year}"
+        search_query = search_title
         
     logger.info(f"🔍 Search Query: '{search_query}'")
 
