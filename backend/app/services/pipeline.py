@@ -564,6 +564,64 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                 logger.info(f"⚖️ Verdict override: NOT WORTH IT → MIXED BAG (positive {pos}%)")
                 llm_output.verdict = "MIXED BAG"
         
+        # ─── Low Score Safety Net ───
+        # If TMDB score is below 6.0 with decent vote count,
+        # the movie is generally considered bad. The LLM should not 
+        # give it WORTH IT unless the internet OVERWHELMINGLY disagrees 
+        # with the TMDB score.
+        if (
+            movie.tmdb_vote_average and movie.tmdb_vote_average < 6.0
+            and movie.tmdb_vote_count and movie.tmdb_vote_count > 100
+            and llm_output.verdict == "WORTH IT"
+        ):
+            # Only allow WORTH IT if positive sentiment is very strong (80%+)
+            # This means the internet genuinely loves it despite low TMDB
+            if llm_output.positive_pct and llm_output.positive_pct >= 80:
+                logger.info(
+                    f"⚠️ Low Score Override ALLOWED: {title} "
+                    f"(TMDB {movie.tmdb_vote_average} but {llm_output.positive_pct}% positive — "
+                    f"internet disagrees with TMDB)"
+                )
+                # Keep WORTH IT — internet genuinely loves it
+            else:
+                logger.info(
+                    f"⚠️ Low Score Safety Net: {title} "
+                    f"(TMDB {movie.tmdb_vote_average}, {movie.tmdb_vote_count} votes, "
+                    f"positive only {llm_output.positive_pct}%) "
+                    f"WORTH IT → MIXED BAG"
+                )
+                llm_output.verdict = "MIXED BAG"
+        
+        # Movies below 5.0 TMDB with 200+ votes should NEVER be WORTH IT
+        # These are objectively bad movies by crowd consensus
+        if (
+            movie.tmdb_vote_average and movie.tmdb_vote_average < 5.0
+            and movie.tmdb_vote_count and movie.tmdb_vote_count > 200
+            and llm_output.verdict == "WORTH IT"
+        ):
+            logger.info(
+                f"🚫 Hard Low Score Override: {title} "
+                f"(TMDB {movie.tmdb_vote_average}, {movie.tmdb_vote_count} votes) "
+                f"WORTH IT → NOT WORTH IT"
+            )
+            llm_output.verdict = "NOT WORTH IT"
+        
+        # Movies between 5.0-6.0 TMDB that LLM says WORTH IT → downgrade to MIXED BAG
+        # unless internet is overwhelmingly positive
+        if (
+            movie.tmdb_vote_average and 5.0 <= movie.tmdb_vote_average < 6.0
+            and movie.tmdb_vote_count and movie.tmdb_vote_count > 200
+            and llm_output.verdict == "WORTH IT"
+            and (not llm_output.positive_pct or llm_output.positive_pct < 80)
+        ):
+            logger.info(
+                f"⚠️ Low Score Safety Net: {title} "
+                f"(TMDB {movie.tmdb_vote_average}) WORTH IT → MIXED BAG"
+            )
+            llm_output.verdict = "MIXED BAG"
+
+        # LOW confidence + low data should not give definitive WORTH IT
+        
         # LOW confidence + low data should not give definitive WORTH IT
         if confidence_stats["confidence_tier"] == "LOW" and llm_output.verdict == "WORTH IT":
             # Only override if critically low data (reduced from < 4 to < 3)
@@ -635,11 +693,16 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         trailer_url = enrichment_results[1] if not isinstance(enrichment_results[1], Exception) else None
         
         # Apply OMDB scores
-        if not isinstance(omdb_scores, Exception):
+        if not isinstance(omdb_scores, Exception) and omdb_scores:
             review.imdb_score = omdb_scores.imdb_score
             review.rt_critic_score = omdb_scores.rt_critic_score
+            # Note: OMDB doesn't return audience score in the standard response, 
+            # so we'll just use what we have. If we had it, we'd save it here.
+            # review.rt_audience_score = omdb_scores.rt_audience_score 
             review.metascore = omdb_scores.metascore
+            
             # Calculate controversial flag (RT critic vs audience gap > 25)
+            # We can only do this if we have both, currently we might lack audience score
             if omdb_scores.rt_critic_score and review.rt_audience_score:
                 gap = abs(omdb_scores.rt_critic_score - review.rt_audience_score)
                 review.controversial = gap > 25

@@ -143,14 +143,78 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
 
 
-            {/* Overview - Open Layout */}
-            {movie.overview && (
-                <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
+            {/* ═══════════════════════════════════════════════════════════════════
+            SCORES & OVERVIEW
+            ═══════════════════════════════════════════════════════════════════ */}
+            <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
+
+                {/* Score Badges */}
+                <div className="mb-6 flex flex-wrap gap-3 animate-fade-in-delayed">
+                    {/* TMDB Score */}
+                    {movie.tmdb_vote_average ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="text-lg">⭐</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs font-semibold text-accent-gold uppercase tracking-wider">TMDB</span>
+                                <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* IMDb Score */}
+                    {review?.imdb_score ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="text-lg font-bold text-yellow-500">IMDb</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider">Rating</span>
+                                <span className="font-bold text-white">{review.imdb_score}</span>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* Rotten Tomatoes Critics */}
+                    {review?.rt_critic_score ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="text-lg">🍅</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs font-semibold text-red-400 uppercase tracking-wider">Critics</span>
+                                <span className="font-bold text-white">{review.rt_critic_score}%</span>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* Rotten Tomatoes Audience */}
+                    {review?.rt_audience_score ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="text-lg">🍿</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs font-semibold text-red-400 uppercase tracking-wider">Audience</span>
+                                <span className="font-bold text-white">{review.rt_audience_score}%</span>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* Metascore */}
+                    {review?.metascore ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 backdrop-blur-sm">
+                            <div className="flex h-6 w-6 items-center justify-center rounded bg-purple-500 font-bold text-white text-xs">
+                                {review.metascore}
+                            </div>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Metascore</span>
+                                <span className="font-bold text-white">{review.metascore}</span>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+
+                {/* Overview Text */}
+                {movie.overview && (
                     <p className="text-lg leading-relaxed text-text-secondary/90 font-light">
                         {movie.overview}
                     </p>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Main Content */}
             <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">

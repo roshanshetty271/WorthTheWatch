@@ -48,6 +48,7 @@ export interface Review {
   imdb_score: number | null;
   rt_critic_score: number | null;
   rt_audience_score: number | null;
+  metascore: number | null;
   controversial: boolean;
   // Phase 2 additions
   trailer_url: string | null;
