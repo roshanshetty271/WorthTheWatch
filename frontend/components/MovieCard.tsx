@@ -69,8 +69,8 @@ export default function MovieCard({ data }: MovieCardProps) {
       */}
       <div className={`
         group relative aspect-[2/3] w-full overflow-hidden rounded-2xl 
-        bg-surface-card transition-all duration-500 ease-out
-        hover:-translate-y-2 hover:shadow-2xl ${verdictStyle.glowColor}
+        bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl
+        hover:-translate-y-2
       `}>
 
         {/* Poster Image - Full Bleed */}
@@ -80,8 +80,8 @@ export default function MovieCard({ data }: MovieCardProps) {
               src={movie.poster_url}
               alt={movie.title}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
               priority={false}
             />
           ) : (

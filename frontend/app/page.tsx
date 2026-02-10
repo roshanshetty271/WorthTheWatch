@@ -9,13 +9,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // ─── Section Configuration ─────────────────────────────────────
 const SECTIONS = [
-  { id: "latest", title: "Latest Reviews", emoji: "🆕" },
-  { id: "worth-it", title: "Certified Worth It", emoji: "✅" },
-  { id: "trending", title: "Trending Now", emoji: "🔥" },
-  { id: "hidden-gems", title: "Hidden Gems", emoji: "💎" },
-  { id: "skip-these", title: "Skip These", emoji: "❌" },
-  { id: "tv-shows", title: "Binge-Worthy TV", emoji: "📺" },
-  { id: "mixed-bag", title: "The Internet Is Divided", emoji: "⚖️" },
+  { id: "latest", title: "Latest Reviews" },
+  { id: "worth-it", title: "Certified Worth It" },
+  { id: "trending", title: "Trending Now" },
+  { id: "hidden-gems", title: "Hidden Gems" },
+  { id: "skip-these", title: "Skip These" },
+  { id: "tv-shows", title: "Binge-Worthy TV" },
+  { id: "mixed-bag", title: "The Internet Is Divided" },
 ];
 
 // ─── Data Fetching ─────────────────────────────────────────────
@@ -52,31 +52,35 @@ async function getFeaturedMovie(): Promise<MovieWithReview | null> {
 function HorizontalSection({
   id,
   title,
-  emoji,
   movies,
 }: {
   id: string;
   title: string;
-  emoji: string;
   movies: MovieWithReview[];
 }) {
   if (movies.length === 0) return null;
 
   return (
-    <section className="py-6">
+    <section className="py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 px-4 sm:px-0">
-        <h2 className="font-display text-xl text-text-primary flex items-center gap-2">
-          <span>{emoji}</span> {title}
-        </h2>
+      <div className="flex items-end justify-between mb-6 px-4 sm:px-0">
+        <div className="border-l-4 border-accent-gold pl-3 sm:pl-4">
+          <h2 className="font-body text-xl sm:text-2xl font-bold tracking-wide text-white uppercase">
+            {title}
+          </h2>
+        </div>
         <Link
           href={`/browse/${id}`}
-          className="text-sm text-accent-gold hover:text-accent-gold/80 transition-colors flex items-center gap-1"
+          className="group flex items-center gap-2 mb-1"
         >
-          View All
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
+          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-white/50 group-hover:text-accent-gold transition-colors">
+            View All
+          </span>
+          <div className="flex bg-white/5 p-1.5 rounded-full group-hover:bg-accent-gold/20 transition-colors">
+            <svg className="h-3 w-3 text-white/50 group-hover:text-accent-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
         </Link>
       </div>
 
@@ -199,7 +203,6 @@ export default async function HomePage() {
                 key={section.id}
                 id={section.id}
                 title={section.title}
-                emoji={section.emoji}
                 movies={section.movies}
               />
             ))}
