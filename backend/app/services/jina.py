@@ -272,11 +272,18 @@ class ArticleReader:
                 resp = await client.get(cache_url)
 
                 # Detect rate limiting (302 → 429 pattern)
-                if resp.status_code in (429, 302) or "sorry" in str(resp.url).lower():
-                    if resp.status_code == 302 or resp.status_code == 429 or "sorry" in str(resp.url).lower():
+                if resp.status_code == 429:
+                    if not self._google_cache_blocked:
+                        self._google_cache_blocked = True
+                        logger.warning("⚠️ Google Cache rate limited — skipping remaining")
+                    return None
+                
+                if resp.status_code == 302:
+                    redirect_url = str(resp.headers.get("location", ""))
+                    if "sorry" in redirect_url.lower() or "google.com/sorry" in redirect_url.lower():
                         if not self._google_cache_blocked:
                             self._google_cache_blocked = True
-                            logger.warning("⚠️ Google Cache rate limited — skipping remaining")
+                            logger.warning("⚠️ Google Cache rate limited (302→sorry) — skipping remaining")
                         return None
 
                 if resp.status_code == 200 and len(resp.text) > 500:

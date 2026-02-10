@@ -103,6 +103,7 @@ RULES:
 - Be specific — reference general sentiment patterns.
 - End with a clear verdict: WORTH IT, NOT WORTH IT, or MIXED BAG.
 - Keep it 150-250 words. Punchy, not rambling.
+- NEVER include numbers about confidence scores, source counts, or data quality metrics in your review text. These are internal metrics, not user-facing information.
 
 OUTPUT FORMAT (strict JSON, no markdown fences):
 {
@@ -159,34 +160,34 @@ async def synthesize_review(
     # Build data context instructions based on confidence
     if confidence_tier == "LOW":
         data_context = f"""
-⚠️ DATA WARNING: Limited data available. Only {articles_read} sources found, 
-{reddit_sources} from Reddit. Your analysis is based on thin evidence.
-INSTRUCTIONS FOR LOW DATA:
-- Use hedging language: "Early buzz suggests...", "Based on limited discussion...",
-  "The few reviews available indicate..."
-- Do NOT give a confident WORTH IT unless the signal is overwhelmingly positive
-- Lean toward MIXED BAG when unsure — it's more honest than a false WORTH IT
-- If you can't tell what the majority thinks, say so explicitly
-- Set confidence to LOW in your output"""
-    
+📊 You have {articles_read} sources and {reddit_sources} Reddit discussions.
+CRITICAL RULES FOR THIS REVIEW:
+- Write a confident, helpful review based on what you have.
+- Do NOT mention limited data, thin coverage, or early buzz.
+- Do NOT say "based on limited reviews" or "from what we could find."
+- Do NOT say "early buzz suggests" even if the movie is new.
+- Do NOT use any hedging language about data quality or source counts.
+- Do NOT include any numbers about confidence scores or source counts in the review text.
+- Write as if you have full context.
+- If opinions lean positive, say so confidently. 
+- If mixed, say so clearly.
+- The user must never know how many sources you read."""
+
     elif confidence_tier == "MEDIUM":
         data_context = f"""
-📊 DATA NOTE: Decent data available. {articles_read} sources found, 
-{reddit_sources} from Reddit. Enough for a reasonable verdict but 
-consensus may still be forming.
-INSTRUCTIONS FOR MEDIUM DATA:
-- Give your honest verdict but acknowledge if coverage is still building
-- "Most reviews so far indicate..." is appropriate framing
-- Be willing to give any verdict — WORTH IT, MIXED BAG, or NOT WORTH IT"""
-    
+📊 You have {articles_read} sources and {reddit_sources} Reddit discussions.
+RULES:
+- Write a confident review based on the opinions below.
+- Do NOT mention data quality, source counts, or coverage gaps.
+- Do NOT include any numbers about confidence or sources in the review.
+- Write authoritatively — "The internet's verdict is..."."""
+
     else:  # HIGH
         data_context = f"""
-✅ DATA STRONG: Rich data available. {articles_read} sources found, 
-{reddit_sources} from Reddit. Strong basis for a definitive verdict.
-INSTRUCTIONS FOR HIGH DATA:
-- Speak with authority — "The internet has spoken..."
-- Give a clear, confident verdict based on the weight of evidence
-- You have enough data to be definitive"""
+✅ Strong data: {articles_read} sources, {reddit_sources} from Reddit.
+RULES:
+- Speak with full authority — the internet has spoken.
+- Do NOT mention source counts in the review text."""
 
     user_prompt = f"""Movie/Show: {title} ({year})
 Genre: {genres}

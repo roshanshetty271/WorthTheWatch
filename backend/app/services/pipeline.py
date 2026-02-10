@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
+import unicodedata
 
 from app.models import Movie, Review
 from app.services.tmdb import tmdb_service
@@ -27,6 +28,13 @@ from app.services.nyt import nyt_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+
+def normalize_for_search(title: str) -> str:
+    """Strip diacritical marks for search: Bāhubali → Bahubali, Amélie → Amelie"""
+    nfkd = unicodedata.normalize('NFKD', title)
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
 
 
 async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = "movie") -> Movie:
@@ -230,6 +238,10 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     year = str(movie.release_date.year) if movie.release_date else ""
     genres = ", ".join(g.get("name", "") for g in (movie.genres or []) if g.get("name"))
 
+    search_title = normalize_for_search(title)
+    if search_title != title:
+        logger.info(f"🔤 Normalized for search: '{title}' → '{search_title}'")
+        
     # ─── LangGraph Agent Route ────────────────────────────────
     if settings.USE_LANGGRAPH:
         logger.info(f"🤖 Using LangGraph agent for '{title}'")
@@ -292,11 +304,11 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         # Run ALL searches in parallel — Serper + Guardian + NYT
         logger.info(f"🚀 Step 1/4: Launching parallel searches for '{title}'...")
         search_results = await asyncio.gather(
-            serper_service.search_reviews(title, year),
-            serper_service.search_reddit(title, year),
-            serper_service.search_forums(title, year),
-            guardian_service.search_film_reviews(title, year),
-            nyt_service.search_reviews(title),
+            serper_service.search_reviews(search_title, year),
+            serper_service.search_reddit(search_title, year),
+            serper_service.search_forums(search_title, year),
+            guardian_service.search_film_reviews(search_title, year),
+            nyt_service.search_reviews(search_title),
             return_exceptions=True,
         )
         
@@ -339,7 +351,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         return await _create_fallback_review(db, movie, genres)
 
     # Select diverse, high-quality sources
-    selected_urls, backfill_urls = select_best_sources(all_results, movie_title=title, max_total=12)
+    selected_urls, backfill_urls = select_best_sources(all_results, movie_title=search_title, max_total=12)
     logger.info(f"📖 Step 2/4: Reading {len(selected_urls)} articles for '{title}'")
     
     # DEBUG: Log each URL being fetched
@@ -477,6 +489,31 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         filtered_opinion_chars=len(filtered_opinions),
         release_date=movie.release_date,
     )
+    
+    # TMDB Confidence Override
+    # If the movie has strong TMDB data, our scraping failure 
+    # shouldn't make it look like a low-data movie
+    tmdb_votes = movie.tmdb_vote_count or 0
+    
+    if confidence_stats["confidence_tier"] == "LOW" and tmdb_votes > 300:
+        logger.info(
+            f"📊 Confidence override: LOW → MEDIUM "
+            f"(TMDB has {tmdb_votes} votes, scraping missed data)"
+        )
+        confidence_stats["confidence_tier"] = "MEDIUM"
+        confidence_stats["confidence_score"] = max(
+            confidence_stats["confidence_score"], 55
+        )
+    
+    if confidence_stats["confidence_tier"] in ("LOW", "MEDIUM") and tmdb_votes > 1000:
+        logger.info(
+            f"📊 Confidence override → HIGH "
+            f"(TMDB has {tmdb_votes} votes, strong crowd consensus)"
+        )
+        confidence_stats["confidence_tier"] = "HIGH"
+        confidence_stats["confidence_score"] = max(
+            confidence_stats["confidence_score"], 75
+        )
 
     try:
         llm_output = await synthesize_review(
@@ -589,7 +626,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     try:
         # Step 5: Enrichment — all in parallel
         enrichment_results = await asyncio.gather(
-            omdb_service.get_scores_by_title(title, year, "series" if movie.media_type == "tv" else "movie"),
+            omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
             _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
             return_exceptions=True,
         )
