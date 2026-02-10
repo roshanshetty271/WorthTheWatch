@@ -56,6 +56,8 @@ class ArticleReader:
             "Accept-Language": "en-US,en;q=0.9",
             "Connection": "keep-alive",
         }
+        
+        self._google_cache_blocked = False
 
     # ─── Main Entry Points ────────────────────────────────
 
@@ -86,6 +88,7 @@ class ArticleReader:
         This avoids wasting 15-20 seconds on 7 parallel Reddit 403s.
         """
         # Separate Reddit and non-Reddit URLs
+        self._google_cache_blocked = False  # Reset for each batch
         reddit_urls = [u for u in urls if "reddit.com" in u.lower()]
         other_urls = [u for u in urls if "reddit.com" not in u.lower()]
 
@@ -195,6 +198,10 @@ class ArticleReader:
 
             async def _cache_reddit(url: str) -> tuple[str, Optional[str]]:
                 async with semaphore:
+                    if self._google_cache_blocked:
+                        logger.debug("⏭️ Google Cache rate limited — skipping")
+                        return (url, None)
+                        
                     content = await self._fetch_google_cache(url, timeout=timeout)
                     return (url, content)
 
@@ -263,6 +270,15 @@ class ArticleReader:
                 headers=self.headers,
             ) as client:
                 resp = await client.get(cache_url)
+
+                # Detect rate limiting (302 → 429 pattern)
+                if resp.status_code in (429, 302) or "sorry" in str(resp.url).lower():
+                    if resp.status_code == 302 or resp.status_code == 429 or "sorry" in str(resp.url).lower():
+                        if not self._google_cache_blocked:
+                            self._google_cache_blocked = True
+                            logger.warning("⚠️ Google Cache rate limited — skipping remaining")
+                        return None
+
                 if resp.status_code == 200 and len(resp.text) > 500:
                     return self._parse_reddit_from_cache(resp.text)
         except Exception:
