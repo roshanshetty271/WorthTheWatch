@@ -150,24 +150,21 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                 {/* Score Badges */}
                 <div className="mb-6 flex flex-wrap gap-3 animate-fade-in-delayed">
-                    {/* TMDB Score */}
-                    {movie.tmdb_vote_average ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 backdrop-blur-sm">
-                            <span className="text-lg">⭐</span>
-                            <div className="flex flex-col leading-none">
-                                <span className="text-xs font-semibold text-accent-gold uppercase tracking-wider">TMDB</span>
-                                <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
-                            </div>
-                        </div>
-                    ) : null}
-
-                    {/* IMDb Score */}
+                    {/* Primary Score: IMDb or TMDB Fallback */}
                     {review?.imdb_score ? (
                         <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 backdrop-blur-sm">
                             <span className="text-lg font-bold text-yellow-500">IMDb</span>
                             <div className="flex flex-col leading-none">
                                 <span className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider">Rating</span>
                                 <span className="font-bold text-white">{review.imdb_score}</span>
+                            </div>
+                        </div>
+                    ) : movie.tmdb_vote_average ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="text-lg">⭐</span>
+                            <div className="flex flex-col leading-none justify-center">
+                                {/* Only show score without label, as requested for fallback */}
+                                <span className="font-bold text-white text-lg">{movie.tmdb_vote_average.toFixed(1)}</span>
                             </div>
                         </div>
                     ) : null}
