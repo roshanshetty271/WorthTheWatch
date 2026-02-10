@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import SearchBar from "@/components/SearchBar";
+import ErrorState from "@/components/ErrorState";
 import { searchMovies, type SearchResult } from "@/lib/api";
 
 // Wrap in Suspense because useSearchParams requires it in Next.js 14+
@@ -70,9 +71,12 @@ function SearchContent() {
 
       {/* Error */}
       {error && (
-        <div className="rounded-xl bg-verdict-skip/10 border border-verdict-skip/20 p-4 text-sm text-verdict-skip">
-          {error}
-        </div>
+        <ErrorState
+          title="Search Failed"
+          message={error}
+          icon="❌"
+          action={{ label: "Try Again", onClick: () => doSearch(query) }}
+        />
       )}
 
       {/* Results Grid */}
@@ -151,16 +155,12 @@ function SearchContent() {
 
       {/* No results */}
       {!loading && !error && query && result?.tmdb_results?.length === 0 && (
-        <div className="rounded-xl border border-surface-elevated bg-surface-card p-12 text-center">
-          <p className="text-5xl mb-4">🔍</p>
-          <h3 className="font-display text-lg text-text-primary mb-2">
-            No results found
-          </h3>
-          <p className="text-sm text-text-secondary max-w-md mx-auto">
-            We couldn't find any movies or shows matching "{query}".
-            Try checking your spelling or searching for a different title.
-          </p>
-        </div>
+        <ErrorState
+          title="No matches found"
+          message={`We couldn't find any movies or shows matching "${query}".`}
+          icon="🔍"
+          suggestion="Check for typos or try a different title."
+        />
       )}
     </div>
   );

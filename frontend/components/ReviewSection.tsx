@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import ReviewContent from "./ReviewContent";
+import ErrorState from "./ErrorState";
 import type { Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -127,30 +128,40 @@ export default function ReviewSection({
         );
     }
 
-    // STATE 2: No review, not generating
-    return (
-        <div className="rounded-2xl border border-surface-elevated bg-surface-card p-8 text-center">
-            <p className="text-4xl mb-4">🎬</p>
-            <h3 className="font-display text-xl text-text-primary mb-2">
-                No verdict yet for {movieTitle}
-            </h3>
-            <p className="text-text-secondary mb-6 max-w-md mx-auto">
-                Want to know what the internet thinks? We&apos;ll analyze reviews from
-                Reddit, critics, and forums in about 15 seconds.
-            </p>
+    {
+        error && (
+            <div className="mb-6">
+                <ErrorState
+                    title="Generation Failed"
+                    message={error}
+                    icon="⚠️"
+                    action={{ label: "Try Again", onClick: handleGenerate }}
+                />
+            </div>
+        )
+    }
 
-            {error && (
-                <div className="mb-4 p-3 rounded-lg bg-red-500/10 text-red-400 text-sm">
-                    {error}
-                </div>
-            )}
+    {
+        !error && (
+            <>
+                <p className="text-4xl mb-4">🎬</p>
+                <h3 className="font-display text-xl text-text-primary mb-2">
+                    No verdict yet for {movieTitle}
+                </h3>
+                <p className="text-text-secondary mb-6 max-w-md mx-auto">
+                    Want to know what the internet thinks? We&apos;ll analyze reviews from
+                    Reddit, critics, and forums in about 15 seconds.
+                </p>
 
-            <button
-                onClick={handleGenerate}
-                className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
-            >
-                Generate AI Review
-            </button>
-        </div>
+                <button
+                    onClick={handleGenerate}
+                    className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
+                >
+                    Generate AI Review
+                </button>
+            </>
+        )
+    }
+        </div >
     );
 }
