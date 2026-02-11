@@ -89,6 +89,15 @@ export default function ReviewContent({ review }: ReviewContentProps) {
         )}
       </div>
 
+      {/* Main Review Text - RESTORED */}
+      <div className="space-y-6 max-w-3xl mx-auto px-2">
+        {paragraphs.map((para, i) => (
+          <p key={i} className="text-lg leading-relaxed text-text-secondary/90">
+            {para}
+          </p>
+        ))}
+      </div>
+
       {/* 3. CRITICS VS REDDIT (Premium Glass Cards) */}
       {(review.critic_sentiment || review.reddit_sentiment) && (
         <div className="grid grid-cols-2 gap-4 max-w-3xl mx-auto">

@@ -151,6 +151,7 @@ export default function SearchBar({
         {/* Input */}
         <input
           type="text"
+          style={{ textAlign: "left" }}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
@@ -159,12 +160,12 @@ export default function SearchBar({
           }}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className={`w-full border bg-surface-card/50 backdrop-blur-xl text-text-primary placeholder-text-muted transition-all ${focused
-            ? "border-accent-gold/50 ring-2 ring-accent-gold/20 shadow-lg shadow-accent-gold/5"
-            : "border-white/10 hover:border-white/20 hover:bg-surface-card/80"
+          className={`w-full border !text-left bg-black/40 backdrop-blur-2xl text-text-primary placeholder:text-text-muted/60 transition-all duration-300 ${focused
+            ? "border-accent-gold/50 shadow-sm shadow-black/40"
+            : "border-white/10 hover:border-white/20 hover:bg-black/50"
             } ${isLarge
-              ? "rounded-2xl py-4 pl-12 pr-24 sm:pr-28 text-base sm:text-lg placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
-              : "rounded-xl py-2.5 pl-10 pr-16 sm:pr-20 text-sm placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
+              ? "rounded-2xl py-4 pl-10 pr-28 sm:pr-32 text-base sm:text-lg placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
+              : "rounded-xl py-2.5 pl-9 pr-20 text-sm placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
             } focus:outline-none`}
         />
 
