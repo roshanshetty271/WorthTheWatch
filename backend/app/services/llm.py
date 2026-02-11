@@ -28,6 +28,17 @@ def _build_deepseek_client():
     return None, None
 
 
+def sanitize_text(text: str) -> str:
+    """Remove JSON artifacts like leading quotes/apostrophes/backticks."""
+    if not text:
+        return text
+    text = text.strip()
+    # Remove leading stray quotes/apostrophes
+    while text and text[0] in ("'", '"', '`', ' '):
+        text = text[1:]
+    return text.strip()
+
+
 def _build_openai_client():
     """Build OpenAI client if API key exists."""
     if settings.OPENAI_API_KEY:
@@ -73,6 +84,15 @@ YOUR WRITING STYLE:
 - Vary sentence length. Mix short punchy sentences with longer ones.
 - Do NOT use contractions. Write "do not" not "don't", "it is" not "it's", "I have" not "I've"
 - Do NOT use em dashes (—). Use periods, commas, or "and" instead.
+
+SOURCE ATTRIBUTION RULES:
+- You will receive labeled content like [Source: theguardian.com]
+- You may ONLY mention a specific publication BY NAME if its labeled content appears in the input
+- If NO Guardian content is labeled, do NOT mention The Guardian
+- If NO Variety content is labeled, do NOT mention Variety
+- When no specific publication is in the data, say "critics" or "reviewers" instead of naming a publication
+- For Reddit content, attribute to the subreddit: "r/horror users" or "Reddit's r/movies crowd"
+- NEVER fabricate quotes or attribute opinions to publications not present in the labeled sources
 
 STRUCTURE (follow this exactly):
 1. HOOK (1 sentence): The most interesting or controversial thing about this movie's reception. Not a generic intro. This should make someone want to keep reading.
@@ -245,12 +265,22 @@ MANDATORY INSTRUCTIONS:
     # Parse and validate JSON
     try:
         data = json.loads(content)
+        
+        # Sanitize text fields
+        if "review_text" in data: data["review_text"] = sanitize_text(data["review_text"])
+        if "hook" in data: data["hook"] = sanitize_text(data["hook"])
+        if "best_quote" in data: data["best_quote"] = sanitize_text(data["best_quote"])
+        if "praise_points" in data: 
+            data["praise_points"] = [sanitize_text(p) for p in data["praise_points"]]
+        if "criticism_points" in data: 
+            data["criticism_points"] = [sanitize_text(p) for p in data["criticism_points"]]
+            
         return LLMReviewOutput(**data)
     except (json.JSONDecodeError, Exception) as e:
         # Fallback: try to extract what we can
         logger.warning(f"JSON parsing failed: {e}")
         return LLMReviewOutput(
-            review_text=content if isinstance(content, str) else "Review generation failed.",
+            review_text=sanitize_text(content) if isinstance(content, str) else "Review generation failed.",
             verdict="MIXED BAG",
             praise_points=[],
             criticism_points=[],

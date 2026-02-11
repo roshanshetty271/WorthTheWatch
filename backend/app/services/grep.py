@@ -196,16 +196,40 @@ def get_source_diversity_score(urls: list[str]) -> dict:
 
 def select_best_sources(serper_results: list[dict], movie_title: str, max_total: int = 15) -> tuple[list[str], list[str]]:
     """Pick diverse, high-quality URLs from search results with strict relevance filtering."""
-    import re
+    from urllib.parse import urlparse
 
     # Pre-filter blocked domains BEFORE categorizing (no wasted slots)
-    BLOCKED = [
+    BLOCKED_DOMAINS = [
+        # User defined blocklist
+        "ncbi.nlm.nih.gov", "pmc.ncbi.nlm.nih.gov", "pubmed.ncbi.nlm.nih.gov",
+        "teepublic.com", "redbubble.com", "amazon.com",
+        "streamin.co", "reelgood.com", "moviefone.com", "justwatch.com",
+        "grokipedia.com", "admisiones.unicah.edu",
+        "freemoviescinema.net",
+        
+        # Original blocklist
         "imdb.com", "rottentomatoes.com", "letterboxd.com",
         "rogerebert.com", "nytimes.com", "wsj.com", 
         "washingtonpost.com", "bloomberg.com", "newyorker.com",
         "wired.com", "youtube.com", "youtu.be", "twitter.com",
         "x.com", "instagram.com", "tiktok.com", "facebook.com",
     ]
+    
+    BLOCKED_URL_PATTERNS = [
+        "/category/", "/tag/", "/archive/",
+    ]
+    
+    def is_blocked_url(url: str) -> bool:
+        url_lower = url.lower()
+        if any(domain in url_lower for domain in BLOCKED_DOMAINS):
+            return True
+        try:
+            path = urlparse(url_lower).path
+            if any(pattern in path for pattern in BLOCKED_URL_PATTERNS):
+                return True
+        except:
+            pass
+        return False
     
     # ─── Title Relevance Filter ─────────────────────────────
     # Normalize title for comparison
@@ -247,7 +271,7 @@ def select_best_sources(serper_results: list[dict], movie_title: str, max_total:
     unique_results = []
     for r in filtered_results:
         link = r.get("link", "").rstrip("/").split("#")[0]
-        if link and link not in seen_urls and not any(d in link.lower() for d in BLOCKED):
+        if link and link not in seen_urls and not is_blocked_url(link):
             seen_urls.add(link)
             unique_results.append(r)
     

@@ -128,40 +128,39 @@ export default function ReviewSection({
         );
     }
 
-    {
-        error && (
-            <div className="mb-6">
-                <ErrorState
-                    title="Generation Failed"
-                    message={error}
-                    icon="⚠️"
-                    action={{ label: "Try Again", onClick: handleGenerate }}
-                />
-            </div>
-        )
-    }
+    return (
+        <div className="mt-8 text-center">
+            {error && (
+                <div className="mb-6">
+                    <ErrorState
+                        title="Generation Failed"
+                        message={error}
+                        icon="⚠️"
+                        action={{ label: "Try Again", onClick: handleGenerate }}
+                    />
+                </div>
+            )}
 
-    {
-        !error && (
-            <>
-                <p className="text-4xl mb-4">🎬</p>
-                <h3 className="font-display text-xl text-text-primary mb-2">
-                    No verdict yet for {movieTitle}
-                </h3>
-                <p className="text-text-secondary mb-6 max-w-md mx-auto">
-                    Want to know what the internet thinks? We&apos;ll analyze reviews from
-                    Reddit, critics, and forums in about 15 seconds.
-                </p>
+            {!error && (
+                <>
+                    <p className="text-4xl mb-4">🎬</p>
+                    <h3 className="font-display text-xl text-text-primary mb-2">
+                        No verdict yet for {movieTitle}
+                    </h3>
+                    <p className="text-text-secondary mb-6 max-w-md mx-auto">
+                        Want to know what the internet thinks? We&apos;ll analyze reviews from
+                        Reddit, critics, and forums in about 15 seconds.
+                    </p>
 
-                <button
-                    onClick={handleGenerate}
-                    className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
-                >
-                    Generate AI Review
-                </button>
-            </>
-        )
-    }
-        </div >
+                    <button
+                        onClick={handleGenerate}
+                        className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
+                    >
+                        Generate AI Review
+                    </button>
+                </>
+            )}
+        </div>
     );
 }
+// Fixed syntax error

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import unicodedata
+from urllib.parse import urlparse
 
 from app.models import Movie, Review
 from app.services.tmdb import tmdb_service
@@ -410,7 +411,19 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             snippet = r.get("snippet", "")
             result_title = r.get("title", "")
             if snippet and len(snippet) > 40:
-                reddit_snippets.append(f"Reddit ({result_title}):\n{snippet}")
+                # Try to extract subreddit from URL
+                source_label = "Reddit"
+                if "/r/" in link:
+                    try:
+                        # Extract "r/movies" from "...reddit.com/r/movies/..."
+                        parts = link.split("/r/")
+                        if len(parts) > 1:
+                            sub = parts[1].split("/")[0]
+                            source_label = f"r/{sub}"
+                    except:
+                        pass
+                
+                reddit_snippets.append(f"[Source: {source_label}]\n{snippet}")
     
     if reddit_snippets:
         logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
@@ -455,7 +468,32 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     
     # ─── STEP: Grep filter ONLY the scraped articles ───
     # Reddit snippets bypass grep — they're already pure opinion
-    filtered_opinions = extract_opinion_paragraphs(articles)
+    
+    # NEW: Source Labeling & Per-Article Extraction
+    # 1. Sync URLs with Articles (include backfill)
+    final_source_urls = list(selected_urls)
+    if len(articles) > len(selected_urls) and backfill_urls:
+         # Add backfill URLs corresponding to the extra articles
+         backfilled_count = len(articles) - len(selected_urls)
+         final_source_urls.extend(backfill_urls[:backfilled_count])
+
+    labeled_sections = []
+    
+    for url, article_text in zip(final_source_urls, articles):
+        # Extract best paragraphs from THIS article only
+        # Use a small limit per article to keep it focused
+        best_paras = extract_opinion_paragraphs([article_text], max_paragraphs=5)
+        
+        if best_paras:
+            try:
+                domain = urlparse(url).netloc.replace('www.', '')
+            except:
+                domain = "Source"
+            
+            labeled_sections.append(f"[Source: {domain}]\n{best_paras}")
+
+    # Join all labeled sections
+    filtered_opinions = "\n\n".join(labeled_sections)
     
     logger.info(
         f"🔍 FILTERED OPINIONS: {len(filtered_opinions)} chars "
@@ -650,7 +688,7 @@ CRITICAL CONTEXT (Professional Reviews):
         if (
             override_score and override_score < 5.0
             and override_votes and override_votes > 200
-            and llm_output.verdict == "WORTH IT"
+            and llm_output.verdict in ("WORTH IT", "MIXED BAG")
         ):
             logger.info(
                 f"🚫 Hard Low Score Override: {title} "
@@ -748,12 +786,12 @@ CRITICAL CONTEXT (Professional Reviews):
             
             # Save Review Voice & Critics vs Reddit
             hook=llm_output.hook,
-            who_should_watch=llm_output.who_should_watch,
-            who_should_skip=llm_output.who_should_skip,
+            # who_should_watch=llm_output.who_should_watch,
+            # who_should_skip=llm_output.who_should_skip,
             critic_sentiment=llm_output.critic_sentiment,
             reddit_sentiment=llm_output.reddit_sentiment,
-            critics_agree_with_reddit=llm_output.critics_agree_with_reddit,
-            tension_point=llm_output.tension_point,
+            # critics_agree_with_reddit=llm_output.critics_agree_with_reddit,
+            # tension_point=llm_output.tension_point,
             
             sources_count=len(selected_urls),
             sources_urls=selected_urls,
@@ -840,6 +878,11 @@ async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -
         overview=movie.overview or "",
         opinions="Very limited crowd discussion found for this title. Base your review on the movie description and any general knowledge you have.",
         sources_count=0,
+        tmdb_score=movie.tmdb_vote_average or 0.0,
+        tmdb_vote_count=movie.tmdb_vote_count or 0,
+        confidence_tier="LOW",
+        articles_read=0,
+        reddit_sources=0,
     )
 
     review = Review(
