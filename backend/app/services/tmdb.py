@@ -296,11 +296,15 @@ class TMDBService:
     def get_poster_url(self, path: Optional[str], size: str = "w500") -> Optional[str]:
         if not path:
             return None
+        if path.startswith("http"):
+            return path
         return f"{self.image_base}/{size}{path}"
 
     def get_backdrop_url(self, path: Optional[str], size: str = "w1280") -> Optional[str]:
         if not path:
             return None
+        if path.startswith("http"):
+            return path
         return f"{self.image_base}/{size}{path}"
 
     def normalize_result(self, item: dict) -> dict:

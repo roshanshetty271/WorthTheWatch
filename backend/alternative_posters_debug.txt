@@ -1,0 +1,15 @@
+🔎 Investigation: Finding poster for 'Trap House' (2024)
+--------------------------------------------------
+1. Checking OMDB...
+   ✅ Found Poster: https://m.media-amazon.com/images/M/MV5BZTA3OTczYWMtNzA4Yi00YTJkLTliOTUtMzI4ZmUxODQyMTk2XkEyXkFqcGc@._V1_SX300.jpg
+   Title identified: Princess of the Trap House (2024)
+--------------------------------------------------
+2. Checking Serper (Google Images)...
+   ✅ Found 3 images via Serper.
+   Image 1: http://www.impawards.com/2025/posters/trap_house.jpg
+   Source: IMP Awards - Trap House Movie Poster (#1 of 2) - IMP Awards
+   Dimensions: NonexNone
+   Image 2: http://www.impawards.com/2025/posters/trap_house_ver2.jpg
+   Source: IMP Awards - Trap House Movie Poster (#2 of 2) - IMP Awards
+   Dimensions: NonexNone
+--------------------------------------------------

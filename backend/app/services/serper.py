@@ -22,10 +22,32 @@ class SerperService:
 
     def __init__(self):
         self.url = "https://google.serper.dev/search"
+        self.image_url = "https://google.serper.dev/images"
         self.headers = {
             "X-API-KEY": settings.SERPER_API_KEY,
             "Content-Type": "application/json",
         }
+
+    async def search_images(self, query: str, num_results: int = 3) -> list[dict]:
+        """Search Google Images via Serper. Returns list of {imageUrl, source, title}."""
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.post(
+                    self.image_url,
+                    headers=self.headers,
+                    json={"q": query, "num": num_results},
+                )
+
+                if resp.status_code != 200:
+                    logger.warning(f"Serper Images returned {resp.status_code}")
+                    return []
+
+                data = resp.json()
+                return data.get("images", [])
+                
+        except Exception as e:
+            logger.error(f"Serper image search failed: {e}")
+            return []
 
     async def search(self, query: str, num_results: int = 10) -> list[dict]:
         """Search Google via Serper. Returns list of {title, link, snippet}."""

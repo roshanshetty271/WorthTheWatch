@@ -1,0 +1,9 @@
+Found 1 movies matching 'Trap House':
+----------------------------------------
+Title: Trap House
+TMDB ID: 1609893
+Year: None
+Poster Path (DB): 'None'
+Backdrop Path (DB): 'None'
+Failed to fetch from TMDB: No module named 'rapidfuzz'
+----------------------------------------

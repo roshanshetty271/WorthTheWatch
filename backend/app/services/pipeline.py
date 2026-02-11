@@ -32,10 +32,39 @@ settings = get_settings()
 
 
 
+
+async def _fetch_fallback_poster(title: str, release_date: str = None) -> Optional[str]:
+    """Fetch a poster from Google Images if TMDB has none."""
+    try:
+        year_hint = ""
+        if release_date:
+            try:
+                # Handle both date objects and strings
+                if isinstance(release_date, str):
+                    year_hint = release_date[:4]
+                elif hasattr(release_date, "year"):
+                    year_hint = str(release_date.year)
+            except Exception:
+                pass
+        
+        query = f"{title} {year_hint} movie poster high resolution"
+        images = await serper_service.search_images(query, num_results=3)
+        
+        if images:
+            # Return the first image URL
+            return images[0].get("imageUrl")
+            
+    except Exception as e:
+        logger.warning(f"Failed to fetch fallback poster for {title}: {e}")
+    
+    return None
+
+
 def normalize_for_search(title: str) -> str:
     """Strip diacritical marks for search: Bāhubali → Bahubali, Amélie → Amelie"""
     nfkd = unicodedata.normalize('NFKD', title)
     return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
 
 
 async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = "movie") -> Movie:
@@ -60,6 +89,14 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
 
     normalized = tmdb_service.normalize_result(tmdb_data)
     
+    # Check for missing poster and try fallback
+    if not normalized.get("poster_path"):
+        logger.info(f"🖼️ Missing poster for {normalized['title']} ({tmdb_id}). Trying Serper fallback...")
+        fallback_poster = await _fetch_fallback_poster(normalized["title"], normalized.get("release_date"))
+        if fallback_poster:
+            normalized["poster_path"] = fallback_poster
+            logger.info(f"✅ Fallback poster found: {fallback_poster}")
+
     # Remove computed fields that aren't DB columns
     normalized.pop("poster_url", None)
     normalized.pop("backdrop_url", None)

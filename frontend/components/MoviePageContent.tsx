@@ -17,6 +17,26 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const { movie, review: initialReview } = movieData;
     const [review, setReview] = useState<Review | null>(initialReview);
 
+    // Image Fallback State
+    // 1. Try Backdrop
+    // 2. If fails (or null), try Poster
+    // 3. If fails (or null), use null (render gradient)
+    const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
+    const [isPosterFallback, setIsPosterFallback] = useState<boolean>(!movie.backdrop_url && !!movie.poster_url);
+
+    const handleImageError = () => {
+        // If we are currently trying to show the backdrop and it fails...
+        if (backdropSrc === movie.backdrop_url && movie.poster_url) {
+            console.log("Backdrop failed, falling back to poster.");
+            setBackdropSrc(movie.poster_url);
+            setIsPosterFallback(true);
+        } else {
+            // If we were already on poster (or there is no poster), hide image completely
+            console.log("Image load failed completely.");
+            setBackdropSrc(null);
+        }
+    };
+
     const year = movie.release_date
         ? new Date(movie.release_date).getFullYear()
         : "";
@@ -30,26 +50,31 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            {/* ═══════════════════════════════════════════════════════════════════
-          FULLSCREEN HERO BACKDROP
-          ═══════════════════════════════════════════════════════════════════ */}
             <section className="relative min-h-[55vh] md:min-h-[70vh] flex flex-col justify-between overflow-hidden">
-                {/* Background Image */}
-                {movie.backdrop_url ? (
-                    <div className="absolute inset-0 z-0">
-                        <Image
-                            src={movie.backdrop_url}
-                            alt={movie.title}
-                            fill
-                            className="object-cover object-top"
-                            priority
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/70 to-transparent" />
-                        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent" />
-                    </div>
-                ) : (
-                    <div className="absolute inset-0 z-0 bg-gradient-to-b from-surface-elevated to-surface" />
-                )}
+                {/* Background Image Logic */}
+                <div className="absolute inset-0 z-0">
+                    {backdropSrc ? (
+                        <>
+                            <Image
+                                src={backdropSrc}
+                                alt={movie.title}
+                                fill
+                                className={`object-cover ${isPosterFallback ? "object-center opacity-60" : "object-top"}`}
+                                priority
+                                onError={handleImageError}
+                            />
+                            {/* Overlays for readability */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
+
+                            {/* Extra darken for poster fallback since it might be busy */}
+                            {isPosterFallback && <div className="absolute inset-0 bg-black/40" />}
+                        </>
+                    ) : (
+                        // Final Fallback: Gradient only
+                        <div className="absolute inset-0 z-0 bg-gradient-to-b from-surface-elevated to-surface" />
+                    )}
+                </div>
 
                 {/* Back Button - Relative to clear header */}
                 <div className="relative z-30 pt-24 px-6">
@@ -89,6 +114,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         fill
                                         className="object-cover"
                                         priority
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = "none";
+                                            // Optionally, we could hide the entire container or show a fallback icon
+                                            target.parentElement!.style.display = "none";
+                                        }}
                                     />
                                 </div>
                             )}

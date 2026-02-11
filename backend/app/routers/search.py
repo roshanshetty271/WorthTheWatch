@@ -66,25 +66,68 @@ async def quick_search(
     if not tmdb_results:
         return {"results": [], "did_you_mean": False, "suggestion": None}
     
-    # Check which ones we already have reviews for
+    # Fetch existing movies from DB to check for reviews AND custom posters (Serper fallback)
     # Limit: Normal=8, Fuzzy=3
     limit = 3 if is_fuzzy else 8
     tmdb_ids = [r["id"] for r in tmdb_results[:limit]]
     
     result = await db.execute(
-        select(Movie.tmdb_id)
-        .join(Review, Movie.id == Review.movie_id)
+        select(Movie)
         .where(Movie.tmdb_id.in_(tmdb_ids))
     )
-    reviewed_ids = set(row[0] for row in result.all())
+    db_movies = {m.tmdb_id: m for m in result.scalars().all()}
     
     results = []
     for item in tmdb_results[:limit]:
         normalized = tmdb_service.normalize_result(item)
+        tmdb_id = item["id"]
+        
+        # Check DB for overrides
+        db_movie = db_movies.get(tmdb_id)
+        has_review = False
+        poster_url = normalized.get("poster_url")
+
+        if db_movie:
+            # Check if review exists (we need to load it or check the relationship)
+            # Since we didn't eager load 'review', we can't just check db_movie.review easily 
+            # without an async load or modifying the query. 
+            # But wait, we can just check if review is not None if we eager load or join.
+            # Let's simple fix: The previous query used a join to filter. 
+            # We want to know if it HAS a review, and also get the poster.
+            pass
+
+    # improving the query to get both pieces of info efficiently
+    result = await db.execute(
+        select(Movie)
+        .options(joinedload(Movie.review))
+        .where(Movie.tmdb_id.in_(tmdb_ids))
+    )
+    db_movies_map = {m.tmdb_id: m for m in result.unique().scalars().all()}
+
+    results = []
+    for item in tmdb_results[:limit]:
+        normalized = tmdb_service.normalize_result(item)
+        tmdb_id = item["id"]
+        
+        # Default to TMDB data
+        final_poster_url = normalized.get("poster_url")
+        has_review = False
+        
+        # Override with DB data if available
+        if tmdb_id in db_movies_map:
+            db_m = db_movies_map[tmdb_id]
+            if db_m.review:
+                has_review = True
+            
+            # If DB has a poster and TMDB doesn't (or we trust DB more), use DB
+            # Especially for Serper fallbacks which are full URLs in poster_path
+            if db_m.poster_path:
+                final_poster_url = tmdb_service.get_poster_url(db_m.poster_path)
+
         results.append({
             **normalized,
-            "has_review": item["id"] in reviewed_ids,
-            "poster_url": tmdb_service.get_poster_url(item.get("poster_path")),
+            "has_review": has_review,
+            "poster_url": final_poster_url,
         })
     
     return {"results": results, "did_you_mean": is_fuzzy, "suggestion": suggestion}

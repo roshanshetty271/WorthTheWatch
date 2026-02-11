@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import TriviaLoader from "./TriviaLoader";
 import ReviewContent from "./ReviewContent";
 import ErrorState from "./ErrorState";
 import type { Review } from "@/lib/api";
@@ -103,9 +104,10 @@ export default function ReviewSection({
                 <h3 className="font-display text-lg text-accent-gold mb-2">
                     Analyzing the internet&apos;s opinions...
                 </h3>
-                <p className="text-sm text-text-muted mb-4">
-                    Reading reviews from Reddit, critics, and forums. ~15 seconds.
-                </p>
+
+                <div className="mb-6">
+                    <TriviaLoader />
+                </div>
 
                 {/* Progress steps */}
                 <div className="text-xs text-text-muted space-y-1.5">
