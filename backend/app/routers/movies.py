@@ -133,6 +133,52 @@ async def list_movies(
     )
 
 
+@router.get("/random", response_model=MovieWithReview)
+async def get_random_movie_with_review(
+    exclude: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get a RANDOM movie that has a cached review.
+    Used for the 'Cinema Roulette' feature.
+    Instant response (no external API calls).
+    """
+    print(f"DEBUG: Requesting random movie. Exclude={exclude}")
+    # Query: Get a random movie that has a verdict (reviewed)
+    # AND is not the excluded ID
+    # Must use joinedload to prevent MissingGreenlet on async access
+    query = select(Movie).options(joinedload(Movie.review)).join(Review).where(
+        Review.verdict.is_not(None)
+    )
+    
+    if exclude:
+        query = query.where(Movie.tmdb_id != exclude)
+        
+    # Order by random
+    query = query.order_by(func.random()).limit(1)
+    
+    # print(f"DEBUG: Query compiled: {query}")
+    
+    result = await db.execute(query)
+    movie = result.unique().scalar_one_or_none()
+    
+    print(f"DEBUG: Query result: {movie}")
+    
+    if not movie:
+        # Fallback: If exclude filtered out the only movie, try without exclude
+        if exclude:
+            query = select(Movie).options(joinedload(Movie.review)).where(
+                Movie.review.has(Review.verdict.is_not(None))
+            ).order_by(func.random()).limit(1)
+            result = await db.execute(query)
+            movie = result.unique().scalar_one_or_none()
+            
+        if not movie:
+            raise HTTPException(status_code=404, detail="No reviewed movies found in cache")
+
+    return _format_movie_with_review(movie)
+
+
 @router.get("/{tmdb_id}", response_model=MovieWithReview)
 async def get_movie(
     tmdb_id: int,
@@ -277,3 +323,6 @@ def _format_movie_with_review(movie: Movie) -> MovieWithReview:
         review_resp = ReviewResponse.model_validate(movie.review)
 
     return MovieWithReview(movie=movie_resp, review=review_resp)
+
+
+

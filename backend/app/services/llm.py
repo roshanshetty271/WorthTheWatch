@@ -114,6 +114,8 @@ ABSOLUTE RULES:
 - NEVER hedge with "it depends on your taste". Commit to a take.
 - Reference at least ONE specific scene, character, or moment
 - If critics and Reddit disagree, that IS the story. Lead with it.
+- **IMPORTANT**: In the "HOOK" sentence, refer to Reddit users as "audiences" or "viewers" instead of "Reddit users".
+- **IMPORTANT**: If the verdict is "WORTH IT", the final sentence of the review MUST be a positive reinforcement. Do NOT end with a "but skip if..." warning. Put warnings earlier.
 
 97: OUTPUT FORMAT (strict JSON, no markdown fences):
 98: {
