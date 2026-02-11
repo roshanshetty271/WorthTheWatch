@@ -60,12 +60,6 @@ export default function ReviewContent({ review }: ReviewContentProps) {
         <div className="flex justify-center items-center gap-3">
           <VerdictBadge verdict={review.verdict} size="lg" />
 
-          {/* Divided Badge if Critics/Reddit disagree */}
-          {review.critic_sentiment && review.reddit_sentiment && review.critic_sentiment !== review.reddit_sentiment && (
-            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-              <span>⚡</span> Divided
-            </span>
-          )}
         </div>
 
         {review.vibe && (
@@ -76,7 +70,7 @@ export default function ReviewContent({ review }: ReviewContentProps) {
 
         {/* Verdict DNA: Tags */}
         {review.tags && review.tags.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-2 pt-1">
+          <div className="flex flex-wrap justify-center gap-2 pt-1 pb-4">
             {review.tags.map((tag) => (
               <span
                 key={tag}
@@ -90,60 +84,16 @@ export default function ReviewContent({ review }: ReviewContentProps) {
       </div>
 
       {/* Main Review Text - RESTORED */}
-      <div className="space-y-6 max-w-3xl mx-auto px-2">
+      <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-lg leading-relaxed text-text-secondary/90">
         {paragraphs.map((para, i) => (
-          <p key={i} className="text-lg leading-relaxed text-text-secondary/90">
+          <p
+            key={i}
+            className={i === 0 ? "first-letter:float-left first-letter:text-6xl first-letter:font-display first-letter:font-bold first-letter:text-accent-gold first-letter:mr-3 first-letter:mt-2 first-letter:leading-none" : ""}
+          >
             {para}
           </p>
         ))}
       </div>
-
-      {/* 3. CRITICS VS REDDIT (Premium Glass Cards) */}
-      {(review.critic_sentiment || review.reddit_sentiment) && (
-        <div className="grid grid-cols-2 gap-4 max-w-3xl mx-auto">
-          {/* Critics Box */}
-          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-surface-elevated/30 p-6 text-center shadow-lg backdrop-blur-md transition-all hover:bg-surface-elevated/40">
-            {/* Subtle gradient based on sentiment */}
-            <div className={`absolute inset-0 opacity-10 ${review.critic_sentiment === "positive" ? "bg-gradient-to-br from-emerald-500 to-transparent" :
-              review.critic_sentiment === "negative" ? "bg-gradient-to-br from-red-500 to-transparent" :
-                "bg-gradient-to-br from-amber-500 to-transparent"
-              }`} />
-
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-text-muted">Critics</span>
-              <span className={`text-2xl font-display ${review.critic_sentiment === "positive" ? "text-emerald-400" :
-                review.critic_sentiment === "negative" ? "text-red-400" :
-                  "text-amber-400"
-                }`}>
-                {review.critic_sentiment === "positive" ? "Loved It" :
-                  review.critic_sentiment === "negative" ? "Panned It" :
-                    "Mixed"}
-              </span>
-            </div>
-          </div>
-
-          {/* Reddit Box */}
-          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-surface-elevated/30 p-6 text-center shadow-lg backdrop-blur-md transition-all hover:bg-surface-elevated/40">
-            {/* Subtle gradient based on sentiment */}
-            <div className={`absolute inset-0 opacity-10 ${review.reddit_sentiment === "positive" ? "bg-gradient-to-br from-emerald-500 to-transparent" :
-              review.reddit_sentiment === "negative" ? "bg-gradient-to-br from-red-500 to-transparent" :
-                "bg-gradient-to-br from-amber-500 to-transparent"
-              }`} />
-
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-text-muted">Reddit</span>
-              <span className={`text-2xl font-display ${review.reddit_sentiment === "positive" ? "text-emerald-400" :
-                review.reddit_sentiment === "negative" ? "text-red-400" :
-                  "text-amber-400"
-                }`}>
-                {review.reddit_sentiment === "positive" ? "Loved It" :
-                  review.reddit_sentiment === "negative" ? "Hated It" :
-                    "Divided"}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Praise & Criticism Grid */}
       <div className="grid gap-6 sm:grid-cols-2 pt-4">

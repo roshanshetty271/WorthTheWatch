@@ -34,3 +34,4 @@ lxml>=5.0.0
 
 # Fuzzy Search (Typo Handling)
 rapidfuzz>=3.11.0
+selectolax>=0.3.21

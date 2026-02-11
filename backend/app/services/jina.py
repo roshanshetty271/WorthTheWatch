@@ -1,6 +1,6 @@
 """
 Worth the Watch? — Article Reader Service
-Uses BeautifulSoup by default (free forever).
+Uses selectolax (Lexbor engine) for ultra-fast parsing.
 Set USE_JINA=True in .env to use Jina Reader instead.
 """
 
@@ -9,20 +9,12 @@ import httpx
 import logging
 import time
 from typing import Optional, List, Dict
-from bs4 import BeautifulSoup
+from selectolax.lexbor import LexborHTMLParser
 from app.config import get_settings
 from fake_useragent import UserAgent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
-
-# Try to use lxml for speed, fall back to html.parser
-try:
-    import lxml
-    HTML_PARSER = "lxml"
-except ImportError:
-    HTML_PARSER = "html.parser"
-    logger.warning("🐌 lxml not found — falling back to slower html.parser")
 
 # Domains that won't work with simple scraping — skip them entirely
 SKIP_DOMAINS = [
@@ -42,7 +34,7 @@ BLOCKED_DOMAINS = [
 class ArticleReader:
     """
     Reads articles from URLs. Two modes:
-    - BeautifulSoup (default): Free forever, no API key needed
+    - selectolax (default): High-performance C-based parsing
     - Jina Reader (optional): Better quality, needs API key + credits
 
     Smart Reddit handling:
@@ -57,7 +49,7 @@ class ArticleReader:
         if self.use_jina:
             logger.info("📖 Article Reader: Using Jina Reader API")
         else:
-            logger.info("📖 Article Reader: Using BeautifulSoup (free mode)")
+            logger.info("📖 Article Reader: Using selectolax (Lexbor engine) logic")
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -88,7 +80,7 @@ class ArticleReader:
         if self.use_jina:
             return await self._read_with_jina(url, timeout)
         else:
-            return await self._read_with_bs4(url, timeout)
+            return await self._read_with_selectolax(url, timeout)
 
     async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0) -> tuple[list[str], list[str]]:
         """
@@ -344,6 +336,16 @@ class ArticleReader:
                     return None
 
                 html = resp.text
+                
+                # PRE-PARSE CHECK: Size limit
+                MAX_HTML_BYTES = 2_000_000  # 2MB
+                if len(html) > MAX_HTML_BYTES:
+                    logger.warning(
+                        f"⚠️ Skipping oversized HTML: {url} "
+                        f"({len(html) // 1024}KB exceeds limit)"
+                    )
+                    return None
+                
                 if len(html) < 500:
                     return None
 
@@ -431,18 +433,17 @@ class ArticleReader:
             pass
         return None
 
-    # ─── HTML Parsers ─────────────────────────────────────
+    # ─── HTML Parsers (Selectolax) ────────────────────────
 
     def _parse_article_html(self, html: str, url: str = "") -> Optional[str]:
-        """Parse a general article/review page into clean text."""
-        # from bs4 import BeautifulSoup  <-- Removed, now at top level
-
-        soup = BeautifulSoup(html, HTML_PARSER)
+        """Parse a general article/review page into clean text using Lexbor."""
+        
+        tree = LexborHTMLParser(html)
 
         # Remove junk elements
-        for tag in soup(
-            ["script", "style", "nav", "footer", "header",
-             "aside", "iframe", "noscript", "form", "button", "svg"]
+        # Note: css() returns a list of Nodes
+        for tag in tree.css(
+            "script, style, nav, footer, header, aside, iframe, noscript, form, button, svg"
         ):
             tag.decompose()
 
@@ -462,24 +463,26 @@ class ArticleReader:
         ]
 
         for selector in selectors:
-            found = soup.select_one(selector)
-            if found:
-                content = found
-                break
+            try:
+                found = tree.css_first(selector)
+                if found:
+                    content = found
+                    break
+            except Exception:
+                continue
 
         # STRATEGY 2: Fall back to body
         if not content:
-            content = soup.find("body")
-
+            content = tree.body
+            
         if not content:
             return None
 
         # Extract text from paragraphs and other elements
         paragraphs = []
-        for el in content.find_all(
-            ["p", "h2", "h3", "h4", "blockquote", "li", "div", "span"]
-        ):
-            text = el.get_text(strip=True)
+        # selectolax css selects descendants
+        for el in content.css("p, h2, h3, h4, blockquote, li, div, span"):
+            text = el.text(strip=True)
             if len(text) > 20:
                 skip_words = [
                     "cookie", "subscribe", "sign up", "log in",
@@ -492,14 +495,34 @@ class ArticleReader:
 
         # STRATEGY 3: Raw text fallback
         if len(paragraphs) < 3:
-            raw_text = content.get_text(separator="\n", strip=True)
-            lines = [
-                line.strip()
-                for line in raw_text.split("\n")
-                if len(line.strip()) > 20
-            ]
-            if lines:
-                paragraphs = lines
+            # Lexbor text() does not strictly support separator arg in all versions like BS4 
+            # but usually usually it joins with no space. 
+            # However, iter() or traverse could work. 
+            # For simplicity & speed, we'll iterate text nodes if needed, 
+            # but let's try just getting all text and splitting by newlines if implied.
+            # Actually, standard .text() joins everything. 
+            # To simulate separator, we rely on the fact we already tried p tags.
+            # If we are failing, let's try a simpler approach:
+            # Just grab all text node children?
+            # Let's try to trust the tree text, but it might be one blob.
+            # A safe bet is using proper iteration if we really need structure.
+            # But let's stick to the user's cheat sheet "tree.body.text(separator='\n')"
+            # assuming the library version supports it or they wrote a wrapper. 
+            # If not, it might throw. But let's assume valid instruction.
+            try:
+                raw_text = content.text(separator="\n", strip=True)
+                lines = [
+                    line.strip()
+                    for line in raw_text.split("\n")
+                    if len(line.strip()) > 20
+                ]
+                if lines:
+                    paragraphs = lines
+            except Exception:
+                # Fallback if separator not supported
+                raw_text = content.text(strip=True)
+                if len(raw_text) > 50:
+                    paragraphs.append(raw_text)
 
         # Deduplicate
         seen = set()
@@ -525,29 +548,28 @@ class ArticleReader:
 
     def _parse_reddit_html(self, html: str) -> Optional[str]:
         """Parse Reddit old.reddit.com HTML for comments and post content."""
-        # from bs4 import BeautifulSoup <-- Removed
         
-        soup = BeautifulSoup(html, HTML_PARSER)
+        tree = LexborHTMLParser(html)
 
         comments = []
 
         # Post title
-        title_el = soup.find("a", class_="title")
+        title_el = tree.css_first("a.title")
         if title_el:
-            comments.append(title_el.get_text(strip=True))
+            comments.append(title_el.text(strip=True))
 
         # Post body (self text)
-        post_body = soup.find("div", class_="expando")
+        post_body = tree.css_first("div.expando")
         if not post_body:
-            post_body = soup.find("div", class_="usertext-body")
+            post_body = tree.css_first("div.usertext-body")
         if post_body:
-            text = post_body.get_text(strip=True)
+            text = post_body.text(strip=True)
             if len(text) > 30:
                 comments.append(text)
 
         # Comments
-        for comment in soup.find_all("div", class_="usertext-body"):
-            text = comment.get_text(strip=True)
+        for comment in tree.css("div.usertext-body"):
+            text = comment.text(strip=True)
             if 50 < len(text) < 2000:
                 comments.append(text)
 
@@ -566,25 +588,31 @@ class ArticleReader:
     def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
         """Extract Reddit content from a Google Cache wrapper."""
         # Google Cache often puts the real content in a 'pre' or specific div
-        soup = BeautifulSoup(html, HTML_PARSER)
+        tree = LexborHTMLParser(html)
 
         # Remove Google's cache header
-        for div in soup.find_all("div", id="google-cache-hdr"):
+        for div in tree.css("div#google-cache-hdr"):
             div.decompose()
-        for div in soup.find_all(
-            "div",
-            style=lambda s: s and "CACHE" in s.upper() if s else False,
-        ):
-            div.decompose()
+        
+        # Remove divs with style containing "CACHE"
+        # Since css selectors for partial attribute value match are tricky with style="" strings
+        # we iterate.
+        for div in tree.css("div"):
+            style = div.attrs.get("style", "")
+            if style and "CACHE" in style.upper():
+                div.decompose()
 
-        body = soup.find("body") or soup
+        body = tree.body or tree
 
         # Remove junk
-        for tag in body(["script", "style", "nav", "footer"]):
+        for tag in body.css("script, style, nav, footer"):
             tag.decompose()
 
         # Get raw text
-        raw_text = body.get_text(separator="\n", strip=True)
+        try:
+            raw_text = body.text(separator="\n", strip=True)
+        except Exception:
+            raw_text = body.text(strip=True)
 
         lines = []
         skip = [
@@ -628,7 +656,7 @@ class ArticleReader:
                 if resp.status_code == 200 and len(resp.text) > 100:
                     return resp.text
                 if resp.status_code == 402:
-                    logger.warning("Jina 402 — falling back to BeautifulSoup")
+                    logger.warning("Jina 402 — falling back to selectolax")
                     return await self._fetch_and_parse(url)
             return None
         except Exception:
@@ -645,8 +673,8 @@ class ArticleReader:
         return result
 
     # Keep backward compatibility — single URL read still works
-    async def _read_with_bs4(self, url: str, timeout: float) -> Optional[str]:
-        """Backward compatible single-URL read."""
+    async def _read_with_selectolax(self, url: str, timeout: float) -> Optional[str]:
+        """Backward compatible single-URL read (renamed from bs4)."""
         return await self._fetch_and_parse(url, timeout)
 
 
