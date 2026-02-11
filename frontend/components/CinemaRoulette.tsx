@@ -1,340 +1,482 @@
-import { useEffect, useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+const SESSION_KEY = "roulette_last_result";
 
-// Types
+const LOCAL_POSTERS = [
+    "/images/movie1.webp", "/images/movie2.webp", "/images/movie3.webp", "/images/movie4.webp", "/images/movie5.webp",
+    "/images/movie6.jpg", "/images/movie7.jpg", "/images/movie8.jpg", "/images/movie9.jpg", "/images/movie10.jpg",
+    "/images/movie11.jpg", "/images/movie12.jpg", "/images/movie13.jpg", "/images/movie14.jpg", "/images/movie15.jpg",
+    "/images/movie16.jpg", "/images/movie17.jpg", "/images/movie18.jpg", "/images/movie19.jpg", "/images/movie20.jpg",
+    "/images/movie21.jpg", "/images/movie22.jpg", "/images/movie23.jpg", "/images/movie24.jpg", "/images/movie25.jpg",
+    "/images/movie26.jpg", "/images/movie27.webp", "/images/movie28.avif", "/images/movie29.webp", "/images/movie30.avif",
+];
+
+const POSTER_W = 120;
+const POSTER_H = 170;
+const GAP = 8;
+const WINNER_POS = 110;
+
 interface RandomMovie {
     movie: {
         id: number;
         tmdb_id: number;
         title: string;
         poster_url: string | null;
+        poster_path: string | null;
         release_date: string | null;
-        tmdb_vote_average: number;
+        tagline?: string;
     };
     review: {
         verdict: "WORTH IT" | "NOT WORTH IT" | "MIXED BAG";
         hook: string | null;
-        tags: string[] | null;
+        review_text: string | null;
         imdb_score: number | null;
+        vibe: string | null;
     } | null;
 }
 
 interface CinemaRouletteProps {
     isOpen: boolean;
     onClose: () => void;
-    blurPosters: string[]; // Decoy posters from homepage
 }
 
-export default function CinemaRoulette({ isOpen, onClose, blurPosters }: CinemaRouletteProps) {
+export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps) {
     const router = useRouter();
-    // Phases: prompt -> spinning -> reveal (or error)
-    const [phase, setPhase] = useState<"prompt" | "spinning" | "reveal" | "error">("prompt");
-    const [result, setResult] = useState<RandomMovie | null>(null);
+    const pathname = usePathname();
+    const [phase, setPhase] = useState<"prompt" | "fadeout" | "spinning" | "expanding" | "reveal">("prompt");
+    const [movie, setMovie] = useState<RandomMovie | null>(null);
     const [posterStrip, setPosterStrip] = useState<string[]>([]);
-    const [excludeId, setExcludeId] = useState<number | null>(null);
-    const [spinCount, setSpinCount] = useState(0);
+    const [spinKey, setSpinKey] = useState(0);
+    const [winnerPoster, setWinnerPoster] = useState<string>("");
+    const [navigating, setNavigating] = useState(false);
+    const lastExcludeRef = useRef<number | null>(null);
+    const initialPathRef = useRef(pathname);
+    const abortRef = useRef<AbortController | null>(null);
 
-    // Fetch random movie
-    const fetchRandom = async (exclude?: number) => {
-        try {
-            const excludeParam = exclude ? `?exclude=${exclude}` : "";
-            const res = await fetch(`${API_BASE}/api/movies/random${excludeParam}`);
-
-            if (res.status === 404) {
-                setPhase("error");
-                return null;
-            }
-
-            if (!res.ok) throw new Error("Network response was not ok");
-            return await res.json();
-        } catch (e) {
-            console.error("Roulette fetch error:", e);
-            setPhase("error");
-            return null;
-        }
-    };
-
-    // Initialize Spin
-    const startSpin = async () => {
-        setPhase("spinning");
-        setResult(null);
-        setSpinCount(prev => prev + 1);
-
-        // Generate a fresh set of 15-20 random posters for the strip
-        // We use blurPosters as a base and shuffle/repeat them
-        const basePosters = [...blurPosters, ...blurPosters, ...blurPosters, ...blurPosters, ...blurPosters];
-        const shuffled = basePosters.sort(() => Math.random() - 0.5).slice(0, 15);
-        setPosterStrip([...shuffled, "/placeholder.jpg"]); // Placeholder will be replaced by winner
-
-        // Fetch IMMEDIATELY
-        const winnerPromise = fetchRandom(excludeId || undefined);
-
-        // Wait for animation (the trigger is onAnimationComplete, but we need the data ready)
-        const winner = await winnerPromise;
-
-        if (winner) {
-            setResult(winner);
-            setExcludeId(winner.movie.tmdb_id);
-            // Replace the last item in the strip with the real winner's poster
-            setPosterStrip(prev => [...prev.slice(0, -1), winner.movie.poster_url || "/placeholder.jpg"]);
-        }
-    };
-
-    const handleSpinAgain = () => {
-        startSpin();
-    };
-
-    const handleViewReview = () => {
-        if (result) {
-            onClose();
-            router.push(`/movie/${result.movie.tmdb_id}`);
-        }
-    };
-
-    // Reset on close
+    // On mount: check sessionStorage for a previous result
     useEffect(() => {
-        if (!isOpen) {
-            const t = setTimeout(() => {
-                setPhase("prompt");
-                setResult(null);
-                setExcludeId(null);
-                setPosterStrip([]);
-            }, 300);
-            return () => clearTimeout(t);
-        }
+        if (!isOpen) return;
+        try {
+            const stored = sessionStorage.getItem(SESSION_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed.movie && parsed.winnerPoster) {
+                    setMovie(parsed.movie);
+                    setWinnerPoster(parsed.winnerPoster);
+                    lastExcludeRef.current = parsed.movie.movie.tmdb_id;
+                    setPhase("reveal");
+                    return;
+                }
+            }
+        } catch { }
+        setPhase("prompt");
     }, [isOpen]);
+
+    // Save result to sessionStorage whenever we get one
+    useEffect(() => {
+        if (movie && winnerPoster && phase === "reveal") {
+            try {
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify({ movie, winnerPoster }));
+            } catch { }
+        }
+    }, [movie, winnerPoster, phase]);
+
+    // When route changes after clicking View Review, close modal smoothly
+    useEffect(() => {
+        if (navigating && pathname !== initialPathRef.current) {
+            onClose();
+            setTimeout(() => {
+                setNavigating(false);
+            }, 300);
+        }
+    }, [pathname, navigating, onClose]);
+
+    useEffect(() => {
+        if (isOpen) {
+            initialPathRef.current = pathname;
+        }
+    }, [isOpen, pathname]);
+
+    const formatPoster = (data: RandomMovie): string => {
+        const raw = data.movie.poster_url;
+        if (raw && raw.startsWith("http")) return raw;
+        if (raw) return `${TMDB_IMAGE_BASE}${raw}`;
+        if (data.movie.poster_path) return `${TMDB_IMAGE_BASE}${data.movie.poster_path}`;
+        return "/images/movie1.webp";
+    };
+
+    const buildStrip = (winnerUrl: string): string[] => {
+        const s1 = [...LOCAL_POSTERS].sort(() => Math.random() - 0.5);
+        const s2 = [...LOCAL_POSTERS].sort(() => Math.random() - 0.5);
+        const s3 = [...LOCAL_POSTERS].sort(() => Math.random() - 0.5);
+        const s4 = [...LOCAL_POSTERS].sort(() => Math.random() - 0.5);
+        const strip = [...s1, ...s2, ...s3, ...s4];
+        strip[WINNER_POS] = winnerUrl;
+        return strip;
+    };
+
+    const calcTargetX = (): number => {
+        const winnerCenter = WINNER_POS * (POSTER_W + GAP) + POSTER_W / 2;
+        const viewCenter = 190;
+        return -(winnerCenter - viewCenter);
+    };
+
+    // The spin process:
+    // 1. Fade out whatever is on screen (prompt or reveal) — 300ms
+    // 2. While fading, fetch API + build strip
+    // 3. When BOTH fade and fetch are done, show spinning phase
+    // 4. Strip is already built, animation starts immediately
+    // Result: no jerk, no static frame, no poster swap visible to user
+    const startSpin = useCallback(async () => {
+        // Cancel any in-flight request
+        if (abortRef.current) abortRef.current.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        // Step 1: Fade out current content
+        setPhase("fadeout");
+
+        try {
+            // Step 2: Fetch + build strip IN PARALLEL with the fade
+            const excludeId = lastExcludeRef.current;
+            const url = excludeId
+                ? `${API_BASE}/api/movies/random?exclude=${excludeId}`
+                : `${API_BASE}/api/movies/random`;
+
+            const [data] = await Promise.all([
+                fetch(url, { signal: controller.signal }).then((r) => {
+                    if (!r.ok) throw new Error("Failed");
+                    return r.json();
+                }),
+                // Minimum fade time — wait at least 350ms for the fade to complete
+                new Promise((r) => setTimeout(r, 350)),
+            ]);
+
+            // If user closed modal during fetch, abort
+            if (controller.signal.aborted) return;
+
+            const poster = formatPoster(data as RandomMovie);
+            setWinnerPoster(poster);
+            setMovie(data as RandomMovie);
+            lastExcludeRef.current = (data as RandomMovie).movie.tmdb_id;
+
+            // Build strip with winner already placed
+            const strip = buildStrip(poster);
+            setPosterStrip(strip);
+            setSpinKey((k) => k + 1);
+
+            // Step 3: NOW show spinning. Strip is ready. No jerk.
+            setPhase("spinning");
+        } catch (e) {
+            if (controller.signal.aborted) return;
+            console.error("Roulette fetch failed:", e);
+            setPhase("prompt");
+        }
+    }, []);
+
+    const handleSpinComplete = useCallback(() => {
+        setTimeout(() => setPhase("expanding"), 300);
+    }, []);
+
+    const handleExpandComplete = useCallback(() => {
+        setPhase("reveal");
+    }, []);
+
+    const handleSpinAgain = useCallback(() => {
+        startSpin();
+    }, [startSpin]);
+
+    const handleViewReview = useCallback(() => {
+        if (!movie) return;
+        setNavigating(true);
+        router.push(`/movie/${movie.movie.tmdb_id}`);
+    }, [movie, router]);
+
+    // Close: abort any in-flight fetch, stop animations, close modal
+    const handleClose = useCallback(() => {
+        if (abortRef.current) abortRef.current.abort();
+        onClose();
+        // Do NOT reset phase/movie — keep result for session persistence
+        setNavigating(false);
+    }, [onClose]);
+
+    const verdictStyle = (v?: string) => {
+        switch (v) {
+            case "WORTH IT":
+                return "text-accent-gold border-accent-gold bg-accent-gold/10";
+            case "NOT WORTH IT":
+                return "text-red-500 border-red-500 bg-red-500/10";
+            case "MIXED BAG":
+                return "text-orange-400 border-orange-400 bg-orange-400/10";
+            default:
+                return "text-accent-gold border-accent-gold bg-accent-gold/10";
+        }
+    };
+
+    const getHookText = (): string => {
+        if (movie?.review?.hook && movie.review.hook.length > 5) return movie.review.hook;
+        if (movie?.review?.vibe && movie.review.vibe.length > 5) return movie.review.vibe;
+        if (movie?.movie?.tagline && movie.movie.tagline.length > 5) return movie.movie.tagline;
+        return "A film worth your time.";
+    };
 
     if (!isOpen) return null;
 
-    const POSTER_WIDTH = 176; // w-44 = 11rem = 176px
+    // Close button — reused across all phases
+    const CloseButton = () => (
+        <button
+            onClick={handleClose}
+            className="absolute top-4 right-4 z-50 p-2 text-white/30 hover:text-white transition-colors"
+        >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    );
 
     return (
-        <AnimatePresence>
-            {/* Backdrop */}
+        <AnimatePresence mode="wait">
             <motion.div
+                key="roulette-overlay"
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: navigating ? 0 : 1 }}
                 exit={{ opacity: 0 }}
-                onClick={onClose}
-                className="fixed inset-0 z-[100] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+                transition={{ duration: 0.4 }}
+                className="fixed inset-0 z-[100] grid place-items-center bg-black/70 backdrop-blur-sm p-4 overflow-hidden"
+                onClick={handleClose}
             >
-                {/* Modal Card */}
                 <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
+                    key="roulette-modal"
+                    initial={{ scale: 0.92, opacity: 0 }}
+                    animate={{ scale: navigating ? 0.95 : 1, opacity: navigating ? 0 : 1 }}
+                    exit={{ scale: 0.92, opacity: 0 }}
+                    transition={{ duration: 0.4 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="relative w-full max-w-sm md:max-w-xl overflow-hidden rounded-2xl bg-[#121212] border border-white/10 shadow-2xl"
+                    className="relative w-full max-w-[380px] bg-[#0d0d0d] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden"
                 >
-                    {/* Close Button */}
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 z-20 p-2 text-white/50 hover:text-white transition-colors"
-                        aria-label="Close"
-                    >
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
 
-                    {/* Content Container */}
-                    <div className="flex flex-col items-center p-8 text-center min-h-[500px]">
+                    {/* ═══════ PHASE 0 — PROMPT ═══════ */}
+                    {phase === "prompt" && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                            className="relative w-full min-h-[480px] flex flex-col items-center justify-center p-8 text-center overflow-hidden"
+                        >
+                            <div className="absolute inset-0 z-0">
+                                <Image
+                                    src="/images/movie-collage.jpg"
+                                    alt="Movie Collage"
+                                    fill
+                                    className="object-cover opacity-20 grayscale scale-110"
+                                    priority
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/80 to-[#0d0d0d]/40" />
+                            </div>
 
-                        {/* PHASE: ERROR */}
-                        {phase === "error" && (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 mt-12">
-                                <div className="text-4xl">🤔</div>
-                                <h3 className="text-xl font-display text-white">Still building our library!</h3>
-                                <p className="text-text-muted max-w-[250px]">
-                                    We don't have enough reviews for the roulette yet. Check back soon!
-                                </p>
+                            <CloseButton />
+
+                            <div className="relative z-10 flex flex-col items-center gap-6">
+                                <h2 className="text-[2.2rem] leading-[1.15] font-display text-white tracking-tight font-black">
+                                    Can&apos;t decide<br />
+                                    <span className="text-accent-gold">what to watch?</span>
+                                </h2>
                                 <button
-                                    onClick={onClose}
-                                    className="mt-4 px-6 py-2 rounded-full bg-accent-gold text-black font-bold hover:bg-white transition-colors"
+                                    onClick={startSpin}
+                                    className="mt-6 px-14 py-5 bg-accent-gold text-black font-black uppercase tracking-[0.25em] text-[10px] rounded-full hover:scale-105 active:scale-95 transition-all"
                                 >
-                                    Browse Movies
+                                    Surprise Me
                                 </button>
                             </div>
-                        )}
+                        </motion.div>
+                    )}
 
-                        {/* PHASE 0: PROMPT */}
-                        {phase === "prompt" && (
-                            <div className="relative w-full h-full flex flex-col items-center justify-center flex-grow overflow-hidden -mx-8 -my-8 p-12">
-                                {/* Background Collage - 2x3 or 3x2 grid */}
-                                <div className="absolute inset-0 grid grid-cols-3 grid-rows-2 gap-2 p-2 select-none pointer-events-none">
-                                    {[...blurPosters, ...blurPosters].slice(0, 6).map((src, i) => (
-                                        <div key={i} className="relative w-full h-full overflow-hidden rounded-lg">
-                                            <Image
-                                                src={src}
-                                                alt=""
-                                                fill
-                                                className="object-cover blur-[2px]"
-                                                sizes="200px"
-                                            />
+                    {/* ═══════ FADEOUT — brief black screen between phases ═══════
+              This plays while the API fetches + strip builds.
+              Prevents the user from seeing the old content swap
+              to new content. Just a clean fade to dark. */}
+                    {phase === "fadeout" && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                            className="w-full min-h-[480px] flex items-center justify-center bg-[#0d0d0d]"
+                        >
+                            <CloseButton />
+                            <p className="text-accent-gold font-black uppercase tracking-[0.3em] text-[10px] animate-pulse">
+                                Finding your next watch...
+                            </p>
+                        </motion.div>
+                    )}
+
+                    {/* ═══════ PHASE 1 — SPINNING ═══════
+              Strip is ALREADY BUILT before this phase mounts.
+              No poster swap. No jerk. Fades in with strip
+              already in motion (slow start from ease curve). */}
+                    {phase === "spinning" && posterStrip.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                            className="w-full min-h-[480px] flex flex-col items-center justify-center overflow-hidden"
+                        >
+                            <CloseButton />
+
+                            <div className="relative overflow-hidden w-full h-[190px]">
+                                <div className="absolute inset-y-0 left-0 w-20 z-20 bg-gradient-to-r from-[#0d0d0d] to-transparent pointer-events-none" />
+                                <div className="absolute inset-y-0 right-0 w-20 z-20 bg-gradient-to-l from-[#0d0d0d] to-transparent pointer-events-none" />
+
+                                <motion.div
+                                    key={spinKey}
+                                    className="flex flex-row items-center gap-2 will-change-transform"
+                                    initial={{ x: 0 }}
+                                    animate={{ x: calcTargetX() }}
+                                    transition={{
+                                        duration: 8,
+                                        ease: [0.45, 0.05, 0.15, 1.0],
+                                    }}
+                                    onAnimationComplete={handleSpinComplete}
+                                >
+                                    {posterStrip.map((src, i) => (
+                                        <div
+                                            key={`${spinKey}-${i}`}
+                                            className="flex-shrink-0 rounded-lg overflow-hidden bg-white/5"
+                                            style={{ width: POSTER_W, height: POSTER_H }}
+                                        >
+                                            {src && (
+                                                <Image
+                                                    src={src}
+                                                    alt=""
+                                                    width={POSTER_W}
+                                                    height={POSTER_H}
+                                                    className="object-cover w-full h-full"
+                                                    priority={i >= WINNER_POS - 3 && i <= WINNER_POS + 3}
+                                                    unoptimized={src.startsWith("http")}
+                                                />
+                                            )}
                                         </div>
                                     ))}
-                                    {/* Heavy Dark Overlay */}
-                                    <div className="absolute inset-0 bg-black/80 z-[5]" />
-                                </div>
+                                </motion.div>
+                            </div>
 
-                                {/* Content */}
-                                <div className="relative z-10 flex flex-col items-center gap-6">
-                                    <div className="text-6xl drop-shadow-2xl">🎬</div>
-                                    <h2 className="text-3xl font-display text-white leading-tight max-w-[280px] drop-shadow-lg">
-                                        Ready to discover your next watch?
-                                    </h2>
+                            <p className="mt-10 text-accent-gold font-black uppercase tracking-[0.3em] text-[10px] animate-pulse">
+                                Finding your next watch...
+                            </p>
+                        </motion.div>
+                    )}
+
+                    {/* ═══════ PHASE 1.5 — EXPANDING ═══════ */}
+                    {phase === "expanding" && movie && (
+                        <div className="relative w-full min-h-[520px] flex items-center justify-center overflow-hidden bg-[#0d0d0d]">
+                            <CloseButton />
+                            <motion.div
+                                className="absolute inset-0 overflow-hidden"
+                                initial={{ scale: 0.32, borderRadius: 24, opacity: 0.9 }}
+                                animate={{ scale: 1, borderRadius: 0, opacity: 1 }}
+                                transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+                                onAnimationComplete={handleExpandComplete}
+                            >
+                                {winnerPoster && (
+                                    <Image
+                                        src={winnerPoster}
+                                        alt={movie.movie.title}
+                                        fill
+                                        className="object-cover"
+                                        priority
+                                        unoptimized={winnerPoster.startsWith("http")}
+                                    />
+                                )}
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 0.8, delay: 0.4 }}
+                                    className="absolute inset-0 bg-gradient-to-t from-black from-10% via-black/70 via-40% to-black/15"
+                                />
+                            </motion.div>
+                        </div>
+                    )}
+
+                    {/* ═══════ PHASE 2 — REVEAL ═══════ */}
+                    {phase === "reveal" && movie && (
+                        <div className="relative w-full min-h-[520px] flex flex-col">
+                            <div className="absolute inset-0 z-0">
+                                {winnerPoster && (
+                                    <Image
+                                        src={winnerPoster}
+                                        alt={movie.movie.title}
+                                        fill
+                                        className="object-cover"
+                                        priority
+                                        unoptimized={winnerPoster.startsWith("http")}
+                                    />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black from-15% via-black/75 via-45% to-black/20 z-10" />
+                            </div>
+
+                            <CloseButton />
+
+                            <div className="relative z-20 mt-auto p-6 pb-8 flex flex-col items-center text-center gap-3">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.1 }}
+                                    className={`px-5 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-sm ${verdictStyle(movie.review?.verdict)}`}
+                                >
+                                    {movie.review?.verdict || "WORTH IT"}
+                                </motion.div>
+
+                                <motion.p
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.25 }}
+                                    className="text-[17px] font-serif italic text-accent-gold leading-snug max-w-[310px] drop-shadow-lg"
+                                >
+                                    &ldquo;{getHookText()}&rdquo;
+                                </motion.p>
+
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.4 }}
+                                    className="flex flex-col items-center"
+                                >
+                                    <h3 className="text-xl font-bold text-white leading-tight">
+                                        {movie.movie.title}
+                                    </h3>
+                                    <p className="text-white/50 text-xs mt-1 font-medium">
+                                        {movie.movie.release_date?.split("-")[0] || ""}
+                                        {movie.review?.imdb_score ? ` · IMDb ${movie.review.imdb_score}/10` : ""}
+                                    </p>
+                                </motion.div>
+
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.55 }}
+                                    className="flex gap-3 w-full mt-3"
+                                >
                                     <button
-                                        onClick={startSpin}
-                                        className="mt-4 px-10 py-4 rounded-full bg-accent-gold text-black font-bold text-xl hover:scale-105 active:scale-95 transition-transform shadow-xl shadow-accent-gold/20"
+                                        onClick={handleViewReview}
+                                        className="flex-1 py-3.5 bg-accent-gold text-black font-bold uppercase tracking-wider rounded-xl text-xs hover:brightness-110 active:scale-[0.98] transition-all"
                                     >
-                                        Pick for me
+                                        View Review
                                     </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* PHASE: SPINNING / RESULT */}
-                        {(phase === "spinning" || phase === "reveal") && (
-                            <div className="flex flex-col items-center w-full">
-                                {/* 🎰 The Window (Horizontal) */}
-                                <div className={`
-                                    relative w-full h-[280px] rounded-xl overflow-hidden shadow-2xl bg-black border-2 border-white/10 mb-8 shrink-0
-                                    ${phase === "spinning" ? "animate-pulse shadow-[0_0_30px_rgba(251,191,36,0.1)]" : "shadow-[0_0_50px_rgba(0,0,0,0.5)]"}
-                                `}>
-                                    <div className="h-full flex items-center">
-                                        <motion.div
-                                            key={spinCount}
-                                            className="flex gap-4 px-4"
-                                            animate={{ x: -(posterStrip.length - 1) * (POSTER_WIDTH + 16) }}
-                                            transition={{
-                                                duration: 5,
-                                                ease: [0.12, 0.8, 0.3, 1.0],
-                                            }}
-                                            onAnimationComplete={() => {
-                                                if (result) {
-                                                    setPhase("reveal");
-                                                }
-                                            }}
-                                        >
-                                            {posterStrip.map((src, i) => (
-                                                <div key={i} className="w-44 h-64 flex-shrink-0 relative rounded-xl overflow-hidden border border-white/10 shadow-lg">
-                                                    <Image
-                                                        src={src}
-                                                        alt="poster"
-                                                        fill
-                                                        className="object-cover"
-                                                        sizes="200px"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </motion.div>
-                                    </div>
-
-                                    {/* Vignette Overlay */}
-                                    <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.8)] z-10" />
-                                </div>
-
-                                {/* STATES */}
-                                {phase === "spinning" && (
-                                    <motion.p
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: [0.4, 1, 0.4] }}
-                                        transition={{ repeat: Infinity, duration: 1.5 }}
-                                        className="text-accent-gold font-bold tracking-[0.2em] uppercase text-sm"
+                                    <button
+                                        onClick={handleSpinAgain}
+                                        className="flex-1 py-3.5 bg-white/10 text-white font-bold uppercase tracking-wider rounded-xl text-xs hover:bg-white/20 active:scale-95 transition-all"
                                     >
-                                        Choosing your next watch...
-                                    </motion.p>
-                                )}
-
-                                {phase === "reveal" && result && (
-                                    <motion.div
-                                        initial="hidden"
-                                        animate="visible"
-                                        variants={{
-                                            visible: { transition: { staggerChildren: 0.1 } }
-                                        }}
-                                        className="w-full flex flex-col items-center gap-4"
-                                    >
-                                        {/* 1. Verdict Badge */}
-                                        <motion.div
-                                            variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
-                                            className={`
-                                                px-5 py-2 rounded-full text-[10px] font-black tracking-widest uppercase shadow-xl
-                                                ${result.review?.verdict === "WORTH IT" ? "bg-accent-green text-black" :
-                                                    result.review?.verdict === "MIXED BAG" ? "bg-accent-gold text-black" :
-                                                        "bg-red-500 text-white"}
-                                            `}
-                                        >
-                                            {result.review?.verdict === "WORTH IT" ? "✨ Worth It" :
-                                                result.review?.verdict === "MIXED BAG" ? "🤔 Mixed Bag" : "🏃‍♂️ Skip It"}
-                                        </motion.div>
-
-                                        {/* 2. Title + Year + Score */}
-                                        <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
-                                            <h2 className="text-3xl font-display text-white leading-tight">
-                                                {result.movie.title}
-                                            </h2>
-                                            <p className="text-white/50 text-base mt-2 font-medium">
-                                                {result.movie.release_date?.slice(0, 4)}
-                                                {result.review?.imdb_score && ` • IMDb ${result.review.imdb_score}/10`}
-                                            </p>
-                                        </motion.div>
-
-                                        {/* 3. Hook */}
-                                        {result.review?.hook && (
-                                            <motion.p
-                                                variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
-                                                className="text-white/90 italic font-serif text-xl leading-relaxed max-w-[90%]"
-                                            >
-                                                &ldquo;{result.review.hook}&rdquo;
-                                            </motion.p>
-                                        )}
-
-                                        {/* 4. Tags */}
-                                        {result.review?.tags && (
-                                            <motion.div
-                                                variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
-                                                className="flex flex-wrap justify-center gap-2 mt-2"
-                                            >
-                                                {result.review.tags.slice(0, 3).map(tag => (
-                                                    <span key={tag} className="text-[10px] uppercase font-bold tracking-widest text-white/50 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </motion.div>
-                                        )}
-
-                                        {/* 5. Buttons */}
-                                        <motion.div
-                                            variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
-                                            className="grid grid-cols-2 gap-4 w-full mt-6"
-                                        >
-                                            <button
-                                                onClick={handleViewReview}
-                                                className="px-6 py-4 rounded-xl bg-accent-gold text-black font-black uppercase tracking-wider hover:bg-white transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-accent-gold/20"
-                                            >
-                                                View Review
-                                            </button>
-                                            <button
-                                                onClick={handleSpinAgain}
-                                                className="px-6 py-4 rounded-xl border-2 border-white/10 text-white font-black uppercase tracking-wider hover:bg-white/5 transition-all flex items-center justify-center gap-3 group"
-                                            >
-                                                <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                </svg>
-                                                Spin Again
-                                            </button>
-                                        </motion.div>
-                                    </motion.div>
-                                )}
+                                        Spin Again
+                                    </button>
+                                </motion.div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
+
                 </motion.div>
             </motion.div>
         </AnimatePresence>

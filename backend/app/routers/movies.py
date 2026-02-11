@@ -148,7 +148,10 @@ async def get_random_movie_with_review(
     # AND is not the excluded ID
     # Must use joinedload to prevent MissingGreenlet on async access
     query = select(Movie).options(joinedload(Movie.review)).join(Review).where(
-        Review.verdict.is_not(None)
+        and_(
+            Review.verdict == "WORTH IT",
+            Movie.poster_path.is_not(None)
+        )
     )
     
     if exclude:
@@ -168,7 +171,10 @@ async def get_random_movie_with_review(
         # Fallback: If exclude filtered out the only movie, try without exclude
         if exclude:
             query = select(Movie).options(joinedload(Movie.review)).where(
-                Movie.review.has(Review.verdict.is_not(None))
+                and_(
+                    Movie.review.has(Review.verdict == "WORTH IT"),
+                    Movie.poster_path.is_not(None)
+                )
             ).order_by(func.random()).limit(1)
             result = await db.execute(query)
             movie = result.unique().scalar_one_or_none()

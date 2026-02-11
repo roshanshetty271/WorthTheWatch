@@ -43,13 +43,6 @@ export default function Navbar() {
         }
     };
 
-    // We need a few static posters for the blur effect
-    const BLUR_POSTERS = [
-        "https://image.tmdb.org/t/p/w500/1E5baAaEse26fej7uHcjOgEE2t2.jpg", // Fast X
-        "https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg", // Mario
-        "https://image.tmdb.org/t/p/w500/fiVW06jE7z9YnO4trhaMEdclSiC.jpg", // Fast X
-        "https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg", // Spider-Man
-    ];
 
     return (
         <>
@@ -154,7 +147,6 @@ export default function Navbar() {
             <CinemaRoulette
                 isOpen={rouletteOpen}
                 onClose={() => setRouletteOpen(false)}
-                blurPosters={BLUR_POSTERS}
             />
         </>
     );

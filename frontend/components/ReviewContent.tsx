@@ -45,36 +45,35 @@ export default function ReviewContent({ review }: ReviewContentProps) {
 
   return (
     <div className="animate-fade-in space-y-8">
-
-      {/* 1. THE HOOK (New) */}
-      {review.hook && (
-        <div className="text-center px-4">
-          <p className="text-xl md:text-2xl font-serif font-medium text-white/95 leading-relaxed drop-shadow-md">
-            {review.hook}
+      {/* 1. THE VIBE - Now at the Top, Golden, Serif, Large, with Quotes */}
+      {review.vibe && (
+        <div className="text-center px-4 pt-4">
+          <p className="text-2xl md:text-3xl font-serif italic font-medium text-accent-gold leading-relaxed drop-shadow-lg">
+            &ldquo;{review.vibe}&rdquo;
           </p>
         </div>
       )}
 
-      {/* 2. HEADER: VERDICT & VIBE */}
-      <div className="space-y-4 text-center">
-        <div className="flex justify-center items-center gap-3">
-          <VerdictBadge verdict={review.verdict} size="lg" />
+      {/* 2. VERDICT BADGE */}
+      <div className="flex justify-center items-center">
+        <VerdictBadge verdict={review.verdict} size="lg" />
+      </div>
 
-        </div>
-
-        {review.vibe && (
-          <h3 className="font-display text-lg italic text-accent-gold/80">
-            &ldquo;{review.vibe}&rdquo;
-          </h3>
+      {/* 3. THE HOOK - Now at the Bottom, White, Sans-serif, No Quotes */}
+      <div className="space-y-6 text-center">
+        {review.hook && (
+          <h4 className="font-display text-base md:text-lg text-white/90 tracking-wide max-w-xl mx-auto px-4">
+            {review.hook}
+          </h4>
         )}
 
         {/* Verdict DNA: Tags */}
         {review.tags && review.tags.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-2 pt-1 pb-4">
+          <div className="flex flex-wrap justify-center gap-2 pt-2 pb-4">
             {review.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
+                className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/50 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
               >
                 {tag.replace(/-/g, " ")}
               </span>
