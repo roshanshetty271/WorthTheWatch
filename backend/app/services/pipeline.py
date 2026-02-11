@@ -505,7 +505,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # But we have 128k context with GPT-4o-mini, so we should use ~18k chars easily.
     # No need to aggressively truncate to 5k.
     
-    MAX_LLM_CHARS = 18000
+    MAX_LLM_CHARS = 12000
     
     # 1. Prepare Reddit Text
     reddit_text = ""

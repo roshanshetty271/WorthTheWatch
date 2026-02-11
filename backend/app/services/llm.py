@@ -93,6 +93,7 @@ SOURCE ATTRIBUTION RULES:
 - When no specific publication is in the data, say "critics" or "reviewers" instead of naming a publication
 - For Reddit content, attribute to the subreddit: "r/horror users" or "Reddit's r/movies crowd"
 - NEVER fabricate quotes or attribute opinions to publications not present in the labeled sources
+- If another source QUOTES or REFERENCES a publication (e.g. an article says 'The Hindu called it...'), do NOT attribute to that publication directly. Instead say 'one reviewer noted...' or attribute to the source that actually provided the content.
 
 STRUCTURE (follow this exactly):
 1. HOOK (1 sentence): The most interesting or controversial thing about this movie's reception. Not a generic intro. This should make someone want to keep reading.
@@ -150,7 +151,7 @@ async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
             {"role": "user", "content": user_prompt},
         ],
         response_format={"type": "json_object"},
-        temperature=0.7,
+        temperature=0.4,
         max_tokens=800,
         timeout=60.0,  # Increased timeout for slow LLM responses
     )
