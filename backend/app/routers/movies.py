@@ -29,7 +29,6 @@ async def list_movies(
     media_type: Optional[str] = Query(None, pattern="^(movie|tv)$"),
     db: AsyncSession = Depends(get_db),
 ):
-    # ... (function body start)
     query = select(Movie).options(joinedload(Movie.review))
     count_query = select(func.count()).select_from(Movie)
     
@@ -39,12 +38,14 @@ async def list_movies(
             query = query.order_by(desc(Movie.tmdb_popularity))
             
         elif category == "latest":
-            # Join to only show movies with reviews, sorted by review date
             query = query.join(Review).order_by(desc(Review.generated_at))
             count_query = count_query.join(Review)
             
         elif category == "worth-it":
-            query = query.join(Review).where(Review.verdict == "WORTH IT").order_by(desc(Review.generated_at))
+            # FIX #2: Random order so it does not look like a duplicate of Latest
+            query = query.join(Review).where(
+                Review.verdict == "WORTH IT"
+            ).order_by(func.random())
             count_query = count_query.join(Review).where(Review.verdict == "WORTH IT")
             
         elif category == "skip-these":
@@ -56,19 +57,20 @@ async def list_movies(
             count_query = count_query.join(Review).where(Review.verdict == "MIXED BAG")
             
         elif category == "hidden-gems":
-            # WORTH IT + HIGH confidence + lower popularity
+            # FIX #3: Much stricter filter for truly underrated movies
+            # - WORTH IT verdict
+            # - LOW popularity (< 20 means not mainstream)
+            # - Random order so every visit shows different gems
             query = query.join(Review).where(
                 and_(
                     Review.verdict == "WORTH IT",
-                    Review.confidence == "HIGH",
-                    Movie.tmdb_popularity < 50
+                    Movie.tmdb_popularity < 20,
                 )
-            ).order_by(desc(Review.generated_at))
+            ).order_by(func.random())
             count_query = count_query.join(Review).where(
                 and_(
-                    Review.verdict == "WORTH IT", 
-                    Review.confidence == "HIGH",
-                    Movie.tmdb_popularity < 50
+                    Review.verdict == "WORTH IT",
+                    Movie.tmdb_popularity < 20,
                 )
             )
             
@@ -77,7 +79,6 @@ async def list_movies(
             count_query = count_query.where(Movie.media_type == "movie")
             
         elif category == "tv-shows":
-            # Filter out "NOT WORTH IT" (Skip)
             query = query.join(Review, isouter=True).where(
                 and_(
                     Movie.media_type == "tv",
@@ -100,7 +101,6 @@ async def list_movies(
             query = query.join(Review).where(Review.verdict == verdict)
             count_query = count_query.join(Review).where(Review.verdict == verdict)
 
-        # Sorting (default: latest)
         sort = sort or "latest"
         if sort == "latest":
             if not verdict:
@@ -141,46 +141,53 @@ async def get_random_movie_with_review(
     """
     Get a RANDOM movie that has a cached review.
     Used for the 'Cinema Roulette' feature.
-    Instant response (no external API calls).
+    
+    FIX #4: Prefers hidden gems (low popularity WORTH IT movies).
+    Falls back to any WORTH IT movie if no hidden gems available.
     """
-    print(f"DEBUG: Requesting random movie. Exclude={exclude}")
-    # Query: Get a random movie that has a verdict (reviewed)
-    # AND is not the excluded ID
-    # Must use joinedload to prevent MissingGreenlet on async access
+    # First try: hidden gems (low popularity, actually surprising)
     query = select(Movie).options(joinedload(Movie.review)).join(Review).where(
         and_(
             Review.verdict == "WORTH IT",
-            Movie.poster_path.is_not(None)
+            Movie.poster_path.is_not(None),
+            Movie.tmdb_popularity < 20,
         )
     )
     
     if exclude:
         query = query.where(Movie.tmdb_id != exclude)
         
-    # Order by random
     query = query.order_by(func.random()).limit(1)
-    
-    # print(f"DEBUG: Query compiled: {query}")
-    
     result = await db.execute(query)
     movie = result.unique().scalar_one_or_none()
     
-    print(f"DEBUG: Query result: {movie}")
-    
+    # Second try: any WORTH IT movie (if no hidden gems found)
     if not movie:
-        # Fallback: If exclude filtered out the only movie, try without exclude
+        query = select(Movie).options(joinedload(Movie.review)).join(Review).where(
+            and_(
+                Review.verdict == "WORTH IT",
+                Movie.poster_path.is_not(None),
+            )
+        )
         if exclude:
-            query = select(Movie).options(joinedload(Movie.review)).where(
-                and_(
-                    Movie.review.has(Review.verdict == "WORTH IT"),
-                    Movie.poster_path.is_not(None)
-                )
-            ).order_by(func.random()).limit(1)
-            result = await db.execute(query)
-            movie = result.unique().scalar_one_or_none()
+            query = query.where(Movie.tmdb_id != exclude)
+        query = query.order_by(func.random()).limit(1)
+        result = await db.execute(query)
+        movie = result.unique().scalar_one_or_none()
+    
+    # Third try: without exclude (last resort)
+    if not movie and exclude:
+        query = select(Movie).options(joinedload(Movie.review)).join(Review).where(
+            and_(
+                Review.verdict == "WORTH IT",
+                Movie.poster_path.is_not(None),
+            )
+        ).order_by(func.random()).limit(1)
+        result = await db.execute(query)
+        movie = result.unique().scalar_one_or_none()
             
-        if not movie:
-            raise HTTPException(status_code=404, detail="No reviewed movies found in cache")
+    if not movie:
+        raise HTTPException(status_code=404, detail="No reviewed movies found in cache")
 
     return _format_movie_with_review(movie)
 
@@ -193,7 +200,6 @@ async def get_movie(
 ):
     """Get a single movie with its review. Falls back to TMDB if not in our DB."""
     
-    # Try our DB first
     query = select(Movie).options(joinedload(Movie.review)).where(Movie.tmdb_id == tmdb_id)
     if media_type:
         query = query.where(Movie.media_type == media_type)
@@ -204,7 +210,6 @@ async def get_movie(
     if movie:
         return _format_movie_with_review(movie)
     
-    # Not in our DB — fetch from TMDB directly
     try:
         tmdb_data = None
         detected_type = media_type or "movie"
@@ -214,23 +219,20 @@ async def get_movie(
         elif media_type == "tv":
              tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
         else:
-            # Fallback: Try movie first, then TV
             tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
             if not tmdb_data or not tmdb_data.get("id"):
                 tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
                 detected_type = "tv"
         
         if tmdb_data and tmdb_data.get("id"):
-            # Security Check: Enforce safety filter even for direct ID lookups
             if not is_safe_content(tmdb_data):
                 raise HTTPException(status_code=404, detail="Movie not found (blocked)")
 
             tmdb_data["media_type"] = detected_type
             normalized = tmdb_service.normalize_result(tmdb_data)
             
-            # Build movie response from TMDB data
             movie_resp = MovieResponse(
-                id=0,  # not in our DB yet
+                id=0,
                 tmdb_id=normalized.get("tmdb_id", tmdb_id),
                 title=normalized.get("title", "Unknown"),
                 media_type=normalized.get("media_type", media_type),
@@ -257,30 +259,14 @@ async def get_streaming_availability(
     region: str = Query("US", max_length=2),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get streaming availability for a movie/show.
-    Uses TMDB's free watch providers API (JustWatch data).
-    
-    Returns:
-        {
-            "available": true,
-            "flatrate": [{"name": "Netflix", "logo_url": "..."}],
-            "rent": [{"name": "Apple TV", "logo_url": "...", "price": null}],
-            "buy": [...],
-            "free": [...],
-            "justwatch_link": "https://..."
-        }
-    """
-    # Get movie to determine media type
+    """Get streaming availability for a movie/show."""
     result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
     movie = result.scalar_one_or_none()
     
     media_type = movie.media_type if movie else "movie"
     
-    # Fetch from TMDB (free!)
     providers = await tmdb_service.get_watch_providers(tmdb_id, media_type, region)
     
-    # Format response
     def format_provider(p: dict) -> dict:
         logo_path = p.get("logo_path", "")
         return {
@@ -329,6 +315,3 @@ def _format_movie_with_review(movie: Movie) -> MovieWithReview:
         review_resp = ReviewResponse.model_validate(movie.review)
 
     return MovieWithReview(movie=movie_resp, review=review_resp)
-
-
-

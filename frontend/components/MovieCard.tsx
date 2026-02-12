@@ -3,12 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { MovieWithReview } from "@/lib/api";
+import BookmarkButton from "./BookmarkButton";
 
 interface MovieCardProps {
   data: MovieWithReview;
 }
 
-// Verdict Styles - keeping consistency visuals but making them pop more
 const VERDICT_STYLES: Record<string, {
   borderColor: string;
   glowColor: string;
@@ -47,7 +47,6 @@ export default function MovieCard({ data }: MovieCardProps) {
   const { movie, review } = data;
   const year = movie.release_date ? new Date(movie.release_date).getFullYear() : "";
 
-  // Default style if no review yet
   const verdictStyle = review
     ? VERDICT_STYLES[review.verdict] || VERDICT_STYLES["MIXED BAG"]
     : {
@@ -59,21 +58,22 @@ export default function MovieCard({ data }: MovieCardProps) {
       titleShadow: ""
     };
 
+  // Get the best rating to show
+  const rating = review?.imdb_score
+    ? { value: review.imdb_score.toString(), label: "IMDb" }
+    : (movie.tmdb_vote_average && movie.tmdb_vote_average > 0)
+      ? { value: movie.tmdb_vote_average.toFixed(1), label: "TMDB" }
+      : null;
+
   return (
     <Link href={`/movie/${movie.tmdb_id}`}>
-      {/* 
-        Card Container 
-        - 3D Hover Lift
-        - Glow effect based on verdict
-        - Full rounded corners
-      */}
       <div className={`
         group relative aspect-[2/3] w-full overflow-hidden rounded-2xl 
         bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl
         hover:-translate-y-2
       `}>
 
-        {/* Poster Image - Full Bleed */}
+        {/* Poster Image */}
         <div className="absolute inset-0 z-0">
           {movie.poster_url ? (
             <Image
@@ -91,19 +91,13 @@ export default function MovieCard({ data }: MovieCardProps) {
           )}
         </div>
 
-        {/* 
-          Overlays 
-          - Gradient for readability (Stronger at bottom for white posters)
-          - Colored tint based on verdict (very subtle)
-        */}
+        {/* Overlays */}
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
         <div className={`absolute inset-0 z-10 bg-gradient-to-b ${verdictStyle.gradient} opacity-0 transition-opacity duration-500 group-hover:opacity-100 mix-blend-overlay`} />
 
-        {/* 
-          Top Glass Bar 
-          - Floating Rating Badge
-        */}
-        <div className="absolute left-0 top-0 z-20 flex w-full justify-between p-3">
+        {/* Top Row: Verdict (left) + Bookmark (right) */}
+        <div className="absolute left-0 top-0 z-20 flex w-full justify-between items-start p-3">
+          {/* Verdict Badge */}
           {verdictStyle && review ? (
             <span className={`
               inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1 
@@ -115,36 +109,28 @@ export default function MovieCard({ data }: MovieCardProps) {
               </span>
             </span>
           ) : (
-            <span className="opacity-0" /> // Spacer
+            <span className="opacity-0" />
           )}
 
-          {/* Rating Badge - TMDB Only */}
-          {/* Rating Badge - IMDb Preferred > TMDB */}
-          {(review?.imdb_score ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/60 px-2 py-1 text-[10px] font-bold text-yellow-400 backdrop-blur-md shadow-sm">
-              <span className="text-[10px]">⭐</span>
-              <span>{review.imdb_score}</span>
-            </span>
-          ) : (movie.tmdb_vote_average && movie.tmdb_vote_average > 0) ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-medium text-accent-gold backdrop-blur-md" title="TMDB Rating">
-              <span className="text-[10px]">⭐</span>
-              <span>{movie.tmdb_vote_average.toFixed(1)}</span>
-            </span>
-          ) : null)}
+          {/* Bookmark — always visible */}
+          <BookmarkButton
+            tmdb_id={movie.tmdb_id}
+            title={movie.title}
+            poster_path={movie.poster_path || null}
+            verdict={review?.verdict || null}
+            variant="card"
+            className="!relative !top-auto !right-auto"
+          />
         </div>
 
-        {/* 
-          Bottom Glass Content
-          - Title with Dynamic Shadow
-          - Metadata
-        */}
+        {/* Bottom Content */}
         <div className="absolute bottom-0 left-0 right-0 z-20 p-3 sm:p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
           {/* Title */}
           <h3 className={`font-display text-base sm:text-lg font-bold leading-tight text-white transition-all duration-300 group-hover:text-white ${verdictStyle.titleShadow}`}>
             {movie.title}
           </h3>
 
-          {/* Metadata Line */}
+          {/* Metadata Line: Year · Type · Rating */}
           <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/70">
             {year && <span>{year}</span>}
             {movie.media_type && (
@@ -153,9 +139,16 @@ export default function MovieCard({ data }: MovieCardProps) {
                 <span className="capitalize">{movie.media_type}</span>
               </>
             )}
+            {rating && (
+              <>
+                <span className="h-1 w-1 rounded-full bg-white/30" />
+                <span className="flex items-center gap-1 text-yellow-400">
+                  <span className="text-[10px]">⭐</span>
+                  <span className="font-bold">{rating.value}</span>
+                </span>
+              </>
+            )}
           </div>
-
-
         </div>
 
       </div>

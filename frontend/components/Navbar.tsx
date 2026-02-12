@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import CinemaRoulette from "./CinemaRoulette";
+import { useWatchlist } from "@/lib/useWatchlist";
 
 const BROWSE_CATEGORIES = [
     { id: "trending", label: "Trending" },
@@ -19,6 +20,7 @@ export default function Navbar() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
+    const { count } = useWatchlist();
 
     useEffect(() => {
         const handleScroll = () => {
@@ -42,7 +44,6 @@ export default function Navbar() {
             router.push("/");
         }
     };
-
 
     return (
         <>
@@ -73,24 +74,53 @@ export default function Navbar() {
                             </Link>
                         ))}
 
-                        {/* 🎰 THE ROULETTE TRIGGER */}
+                        {/* My List */}
+                        <Link
+                            href="/my-list"
+                            className="text-sm font-medium text-white/70 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4 relative"
+                        >
+                            My List
+                            {count > 0 && (
+                                <span className="absolute -top-2 -right-4 bg-accent-gold text-black text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                                    {count > 9 ? "9+" : count}
+                                </span>
+                            )}
+                        </Link>
+
+                        {/* Roulette Trigger */}
                         <button
                             onClick={() => setRouletteOpen(true)}
                             className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest ml-4 flex items-center gap-2 cursor-pointer group"
                         >
-                            <span className="group-hover:animate-pulse">Can't decide?</span>
+                            <span className="group-hover:animate-pulse">Can&apos;t decide?</span>
                         </button>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-4 relative z-50">
-                        {/* Mobile Roulette Trigger (Visible on Mobile) */}
+                        {/* Mobile Roulette Trigger */}
                         <button
                             onClick={() => setRouletteOpen(true)}
                             className="md:hidden text-xs font-bold text-accent-gold uppercase tracking-wide mr-2"
                         >
-                            Can't decide?
+                            Can&apos;t decide?
                         </button>
+
+                        {/* My List icon (mobile) */}
+                        <Link
+                            href="/my-list"
+                            className="md:hidden p-2 text-white/80 hover:text-accent-gold transition-colors relative"
+                            aria-label="My List"
+                        >
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                            {count > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 bg-accent-gold text-black text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                                    {count > 9 ? "9+" : count}
+                                </span>
+                            )}
+                        </Link>
 
                         <button
                             onClick={handleSearchClick}
@@ -139,11 +169,17 @@ export default function Navbar() {
                                 {cat.label}
                             </Link>
                         ))}
+                        <Link
+                            href="/my-list"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        >
+                            My List{count > 0 ? ` (${count})` : ""}
+                        </Link>
                     </div>
                 </div>
             </nav>
 
-            {/* 🎰 The Cinema Roulette Modal */}
             <CinemaRoulette
                 isOpen={rouletteOpen}
                 onClose={() => setRouletteOpen(false)}

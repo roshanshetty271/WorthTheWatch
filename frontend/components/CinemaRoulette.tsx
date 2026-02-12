@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
+import BookmarkButton from "./BookmarkButton";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
@@ -466,6 +467,14 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                     >
                                         View Review
                                     </button>
+                                    <BookmarkButton
+                                        tmdb_id={movie.movie.tmdb_id}
+                                        title={movie.movie.title}
+                                        poster_path={movie.movie.poster_path || null}
+                                        verdict={movie.review?.verdict || null}
+                                        variant="page"
+                                        className="!py-3.5 !rounded-xl !text-xs !tracking-wider !uppercase !font-bold"
+                                    />
                                     <button
                                         onClick={handleSpinAgain}
                                         className="flex-1 py-3.5 bg-white/10 text-white font-bold uppercase tracking-wider rounded-xl text-xs hover:bg-white/20 active:scale-95 transition-all"
