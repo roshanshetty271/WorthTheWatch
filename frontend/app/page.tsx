@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import SearchBar from "@/components/SearchBar";
 import MovieCard from "@/components/MovieCard";
+import MoodSection from "@/components/MoodSection";
 import VerdictBadge from "@/components/VerdictBadge";
 import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
@@ -122,7 +123,7 @@ export default async function HomePage() {
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative flex min-h-[100dvh] flex-col items-center justify-center">
-        {/* Background Image - Wrapped in overflow-hidden for zoom effect */}
+        {/* Background Image */}
         {featured ? (
           <div className="absolute inset-0 z-0 overflow-hidden">
             <Image
@@ -139,7 +140,7 @@ export default async function HomePage() {
           <div className="absolute inset-0 z-0 bg-gradient-to-b from-black via-surface to-surface" />
         )}
 
-        {/* Center Content: Title & Search (Lifted slightly for space) */}
+        {/* Center Content */}
         <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-32 mb-32 sm:mb-40">
           <h1 className="mb-4 font-bold text-3xl text-white sm:text-5xl md:text-6xl tracking-tight drop-shadow-xl">
             Stop scrolling. <br className="hidden sm:block" />
@@ -174,7 +175,7 @@ export default async function HomePage() {
                 </Link>
                 {featured.review?.vibe && (
                   <p className="mt-1 max-w-lg text-sm italic text-white/80 drop-shadow-md">
-                    "{featured.review.vibe}"
+                    &ldquo;{featured.review.vibe}&rdquo;
                   </p>
                 )}
                 <Link
@@ -193,11 +194,15 @@ export default async function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          NETFLIX-STYLE SECTIONS — Horizontal Scroll
+          ALL SECTIONS — Inside one single container for consistent alignment
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24">
         {hasAnySections ? (
           <div className="space-y-2">
+            {/* Mood Section — FIRST, same container as everything else */}
+            <MoodSection />
+
+            {/* Movie Sections */}
             {sectionsWithData.map((section) => (
               <HorizontalSection
                 key={section.id}

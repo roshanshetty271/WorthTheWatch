@@ -98,7 +98,8 @@ ALLOWED_TAGS = {
     "Fast-Paced", "Slow-Burn", "Action-Packed", "Cerebral",
     "Feel-Good", "Dark", "Gritty", "Whimsical", "Funny",
     "Gory", "Violent", "Sexy", "Family-Friendly",
-    "Mind-Bending", "Dialogue-Heavy", "Visual-Masterpiece"
+    "Mind-Bending", "Dialogue-Heavy", "Visual-Masterpiece",
+    "Emotional", "Heartbreaking",
 }
 
 class LLMReviewOutput(BaseModel):
