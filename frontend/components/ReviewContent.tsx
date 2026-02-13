@@ -172,14 +172,25 @@ export default function ReviewContent({ review }: ReviewContentProps) {
 
       {/* Main Review Text */}
       <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-lg leading-relaxed text-text-secondary/90">
-        {paragraphs.map((para, i) => (
-          <p
-            key={i}
-            className={i === 0 ? "first-letter:float-left first-letter:text-6xl first-letter:font-display first-letter:font-bold first-letter:text-accent-gold first-letter:mr-3 first-letter:mt-2 first-letter:leading-none" : ""}
-          >
-            {para}
-          </p>
-        ))}
+        {paragraphs.map((para, i) => {
+          if (i === 0 && para.length > 0) {
+            const firstLetter = para.charAt(0);
+            const restOfText = para.slice(1);
+            return (
+              <p key={i} className="relative pl-14 sm:pl-16">
+                <span className="absolute left-0 top-0.5 text-6xl font-display font-bold text-accent-gold leading-none select-none">
+                  {firstLetter}
+                </span>
+                {restOfText}
+              </p>
+            );
+          }
+          return (
+            <p key={i} className="pl-14 sm:pl-16">
+              {para}
+            </p>
+          );
+        })}
       </div>
 
       {/* Praise & Criticism Grid */}
