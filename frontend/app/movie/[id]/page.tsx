@@ -11,8 +11,8 @@ import type { Metadata } from "next";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface Props {
-  params: { id: string };
-  searchParams?: { type?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ type?: string }>;
 }
 
 async function getMovie(tmdbId: string, mediaType?: string): Promise<MovieWithReview | null> {
@@ -67,8 +67,10 @@ function generateJsonLd(movie: MovieWithReview) {
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
-  const mediaType = searchParams?.type;
-  const data = await getMovie(params.id, mediaType);
+  const { id } = await params;
+  const sParams = await searchParams;
+  const mediaType = sParams?.type;
+  const data = await getMovie(id, mediaType);
   if (!data) return { title: "Not Found | Worth the Watch?" };
 
   const verdict = data.review?.verdict || "";
@@ -86,8 +88,10 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 import MoviePageContent from "@/components/MoviePageContent";
 
 export default async function MoviePage({ params, searchParams }: Props) {
-  const mediaType = searchParams?.type;
-  const data = await getMovie(params.id, mediaType);
+  const { id } = await params;
+  const sParams = await searchParams;
+  const mediaType = sParams?.type;
+  const data = await getMovie(id, mediaType);
   if (!data) notFound();
 
   // Generate JSON-LD for SEO
