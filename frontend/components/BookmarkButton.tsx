@@ -20,13 +20,20 @@ export default function BookmarkButton({
     variant = "card",
     className = "",
 }: BookmarkButtonProps) {
-    const { isSaved, toggle } = useWatchlist();
+    const { isSaved, toggle, mounted: watchlistMounted } = useWatchlist();
     const [saved, setSaved] = useState(false);
     const [pop, setPop] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        setSaved(isSaved(tmdb_id));
-    }, [isSaved, tmdb_id]);
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (mounted && watchlistMounted) {
+            setSaved(isSaved(tmdb_id));
+        }
+    }, [isSaved, tmdb_id, mounted, watchlistMounted]);
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();

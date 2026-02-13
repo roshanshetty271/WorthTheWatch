@@ -34,14 +34,17 @@ function writeStorage(items: WatchlistItem[]) {
 
 export function useWatchlist() {
     const [items, setItems] = useState<WatchlistItem[]>([]);
+    const [mounted, setMounted] = useState(false);
 
     // Load on mount
     useEffect(() => {
+        setMounted(true);
         setItems(readStorage());
     }, []);
 
     // Listen for sync events from OTHER hook instances
     useEffect(() => {
+        if (!mounted) return;
         const handler = () => setItems(readStorage());
         window.addEventListener(SYNC_EVENT, handler);
         // Also listen for storage events (other tabs)
@@ -50,10 +53,11 @@ export function useWatchlist() {
             window.removeEventListener(SYNC_EVENT, handler);
             window.removeEventListener("storage", handler);
         };
-    }, []);
+    }, [mounted]);
 
     const add = useCallback(
         (movie: { tmdb_id: number; title: string; poster_path: string | null; verdict: string | null }) => {
+            if (typeof window === "undefined") return;
             const current = readStorage();
             if (current.some((item) => item.tmdb_id === movie.tmdb_id)) return;
             const newItems = [{ ...movie, added_at: Date.now() }, ...current];
@@ -64,6 +68,7 @@ export function useWatchlist() {
     );
 
     const remove = useCallback((tmdb_id: number) => {
+        if (typeof window === "undefined") return;
         const current = readStorage();
         const newItems = current.filter((item) => item.tmdb_id !== tmdb_id);
         writeStorage(newItems);
@@ -89,16 +94,27 @@ export function useWatchlist() {
     );
 
     const clear = useCallback(() => {
+        if (typeof window === "undefined") return;
         writeStorage([]);
         setItems([]);
     }, []);
 
     const getShareUrl = useCallback(() => {
-        if (items.length === 0) return null;
+        if (!mounted || items.length === 0) return null;
         const ids = items.map((i) => i.tmdb_id).join(",");
         const base = typeof window !== "undefined" ? window.location.origin : "";
         return `${base}/list?ids=${ids}`;
-    }, [items]);
+    }, [items, mounted]);
 
-    return { items, count: items.length, add, remove, isSaved, toggle, clear, getShareUrl };
+    return {
+        items: mounted ? items : [],
+        count: mounted ? items.length : 0,
+        mounted,
+        add,
+        remove,
+        isSaved,
+        toggle,
+        clear,
+        getShareUrl
+    };
 }

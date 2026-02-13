@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-# ─── State Definition ─────────────────────────────────────────
+# ─── State Definition ─────────────────────────────────────
 
 class AgentState(TypedDict):
     """State passed between nodes in the review generation graph."""
@@ -52,27 +52,35 @@ class AgentState(TypedDict):
     omdb_scores: Optional[dict]
     trailer_url: Optional[str]
     
+    # Confidence
+    articles_read: int
+    reddit_sources: int
+    confidence_tier: str
+    
     # Final output
     review: Optional[Review]
     error: Optional[str]
 
 
-# ─── Node Functions ───────────────────────────────────────────
+# ─── Node Functions ───────────────────────────────────────
 
 async def search_sources(state: AgentState) -> dict:
     """Search for reviews using Serper + Guardian + NYT."""
     title = state["title"]
     year = state["year"]
+    movie = state["movie"]
+    media_type = movie.media_type or "movie"
     
     logger.info(f"🔍 Agent: Searching for reviews of '{title}'")
     
     results = []
     
-    # Serper search (critic + Reddit)
+    # Serper search (critic + Reddit + forums)
     try:
-        critic_results = await serper_service.search_reviews(title, year)
-        reddit_results = await serper_service.search_reddit(title, year)
-        results.extend(critic_results + reddit_results)
+        critic_results = await serper_service.search_reviews(title, year, media_type)
+        reddit_results = await serper_service.search_reddit(title, year, media_type)
+        forum_results = await serper_service.search_forums(title, year, media_type)
+        results.extend(critic_results + reddit_results + forum_results)
     except Exception as e:
         logger.warning(f"Serper search failed: {e}")
     
@@ -107,17 +115,20 @@ async def search_sources(state: AgentState) -> dict:
 
 
 async def read_articles(state: AgentState) -> dict:
-    """Read article content using Jina Reader."""
+    """Read article content using ArticleReader (selectolax or Jina)."""
     results = state["search_results"]
     title = state["title"]
     
     if not results:
-        return {"articles": [], "error": "No search results found"}
+        return {"articles": [], "articles_read": 0, "error": "No search results found"}
     
-    selected_urls = select_best_sources(results, max_total=12)
+    selected_urls, _backfill = select_best_sources(results, movie_title=title, max_total=12)
     logger.info(f"📖 Agent: Reading {len(selected_urls)} articles for '{title}'")
     
-    articles = await jina_service.read_urls(selected_urls, max_concurrent=10)
+    articles, failed = await jina_service.read_urls(selected_urls, max_concurrent=5)
+    
+    # Count Reddit sources for confidence
+    reddit_count = sum(1 for url in selected_urls if "reddit.com" in url.lower())
     
     # Fallback to snippets if reading failed
     if not articles:
@@ -126,26 +137,99 @@ async def read_articles(state: AgentState) -> dict:
         )
         articles = [snippets]
     
-    return {"articles": articles}
+    return {
+        "articles": articles,
+        "articles_read": len(articles),
+        "reddit_sources": reddit_count,
+    }
 
 
 async def filter_opinions(state: AgentState) -> dict:
-    """Filter opinion paragraphs using grep-like keyword matching."""
+    """Filter opinion paragraphs using grep-like keyword matching with source labels."""
     articles = state["articles"]
     title = state["title"]
     
     logger.info(f"🔎 Agent: Filtering opinions from {len(articles)} articles for '{title}'")
     
-    filtered = extract_opinion_paragraphs(articles)
+    # Per-article labeled extraction (same as pipeline)
+    from urllib.parse import urlparse
     
-    # Fallback if filtering removed too much
-    if not filtered or len(filtered) < 50:
-        results = state["search_results"]
-        filtered = "\n\n".join(
-            f"{r['title']}: {r['snippet']}" for r in results[:15]
-        )
+    labeled_sections = []
+    search_results = state.get("search_results", [])
     
-    return {"filtered_opinions": filtered}
+    # Try to match articles to URLs for labeling
+    for i, article_text in enumerate(articles):
+        best_paras = extract_opinion_paragraphs([article_text], max_paragraphs=5)
+        if best_paras:
+            # Try to get source domain
+            domain = "Source"
+            if i < len(search_results) and search_results[i].get("link"):
+                try:
+                    domain = urlparse(search_results[i]["link"]).netloc.replace('www.', '')
+                except:
+                    pass
+            labeled_sections.append(f"[Source: {domain}]\n{best_paras}")
+    
+    filtered = "\n\n".join(labeled_sections)
+    
+    # Also capture Reddit snippets (bypass grep)
+    reddit_snippets = []
+    for r in search_results:
+        link = r.get("link", "").lower()
+        if "reddit.com" in link:
+            snippet = r.get("snippet", "")
+            if snippet and len(snippet) > 40:
+                source_label = "Reddit"
+                if "/r/" in link:
+                    try:
+                        sub = link.split("/r/")[1].split("/")[0]
+                        source_label = f"r/{sub}"
+                    except:
+                        pass
+                reddit_snippets.append(f"[Source: {source_label}]\n{snippet}")
+    
+    # Assemble: Reddit FIRST, then critics
+    if reddit_snippets:
+        reddit_text = "\n\n".join(reddit_snippets)
+        final = f"AUDIENCE REACTIONS (from Reddit/Forums):\n{reddit_text}\n\nCRITICAL CONTEXT (Professional Reviews):\n{filtered}"
+    else:
+        final = f"CRITICAL CONTEXT (Professional Reviews):\n{filtered}"
+    
+    # Truncate to LLM limit
+    MAX_CHARS = 15000
+    if len(final) > MAX_CHARS:
+        final = final[:MAX_CHARS]
+        last_period = final.rfind('.')
+        if last_period > 0:
+            final = final[:last_period + 1]
+    
+    # Determine confidence tier
+    articles_read = state.get("articles_read", len(articles))
+    reddit_sources = state.get("reddit_sources", 0)
+    
+    score = 0
+    if articles_read >= 8: score += 25
+    elif articles_read >= 5: score += 15
+    elif articles_read >= 3: score += 8
+    
+    if reddit_sources >= 3: score += 30
+    elif reddit_sources >= 1: score += 15
+    
+    if len(final) >= 15000: score += 25
+    elif len(final) >= 8000: score += 15
+    elif len(final) >= 3000: score += 8
+    
+    # Age bonus (simplified)
+    score += 10  # Default
+    
+    if score >= 70: tier = "HIGH"
+    elif score >= 40: tier = "MEDIUM"
+    else: tier = "LOW"
+    
+    return {
+        "filtered_opinions": final,
+        "confidence_tier": tier,
+    }
 
 
 def assess_quality(state: AgentState) -> Literal["sufficient", "broaden"]:
@@ -162,7 +246,6 @@ def assess_quality(state: AgentState) -> Literal["sufficient", "broaden"]:
     if len(filtered) > 500 and len(articles) >= 3:
         return "sufficient"
     
-    # Need more data
     return "broaden"
 
 
@@ -173,11 +256,9 @@ async def broaden_search(state: AgentState) -> dict:
     
     logger.info(f"🔄 Agent: Broadening search for '{title}' (attempt {state.get('search_attempts', 1) + 1})")
     
-    # Try alternative search queries
     additional_results = []
     
     try:
-        # Search without year for older titles
         results = await serper_service.search(f'"{title}" review worth watching', num_results=10)
         additional_results.extend(results)
     except Exception as e:
@@ -199,11 +280,19 @@ async def broaden_search(state: AgentState) -> dict:
 
 
 async def synthesize(state: AgentState) -> dict:
-    """Generate review using LLM."""
+    """Generate review using LLM with all required parameters."""
     movie = state["movie"]
     title = state["title"]
     
     logger.info(f"🧠 Agent: Generating review for '{title}'")
+    
+    # Get scores for LLM context
+    imdb_score = None
+    imdb_votes = None
+    omdb = state.get("omdb_scores")
+    if omdb and isinstance(omdb, dict):
+        imdb_score = omdb.get("imdb_score")
+        imdb_votes = omdb.get("imdb_votes")
     
     try:
         llm_output = await synthesize_review(
@@ -211,9 +300,15 @@ async def synthesize(state: AgentState) -> dict:
             year=state["year"],
             genres=state["genres"],
             overview=movie.overview or "",
-            opinions=state["filtered_opinions"][:18000],
-            sources_count=len(state.get("articles", [])),
+            opinions=state["filtered_opinions"],
+            sources_count=state.get("articles_read", 0),
             tmdb_score=movie.tmdb_vote_average or 0.0,
+            tmdb_vote_count=movie.tmdb_vote_count or 0,
+            imdb_score=imdb_score,
+            imdb_votes=imdb_votes,
+            confidence_tier=state.get("confidence_tier", "MEDIUM"),
+            articles_read=state.get("articles_read", 0),
+            reddit_sources=state.get("reddit_sources", 0),
         )
         return {"llm_output": llm_output}
     except Exception as e:
@@ -240,7 +335,7 @@ async def enrich_data(state: AgentState) -> dict:
     except Exception as e:
         logger.warning(f"OMDB fetch failed: {e}")
     
-    # KinoCheck
+    # KinoCheck → TMDB fallback
     try:
         trailer_id = await kinocheck_service.get_trailer_by_tmdb_id(movie.tmdb_id, movie.media_type or "movie")
         if trailer_id:
@@ -248,13 +343,28 @@ async def enrich_data(state: AgentState) -> dict:
     except Exception as e:
         logger.warning(f"KinoCheck fetch failed: {e}")
     
+    # TMDB fallback for trailer
+    if not trailer_url:
+        try:
+            from app.services.tmdb import tmdb_service
+            videos = await tmdb_service.get_videos(movie.tmdb_id, movie.media_type or "movie")
+            if videos:
+                for v in videos:
+                    if v.get("site") == "YouTube" and v.get("type") == "Trailer":
+                        trailer_url = youtube_embed_url(v["key"])
+                        break
+                if not trailer_url and videos:
+                    trailer_url = youtube_embed_url(videos[0]["key"])
+        except Exception:
+            pass
+    
     return {
         "omdb_scores": omdb_scores,
         "trailer_url": trailer_url,
     }
 
 
-# ─── Graph Builder ────────────────────────────────────────────
+# ─── Graph Builder ────────────────────────────────────────
 
 def build_review_agent() -> StateGraph:
     """Build the review generation agent graph."""
@@ -295,7 +405,7 @@ def build_review_agent() -> StateGraph:
 review_agent = build_review_agent()
 
 
-# ─── Public Interface ─────────────────────────────────────────
+# ─── Public Interface ─────────────────────────────────────
 
 async def run_agent_pipeline(movie: Movie) -> dict:
     """
@@ -324,6 +434,9 @@ async def run_agent_pipeline(movie: Movie) -> dict:
         "llm_output": None,
         "omdb_scores": None,
         "trailer_url": None,
+        "articles_read": 0,
+        "reddit_sources": 0,
+        "confidence_tier": "MEDIUM",
         "review": None,
         "error": None,
     }

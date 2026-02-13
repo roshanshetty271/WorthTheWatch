@@ -281,6 +281,8 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         logger.info(f"🔤 Normalized for search: '{title}' → '{search_title}'")
         
     # ─── LangGraph Agent Route ────────────────────────────────
+    # Uses adaptive search with conditional broadening.
+    # Slower and more expensive than pipeline, but better for obscure titles.
     if settings.USE_LANGGRAPH:
         logger.info(f"🤖 Using LangGraph agent for '{title}'")
         job_progress[tmdb_id] = "Running LangGraph agent..."
@@ -295,35 +297,69 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             elif result.get("llm_output"):
                 llm_output = result["llm_output"]
                 
-                # Create review from agent output
-                review = Review(
-                    movie_id=movie.id,
-                    verdict=llm_output.verdict,
-                    overall=llm_output.overall,
-                    positives=llm_output.positives,
-                    negatives=llm_output.negatives,
-                    audience_reactions=llm_output.audience_reactions,
-                    recommendation=llm_output.recommendation,
-                    sources=result.get("search_results", [])[:5],
-                    llm_model=llm_model,
-                    created_at=datetime.utcnow(),
-                    trailer_url=result.get("trailer_url"),
-                    positive_pct=llm_output.positive_pct,
-                    negative_pct=llm_output.negative_pct,
-                    mixed_pct=llm_output.mixed_pct,
-                )
+                # Check for existing review to update
+                existing_result = await db.execute(select(Review).where(Review.movie_id == movie.id))
+                existing_review = existing_result.scalar_one_or_none()
+                
+                if existing_review:
+                    existing_review.verdict = llm_output.verdict
+                    existing_review.review_text = llm_output.review_text
+                    existing_review.praise_points = llm_output.praise_points
+                    existing_review.criticism_points = llm_output.criticism_points
+                    existing_review.vibe = llm_output.vibe
+                    existing_review.confidence = llm_output.confidence
+                    existing_review.tags = llm_output.tags
+                    existing_review.best_quote = llm_output.best_quote
+                    existing_review.quote_source = llm_output.quote_source
+                    existing_review.hook = llm_output.hook
+                    existing_review.critic_sentiment = llm_output.critic_sentiment
+                    existing_review.reddit_sentiment = llm_output.reddit_sentiment
+                    existing_review.positive_pct = llm_output.positive_pct
+                    existing_review.negative_pct = llm_output.negative_pct
+                    existing_review.mixed_pct = llm_output.mixed_pct
+                    existing_review.sources_count = len(result.get("search_results", []))
+                    existing_review.sources_urls = [r.get("link", "") for r in result.get("search_results", [])[:10]]
+                    existing_review.llm_model = llm_model
+                    existing_review.generated_at = datetime.utcnow()
+                    review = existing_review
+                else:
+                    review = Review(
+                        movie_id=movie.id,
+                        verdict=llm_output.verdict,
+                        review_text=llm_output.review_text,
+                        praise_points=llm_output.praise_points,
+                        criticism_points=llm_output.criticism_points,
+                        vibe=llm_output.vibe,
+                        confidence=llm_output.confidence,
+                        tags=llm_output.tags,
+                        best_quote=llm_output.best_quote,
+                        quote_source=llm_output.quote_source,
+                        hook=llm_output.hook,
+                        critic_sentiment=llm_output.critic_sentiment,
+                        reddit_sentiment=llm_output.reddit_sentiment,
+                        positive_pct=llm_output.positive_pct,
+                        negative_pct=llm_output.negative_pct,
+                        mixed_pct=llm_output.mixed_pct,
+                        sources_count=len(result.get("search_results", [])),
+                        sources_urls=[r.get("link", "") for r in result.get("search_results", [])[:10]],
+                        llm_model=llm_model,
+                    )
+                    db.add(review)
                 
                 # Apply OMDB scores if present
                 omdb = result.get("omdb_scores")
                 if omdb and isinstance(omdb, dict):
                     review.imdb_score = omdb.get("imdb_score")
-                    review.imdb_votes = omdb.get("imdb_votes")
                     review.rt_critic_score = omdb.get("rt_critic_score")
                     review.metascore = omdb.get("metascore")
                 
-                db.add(review)
-                await db.commit()
-                await db.refresh(review)
+                # Apply trailer
+                agent_trailer = result.get("trailer_url")
+                if agent_trailer:
+                    review.trailer_url = agent_trailer
+                
+                review.last_refreshed_at = datetime.utcnow()
+                await db.flush()
                 
                 job_progress.pop(tmdb_id, None)
                 logger.info(f"✅ LangGraph review complete: '{title}' → {review.verdict}")
@@ -542,7 +578,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # But we have 128k context with GPT-4o-mini, so we should use ~18k chars easily.
     # No need to aggressively truncate to 5k.
     
-    MAX_LLM_CHARS = 12000
+    MAX_LLM_CHARS = 15000
     
     # 1. Prepare Reddit Text
     reddit_text = ""

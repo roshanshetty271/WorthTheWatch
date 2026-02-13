@@ -5,6 +5,7 @@ No LLM call needed. Runs in milliseconds.
 """
 
 from difflib import SequenceMatcher
+import re
 
 # ─── Positive signals: paragraphs likely containing opinions ───
 # ─── Positive signals: paragraphs likely containing opinions ───

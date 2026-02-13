@@ -18,11 +18,13 @@ export default function Navbar() {
     const [rouletteOpen, setRouletteOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
     const { count } = useWatchlist();
 
     useEffect(() => {
+        setMounted(true);
         const handleScroll = () => {
             requestAnimationFrame(() => {
                 setScrolled(window.scrollY > 80);
@@ -80,7 +82,7 @@ export default function Navbar() {
                             className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4 relative"
                         >
                             My List
-                            {count > 0 && (
+                            {mounted && count > 0 && (
                                 <span className="absolute -top-2 -right-4 bg-accent-gold text-black text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
                                     {count > 9 ? "9+" : count}
                                 </span>
@@ -115,7 +117,7 @@ export default function Navbar() {
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                             </svg>
-                            {count > 0 && (
+                            {mounted && count > 0 && (
                                 <span className="absolute -top-0.5 -right-0.5 bg-accent-gold text-black text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
                                     {count > 9 ? "9+" : count}
                                 </span>
@@ -174,7 +176,7 @@ export default function Navbar() {
                             onClick={() => setMobileMenuOpen(false)}
                             className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
                         >
-                            My List{count > 0 ? ` (${count})` : ""}
+                            My List{mounted && count > 0 ? ` (${count})` : ""}
                         </Link>
                     </div>
                 </div>
