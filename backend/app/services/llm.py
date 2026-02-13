@@ -13,6 +13,12 @@ from app.schemas import LLMReviewOutput, ALLOWED_TAGS
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+# SECURITY: Max characters sent to LLM to prevent denial-of-wallet attacks.
+# Even if pipeline.py has its own MAX_LLM_CHARS, this is a safety net
+# at the LLM layer itself. If a scraper pulls 50K words from a forum,
+# this truncates BEFORE the API call, preventing expensive token usage.
+MAX_OPINIONS_CHARS = 15000
+
 # ─── Client Configuration ─────────────────────────────────
 
 def _build_deepseek_client():
@@ -117,24 +123,24 @@ ABSOLUTE RULES:
 - **IMPORTANT**: In the "HOOK" sentence, refer to Reddit users as "audiences" or "viewers" instead of "Reddit users".
 - **IMPORTANT**: If the verdict is "WORTH IT", the final sentence of the review MUST be a positive reinforcement. Do NOT end with a "but skip if..." warning. Put warnings earlier.
 
-97: OUTPUT FORMAT (strict JSON, no markdown fences):
-98: {
-99:   "review_text": "The full review (150-250 words, ending with specific advice on who should watch/skip)",
-100:   "verdict": "WORTH IT" | "NOT WORTH IT" | "MIXED BAG",
-101:   "hook": "One punchy sentence, max 20 words, captures the most interesting thing about this movie's reception",
-102:   "praise_points": ["Specific praise point 1", "Specific praise point 2"],
-103:   "criticism_points": ["Specific criticism point 1", "Specific criticism point 2"],
-104:   "vibe": "one-line vibe description",
-105:   "confidence": "HIGH" | "MEDIUM" | "LOW",
-106:   "critic_sentiment": "positive" | "mixed" | "negative",
-107:   "reddit_sentiment": "positive" | "mixed" | "negative",
-108:   "positive_pct": 70,
-109:   "negative_pct": 20,
-110:   "mixed_pct": 10,
-111:   "tags": ["Tag1", "Tag2", "Tag3"],
-112:   "best_quote": "The single most memorable quote",
-113:   "quote_source": "Source of the quote"
-114: }
+OUTPUT FORMAT (strict JSON, no markdown fences):
+{
+  "review_text": "The full review (150-250 words, ending with specific advice on who should watch/skip)",
+  "verdict": "WORTH IT" | "NOT WORTH IT" | "MIXED BAG",
+  "hook": "One punchy sentence, max 20 words, captures the most interesting thing about this movie's reception",
+  "praise_points": ["Specific praise point 1", "Specific praise point 2"],
+  "criticism_points": ["Specific criticism point 1", "Specific criticism point 2"],
+  "vibe": "one-line vibe description",
+  "confidence": "HIGH" | "MEDIUM" | "LOW",
+  "critic_sentiment": "positive" | "mixed" | "negative",
+  "reddit_sentiment": "positive" | "mixed" | "negative",
+  "positive_pct": 70,
+  "negative_pct": 20,
+  "mixed_pct": 10,
+  "tags": ["Tag1", "Tag2", "Tag3"],
+  "best_quote": "The single most memorable quote",
+  "quote_source": "Source of the quote"
+}
 
 SENTIMENT BREAKDOWN RULES:
 - positive_pct + negative_pct + mixed_pct MUST equal 100.
@@ -155,7 +161,7 @@ async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
         response_format={"type": "json_object"},
         temperature=0.4,
         max_tokens=800,
-        timeout=60.0,  # Increased timeout for slow LLM responses
+        timeout=60.0,
     )
     return response.choices[0].message.content
 
@@ -176,6 +182,12 @@ async def synthesize_review(
     reddit_sources: int = 0,
 ) -> LLMReviewOutput:
     """Generate a review with automatic LLM failover."""
+
+    # SECURITY: Truncate opinions to prevent denial-of-wallet attacks.
+    # Even if pipeline.py already truncates, this is the last line of defense.
+    if len(opinions) > MAX_OPINIONS_CHARS:
+        opinions = opinions[:MAX_OPINIONS_CHARS]
+        logger.warning(f"⚠️ Opinions truncated to {MAX_OPINIONS_CHARS} chars for '{title}'")
 
     # Build data context instructions based on confidence
     if confidence_tier == "LOW":
@@ -293,4 +305,3 @@ MANDATORY INSTRUCTIONS:
             critic_sentiment="mixed",
             reddit_sentiment="mixed"
         )
-

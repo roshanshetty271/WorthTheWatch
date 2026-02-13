@@ -3,17 +3,19 @@ Worth the Watch? — FastAPI Application
 "Should I stream this? The internet decides."
 """
 
+import gc
 import logging
 import secrets
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import init_db, get_db
-from app.models import Movie, Review, SearchEvent  # noqa: F401 — ensure models registered for init_db
+from app.models import Movie, Review, SearchEvent  # noqa: F401
 from app.routers import movies, search
 from app.jobs.daily_sync import run_daily_sync
 from app.schemas import HealthCheck
@@ -38,7 +40,6 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("✅ Database initialized")
     
-    # Warm up fuzzy search cache in background
     from app.services.tmdb import tmdb_service
     import asyncio
     asyncio.create_task(tmdb_service.refresh_popular_cache())
@@ -58,6 +59,19 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
     openapi_url="/openapi.json" if settings.ENVIRONMENT == "development" else None,
 )
+
+
+# ─── Global Error Handler ─────────────────────────────────
+# SECURITY: Never leak tracebacks, table names, or file paths to clients.
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # CORS — allow frontend origins
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")]
@@ -83,15 +97,9 @@ async def health_check(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Health check endpoint.
-    - Standard: Returns simple "ok".
-    - Deep: Checks DB, TMDB, LLM, Serper (requires secret).
-    """
     if not check_services:
         return HealthCheck(status="ok")
     
-    # Verify secret for deep check (prevents valid credit drain)
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret for deep check")
 
@@ -103,7 +111,6 @@ async def health_check(
         "serper": "unknown"
     }
 
-    # 1. Database Check
     try:
         await db.execute(select(1))
         health_status["database"] = "connected"
@@ -112,23 +119,17 @@ async def health_check(
         health_status["database"] = "disconnected"
         health_status["status"] = "degraded"
 
-    # 2. TMDB Check (Fetch config - lightweight)
     try:
         from app.services.tmdb import tmdb_service
-        await tmdb_service.get_movie_details(550) # Fight Club
+        await tmdb_service.get_movie_details(550)
         health_status["tmdb"] = "connected"
     except Exception as e:
         logger.error(f"Health TMDB fail: {e}")
         health_status["tmdb"] = "disconnected"
         health_status["status"] = "degraded"
 
-    # 3. LLM Check (Simple generation)
     try:
         if settings.OPENAI_API_KEY or settings.DEEPSEEK_API_KEY:
-             # Just check if client is initialized, don't burn generation credits unnecessarily
-             # unless we explicitly want to test the API key validity.
-             # User asked to "monitor if... you've run out of credits"
-             # So we MUST try a minimal call.
              from app.services.llm import llm_client, llm_model
              await llm_client.chat.completions.create(
                  model=llm_model,
@@ -143,11 +144,9 @@ async def health_check(
         health_status["llm"] = "error"
         health_status["status"] = "degraded"
 
-    # 4. Serper Check (Simple search)
     try:
         if settings.SERPER_API_KEY:
             from app.services.serper import serper_service
-            # This costs 1 credit. Use sparingly.
             await serper_service.search_reviews("test", "2024", "movie")
             health_status["serper"] = "connected"
         else:
@@ -167,10 +166,6 @@ async def cron_daily(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Daily sync endpoint. Called by external cron (cron-job.org).
-    Protected by CRON_SECRET to prevent unauthorized triggers.
-    """
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
     
@@ -184,7 +179,6 @@ async def manual_refresh(
     max_refresh: int = 10,
     background_tasks: BackgroundTasks = None,
 ):
-    """Manually trigger Smart Refresh for recent movies."""
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
@@ -212,7 +206,6 @@ async def seed_database(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    """Seed the database with trending titles. For initial setup only."""
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
@@ -228,7 +221,6 @@ async def delete_movie(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a movie and its review from the database."""
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
@@ -246,8 +238,11 @@ async def delete_movie(
 
 
 # ─── Regenerate Endpoint (Maintenance) ─────────────────────
+# OOM FIX: Processes in batches of 20 with gc.collect() between batches.
+# Each batch opens its own DB session and closes it when done.
+# This keeps memory usage under 512MB on Koyeb free tier.
 
-# ─── Regenerate Endpoint (Maintenance) ─────────────────────
+REGEN_BATCH_SIZE = 20
 
 @app.post("/api/regenerate")
 async def regenerate_all_reviews(
@@ -259,41 +254,49 @@ async def regenerate_all_reviews(
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
-    from sqlalchemy import select
     from sqlalchemy.orm import joinedload
 
-    # Count how many movies need regeneration
     result = await db.execute(
         select(Movie).options(joinedload(Movie.review))
     )
     all_movies = result.unique().scalars().all()
     movies_with_reviews = [m for m in all_movies if m.review is not None]
-
-    # Get the TMDB IDs to pass to background task (can't pass ORM objects)
     tmdb_ids = [m.tmdb_id for m in movies_with_reviews]
 
-    # Run in background — return immediately
     background_tasks.add_task(_regenerate_background, tmdb_ids)
 
     return {
         "status": "started",
-        "message": f"Regenerating {len(tmdb_ids)} reviews in background. Watch the server logs.",
+        "message": f"Regenerating {len(tmdb_ids)} reviews in batches of {REGEN_BATCH_SIZE}. Watch server logs.",
         "count": len(tmdb_ids),
     }
 
 
 async def _regenerate_background(tmdb_ids: list[int]):
-    """Background task: regenerate reviews for given TMDB IDs."""
+    """
+    Background task: regenerate reviews in batches.
+    Each batch gets its own DB session which is closed after the batch.
+    gc.collect() runs between batches to free memory.
+    This prevents OOM on 512MB Koyeb instances.
+    """
     from app.database import async_session
     from app.services.pipeline import generate_review_for_movie
 
-    try:
-        total = len(tmdb_ids)
-        regenerated = 0
-        failed = 0
-        logger.info(f"🔄 Background regeneration started for {total} movies")
+    total = len(tmdb_ids)
+    regenerated = 0
+    failed = 0
 
-        for i, tmdb_id in enumerate(tmdb_ids):
+    logger.info(f"🔄 Regeneration started: {total} movies in batches of {REGEN_BATCH_SIZE}")
+
+    for batch_start in range(0, total, REGEN_BATCH_SIZE):
+        batch = tmdb_ids[batch_start:batch_start + REGEN_BATCH_SIZE]
+        batch_num = batch_start // REGEN_BATCH_SIZE + 1
+        total_batches = (total + REGEN_BATCH_SIZE - 1) // REGEN_BATCH_SIZE
+
+        logger.info(f"📦 Batch {batch_num}/{total_batches} — processing {len(batch)} movies")
+
+        for tmdb_id in batch:
+            # Each movie gets its own session to avoid session bloat
             async with async_session() as db:
                 try:
                     result = await db.execute(
@@ -301,18 +304,20 @@ async def _regenerate_background(tmdb_ids: list[int]):
                     )
                     movie = result.scalar_one_or_none()
                     if movie:
-                        logger.info(f"♻️ [{i+1}/{total}] Regenerating: {movie.title}")
+                        logger.info(f"♻️ [{regenerated + failed + 1}/{total}] Regenerating: {movie.title}")
                         await generate_review_for_movie(db, movie)
                         await db.commit()
                         regenerated += 1
                 except Exception as e:
                     await db.rollback()
                     failed += 1
-                    logger.error(f"❌ Failed to regenerate tmdb_id {tmdb_id}: {e}")
+                    logger.error(f"❌ Failed tmdb_id {tmdb_id}: {e}")
 
-        logger.info(f"🏁 Regeneration complete: {regenerated} success, {failed} failed out of {total}")
-    except Exception as e:
-        logger.critical(f"🚨 Regeneration task crashed: {e}")
+        # Free memory between batches
+        gc.collect()
+        logger.info(f"✅ Batch {batch_num}/{total_batches} done. Memory freed. Progress: {regenerated} success, {failed} failed")
+
+    logger.info(f"🏁 Regeneration complete: {regenerated} success, {failed} failed out of {total}")
 
 
 # ─── Seed Top-Rated Endpoint ─────────────────────────────
@@ -324,22 +329,13 @@ async def seed_top_rated(
     secret: str = "",
     background_tasks: BackgroundTasks = None,
 ):
-    """
-    Seed database with top-rated movies/TV from TMDB.
-    Each page = 20 items. 10 pages = 200 top items.
-    
-    Args:
-        pages: Number of pages to fetch (1-20)
-        media_type: "movie" or "tv"
-        secret: CRON_SECRET for authorization
-    """
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     if media_type not in ("movie", "tv"):
         raise HTTPException(status_code=400, detail="media_type must be 'movie' or 'tv'")
     
-    pages = min(max(pages, 1), 20)  # Clamp 1-20
+    pages = min(max(pages, 1), 20)
     
     background_tasks.add_task(_seed_top_rated_background, pages, media_type)
     return {
@@ -349,7 +345,6 @@ async def seed_top_rated(
 
 
 async def _seed_top_rated_background(pages: int, media_type: str):
-    """Background task: fetch top-rated content from TMDB and generate reviews."""
     from app.database import async_session
     from app.services.tmdb import tmdb_service
     from app.services.pipeline import get_or_create_movie, generate_review_for_movie
@@ -371,13 +366,11 @@ async def _seed_top_rated_background(pages: int, media_type: str):
                     title = item.get("title") or item.get("name", "Unknown")
                     
                     async with async_session() as db:
-                        # Skip if already in database
                         existing = await db.execute(
                             select(Movie).where(Movie.tmdb_id == tmdb_id)
                         )
                         if existing.scalar_one_or_none():
                             skipped += 1
-                            logger.debug(f"⏭️ Skipping (exists): {title}")
                             continue
                         
                         try:
@@ -390,6 +383,9 @@ async def _seed_top_rated_background(pages: int, media_type: str):
                             await db.rollback()
                             failed += 1
                             logger.error(f"❌ Failed: {title} — {e}")
+                
+                # Free memory after each page
+                gc.collect()
                             
             except Exception as e:
                 logger.error(f"❌ Failed to fetch page {page}: {e}")
@@ -397,4 +393,3 @@ async def _seed_top_rated_background(pages: int, media_type: str):
         logger.info(f"🏁 Top rated seed complete: {generated} new, {skipped} skipped, {failed} failed")
     except Exception as e:
         logger.critical(f"🚨 Seed top rated task crashed: {e}")
-

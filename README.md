@@ -1,56 +1,68 @@
-# 🎬 Worth the Watch?
+# Worth the Watch?
+**Should I stream this? The internet decides.**
 
-**"Should I stream this? The internet decides."**
+Built by **Roshan Shetty** — [Portfolio](https://www.roshanshetty.dev/) | [LinkedIn](https://www.linkedin.com/in/roshanshetty271/)  
+Live App: [worth-the-watch.vercel.app](https://worth-the-watch.vercel.app/)
 
-A next-generation entertainment review platform that cuts through the noise. Instead of relying on a single critic's opinion or a simple star rating, **Worth the Watch?** synthesizes what real people are saying across the internet to give you a clear, honest answer.
+---
 
-## ✨ Features
+## What It Does
+"Worth the Watch?" solves the modern decision fatigue of endless scrolling by providing a single, honest verdict on whether a movie or TV show is actually worth your time. By aggregating professional critic reviews from sources like The Guardian and NYT alongside raw audience sentiment from Reddit, the app uses AI to cut through the marketing noise and deliver a definitive answer. Research shows the average person spends 110 hours a year just deciding what to watch—this app aims to give that time back.
 
--   **AI-Powered Verdicts**: Instantly tells you if a movie or show is **WORTH IT**, **NOT WORTH IT**, or a **MIXED BAG**.
--   **Crowd Wisdom**: Aggregates opinions from diverse sources—Reddit discussions, niche forums, and independent blogs—not just mainstream critics.
--   **Spoiler-Free Summaries**: Get the "vibe" of the reception without ruining the plot.
--   **Quick Insights**:
-    -   **Praise Points**: What people loved (e.g., "Incredible cinematography," "Slick pacing").
-    -   **Criticisms**: What people hated (e.g., "Weak ending," "Slow start").
-    -   **Consensus**: A synthesized paragraph that reads like a recommendation from a well-informed friend.
--   **Live Search**: Can't find a review? Search for any title, and the system generates a fresh review on demand in seconds.
+## Key Features
+- **AI-Powered Review Synthesis** — Scrapes critics and Reddit in real-time, synthesizing hundreds of opinions into honest verdicts: **WORTH IT**, **NOT WORTH IT**, or **MIXED BAG**.
+- **Cinema Roulette** — A high-stakes random movie picker with a slot-machine animation that only serves "WORTH IT" titles, ensuring you never land on a dud.
+- **Mood-Based Discovery** — Browse curated collections based on how you feel (Tired, Pumped, Emotional, Cerebral, Fun) using a multi-layered genre and tag filtering system.
+- **Bookmark & Share Lists** — Save your watchlist and generate shareable custom URLs without needing an account.
+- **Streaming Availability** — Integrated JustWatch data showing exactly where to stream, rent, or buy across all major platforms.
 
-## 🚀 Tech Stack
+## Tech Stack
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Framer Motion
+- **Backend**: FastAPI, Python, SQLAlchemy (Async), Pydantic
+- **Database**: Neon PostgreSQL (Serverless)
+- **AI/LLM**: OpenAI GPT-4o-mini / DeepSeek-V3 (with automatic failover)
+- **APIs**: TMDB, Guardian, NYT, Serper, OMDB, KinoCheck, Jina Reader
+- **Hosting**: Vercel (Frontend), Koyeb (Backend), Neon (Database)
+- *All infrastructure is running on optimized free-tier configurations.*
 
-This repository contains the frontend application, built with a focus on performance, SEO, and a premium cinematic aesthetic.
+## Architecture
+The core of the application is a high-speed asynchronous pipeline that follows a 4-step process:
+1. **Search**: Orchestrates simultaneous queries to Serper, The Guardian, and NYT.
+2. **Scrape**: Uses a "race-to-5" strategy to fetch the fastest 5 quality articles using `selectolax` for sub-millisecond HTML parsing.
+3. **Filter**: Implements a custom "grep" logic to isolate opinion-dense paragraphs and strip out noise/ads.
+4. **Synthesize**: Passes filtered context to the LLM with a multi-tier confidence system (HIGH/MEDIUM/LOW) to ensure verdict accuracy.
 
--   **Framework**: [Next.js 14](https://nextjs.org/) (App Router)
--   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
--   **Language**: TypeScript
--   **Deployment**: Vercel
+## Screenshots
 
-## 🛠️ Getting Started
+![Homepage Hero](screenshots/homepage.png)
+*Modern, immersive hero section with quick search and trending updates.*
 
-To run the frontend locally:
+<table width="100%">
+  <tr>
+    <td width="33.33%" align="center"><img src="screenshots/review1.png" alt="Review Page 1"/><br/><sub><b>Sentiment Analysis</b></sub></td>
+    <td width="33.33%" align="center"><img src="screenshots/review2.png" alt="Review Page 2"/><br/><sub><b>Pros & Cons</b></sub></td>
+    <td width="33.33%" align="center"><img src="screenshots/review3.png" alt="Review Page 3"/><br/><sub><b>Streaming Availability</b></sub></td>
+  </tr>
+</table>
+<p align="center"><i>AI-synthesized reviews with sentiment breakdown, praise/criticism points, and real-time streaming data.</i></p>
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/worth-the-watch.git
-    cd worth-the-watch/frontend
-    ```
+<table width="100%">
+  <tr>
+    <td width="33.33%" align="center"><img src="screenshots/roulette.png" alt="Roulette Prompt"/><br/><sub><b>1. Start</b></sub></td>
+    <td width="33.33%" align="center"><img src="screenshots/roulette2.png" alt="Roulette Spin"/><br/><sub><b>2. Spin</b></sub></td>
+    <td width="33.33%" align="center"><img src="screenshots/roulette3.png" alt="Roulette Result"/><br/><sub><b>3. Reveal</b></sub></td>
+  </tr>
+</table>
+<p align="center"><i>Interactive "Cinema Roulette" with a high-stakes slot-machine animation and guaranteed "Worth It" results.</i></p>
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+![Mood Discovery](screenshots/mood.png)
+*Horizontal category browsing for personalized movie matching.*
 
-3.  **Run the development server:**
-    ```bash
-    npm run dev
-    ```
+![My List Page](screenshots/mylist.png)
+*Shareable watchlist management with zero-auth persistence.*
 
-4.  **Open your browser:**
-    Navigate to [http://localhost:3000](http://localhost:3000).
+---
 
-## 📸 Preview
-
-![Worth the Watch Preview](/public/preview-image.png) *(Note: Add a screenshot of your app here)*
-
-## 📄 License
-
-MIT © [Roshan]
+© 2025 Roshan Shetty. All rights reserved.  
+This project is licensed under **CC BY-NC-ND 4.0** — see [LICENSE](LICENSE) for details.  
+*Built as a portfolio project demonstrating full-stack development, AI integration, and product thinking.*

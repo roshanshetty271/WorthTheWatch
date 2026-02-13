@@ -19,14 +19,19 @@ _daily_reset_time = time.time()
 def _get_client_ip(request: Request) -> str:
     """
     Get client IP address.
-    Uses RIGHTMOST IP from X-Forwarded-For (set by trusted edge proxy).
-    Leftmost IPs can be spoofed by the client.
+    SECURITY FIX: Uses LEFTMOST IP from X-Forwarded-For.
+    
+    X-Forwarded-For header format: "client, proxy1, proxy2"
+    - Leftmost (ips[0]) = actual client IP
+    - Rightmost (ips[-1]) = last proxy/load balancer (often Koyeb itself)
+    
+    Using ips[-1] would rate-limit Koyeb's internal IP,
+    effectively banning ALL users at once.
     """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        # Rightmost IP is added by our trusted proxy, harder to spoof
         ips = [ip.strip() for ip in forwarded.split(",")]
-        return ips[-1] if ips else "unknown"
+        return ips[0] if ips else "unknown"
     return request.client.host if request.client else "unknown"
 
 

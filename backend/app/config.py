@@ -14,10 +14,11 @@ class Settings(BaseSettings):
     APP_NAME: str = "Worth the Watch?"
     ENVIRONMENT: str = "development"  # "development" or "production"
     DEBUG: bool = False
-    ALLOWED_ORIGINS: str = "http://localhost:3000,https://worththewatch.vercel.app"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,https://worth-the-watch.vercel.app"
 
     # Database (Neon PostgreSQL)
-    DATABASE_URL: str = "postgresql+asyncpg://user:pass@localhost/worththewatch"
+    # SECURITY: No default. App crashes on startup if missing.
+    DATABASE_URL: str
 
     # TMDB
     TMDB_API_KEY: str = ""
@@ -45,32 +46,30 @@ class Settings(BaseSettings):
     # Phase 2 APIs
     # ═══════════════════════════════════════════════════════════════════
     
-    # OMDB (free 1000 req/day — https://www.omdbapi.com/apikey.aspx)
+    # OMDB (free 1000 req/day)
     OMDB_API_KEY: str = ""
     
-    # KinoCheck (free 1000 req/day — https://www.kinocheck.com/api)
+    # KinoCheck (free 1000 req/day)
     KINOCHECK_API_KEY: str = ""
     
-    # The Guardian (free — https://open-platform.theguardian.com/access/)
+    # The Guardian (free)
     GUARDIAN_API_KEY: str = ""
     
-    # NYT (free 500 req/day — https://developer.nytimes.com/)
+    # NYT (free 500 req/day)
     NYT_API_KEY: str = ""
     
-    # Watchmode (free 1000 req/month — https://api.watchmode.com/)
+    # Watchmode (free 1000 req/month)
     WATCHMODE_API_KEY: str = ""
     
-    # TVMaze is FREE — no API key required!
-    
     # Feature Flags
-    USE_LANGGRAPH: bool = False  # Toggle between LangGraph agent and pipeline
-    USE_JINA: bool = False  # Set to True to use Jina Reader instead of BeautifulSoup
+    USE_LANGGRAPH: bool = False
+    USE_JINA: bool = False
 
-    # Cron
-    CRON_SECRET: str = "change-me-in-production"
+    # Cron — SECURITY: No default. Must be set in env.
+    CRON_SECRET: str
 
-    # Security
-    IP_HASH_SALT: str = "change-me-in-production"
+    # Security — SECURITY: No default. Must be set in env.
+    IP_HASH_SALT: str
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
