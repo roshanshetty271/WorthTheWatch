@@ -63,6 +63,8 @@ The core of the application is a high-speed asynchronous pipeline that follows a
 
 ---
 
-© 2025 Roshan Shetty. All rights reserved.  
-This project is licensed under **CC BY-NC-ND 4.0** — see [LICENSE](LICENSE) for details.  
+© 2026 Roshan Shetty. All rights reserved.
+This codebase is **Source-Available** for educational review only. It is **NOT** Open Source.
+See [LICENSE](LICENSE) for strict usage prohibitions.
+
 *Built as a portfolio project demonstrating full-stack development, AI integration, and product thinking.*
