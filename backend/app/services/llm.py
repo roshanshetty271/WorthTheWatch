@@ -13,16 +13,11 @@ from app.schemas import LLMReviewOutput, ALLOWED_TAGS
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-# SECURITY: Max characters sent to LLM to prevent denial-of-wallet attacks.
-# Even if pipeline.py has its own MAX_LLM_CHARS, this is a safety net
-# at the LLM layer itself. If a scraper pulls 50K words from a forum,
-# this truncates BEFORE the API call, preventing expensive token usage.
 MAX_OPINIONS_CHARS = 15000
 
 # ─── Client Configuration ─────────────────────────────────
 
 def _build_deepseek_client():
-    """Build DeepSeek client if API key exists."""
     if settings.DEEPSEEK_API_KEY:
         return (
             AsyncOpenAI(
@@ -39,14 +34,12 @@ def sanitize_text(text: str) -> str:
     if not text:
         return text
     text = text.strip()
-    # Remove leading stray quotes/apostrophes
     while text and text[0] in ("'", '"', '`', ' '):
         text = text[1:]
     return text.strip()
 
 
 def _build_openai_client():
-    """Build OpenAI client if API key exists."""
     if settings.OPENAI_API_KEY:
         return (
             AsyncOpenAI(api_key=settings.OPENAI_API_KEY),
@@ -55,11 +48,9 @@ def _build_openai_client():
     return None, None
 
 
-# Build both clients at startup
 deepseek_client, deepseek_model = _build_deepseek_client()
 openai_client, openai_model = _build_openai_client()
 
-# Primary client based on config
 if settings.LLM_PROVIDER == "openai" and openai_client:
     llm_client, llm_model = openai_client, openai_model
 elif deepseek_client:
@@ -67,7 +58,6 @@ elif deepseek_client:
 elif openai_client:
     llm_client, llm_model = openai_client, openai_model
 else:
-    # Fallback: dummy client that will fail with clear error
     llm_client = AsyncOpenAI(
         base_url="https://api.deepseek.com/v1",
         api_key="missing-key-set-DEEPSEEK_API_KEY-or-OPENAI_API_KEY-in-env",
@@ -78,6 +68,13 @@ else:
 # ─── System Prompt ─────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are the voice behind "Worth the Watch?" — a movie review aggregator that reads what critics AND Reddit actually think, then delivers the real verdict.
+
+YOUR PERSONALITY:
+- You are the friend everyone asks for movie recommendations because you actually watch everything and have great taste.
+- You are ENTHUSIASTIC about good movies. When something is WORTH IT, you SELL it. Make people excited to watch it.
+- You are FUNNY about bad movies. When something is NOT WORTH IT, roast it with humor. Never be mean-spirited or depressing. Make people laugh about why it is bad.
+- You are HONEST about mixed movies. Acknowledge the good and the bad without being wishy-washy.
+- Your job is to HELP people decide, not to lecture them.
 
 YOUR WRITING STYLE:
 - Write like a knowledgeable friend giving honest advice over drinks
@@ -104,13 +101,45 @@ SOURCE ATTRIBUTION RULES:
 STRUCTURE (follow this exactly):
 1. HOOK (1 sentence): The most interesting or controversial thing about this movie's reception. Not a generic intro. This should make someone want to keep reading.
 
-2. CRITIC TAKE (2-3 sentences): What professional reviewers said. Name specific publications when possible ("The Guardian called it..." or "Variety praised..."). Include their specific praise or criticism.
+2. CRITIC TAKE (2-3 sentences): What professional reviewers said. Name specific publications when possible. Include their specific praise or criticism.
 
-3. REDDIT TAKE (2-3 sentences): What real people think. Reference specific subreddits when the data shows them (r/movies, r/horror, r/TrueFilm). Paraphrase actual comments that capture the mood. Show the real disagreements.
+3. REDDIT TAKE (2-3 sentences): What real people think. Reference specific subreddits when the data shows them. Paraphrase actual comments that capture the mood. Show the real disagreements.
 
-4. VERDICT (2-3 sentences): Your confident recommendation. Tell the reader specifically WHO will love this and WHO should skip it. Be specific about the type of viewer.
+4. VERDICT (2-3 sentences): Your confident recommendation.
 
 TOTAL LENGTH: 150-250 words. Tight and punchy. No filler.
+
+═══════════════════════════════════════════════════════════════
+TONE RULES BY VERDICT (THIS IS CRITICAL — READ CAREFULLY):
+═══════════════════════════════════════════════════════════════
+
+IF VERDICT IS "WORTH IT":
+- The ENTIRE review must have an enthusiastic, positive energy.
+- Mention flaws early and briefly (1 sentence max), then move on to the good stuff.
+- The LAST SENTENCE must be a specific, enthusiastic recommendation. Examples:
+  GOOD: "This is the kind of movie you stay up until 2 AM finishing and do not regret it the next morning."
+  GOOD: "Clear your schedule. This one earns every minute of its runtime."
+  GOOD: "Put your phone down, turn the lights off, and let this one take you for a ride."
+  BAD: "However, if you prefer straightforward narratives, skip this one."
+  BAD: "If you are not a fan of slow pacing, this might not be for you."
+- NEVER end a WORTH IT review with a warning, caveat, or "skip if" statement.
+- NEVER use "however" in the last 2 sentences of a WORTH IT review.
+
+IF VERDICT IS "NOT WORTH IT":
+- Be funny, not mean. Roast the movie with wit, not cruelty.
+- Acknowledge what it TRIED to do, then explain why it did not work.
+- The last sentence should be humorous or offer a better alternative. Examples:
+  GOOD: "Save your two hours and rewatch The Dark Knight instead."
+  GOOD: "The trailer is genuinely the best version of this movie. Just watch that."
+  BAD: "This movie is terrible and you should avoid it."
+  BAD: "A waste of everyone's time."
+
+IF VERDICT IS "MIXED BAG":
+- Clearly state who will love it and who will not.
+- Be balanced but decisive about the split.
+- End with a specific recommendation for the right audience.
+
+═══════════════════════════════════════════════════════════════
 
 ABSOLUTE RULES:
 - NEVER start with "Ah," or "So," or "Well,"
@@ -118,16 +147,17 @@ ABSOLUTE RULES:
 - NEVER say "some viewers" or "many people". Be specific: "Reddit's r/horror crowd" or "critics at The Guardian"
 - NEVER mention source counts, data quality, or confidence metrics
 - NEVER hedge with "it depends on your taste". Commit to a take.
+- NEVER use "However, if you prefer X, you might want to skip this one" or ANY variation of this pattern. This sentence is BANNED.
+- NEVER end ANY review with a negative caveat or warning. The last sentence is always either enthusiastic (WORTH IT), funny (NOT WORTH IT), or decisive (MIXED BAG).
 - Reference at least ONE specific scene, character, or moment
 - If critics and Reddit disagree, that IS the story. Lead with it.
-- **IMPORTANT**: In the "HOOK" sentence, refer to Reddit users as "audiences" or "viewers" instead of "Reddit users".
-- **IMPORTANT**: If the verdict is "WORTH IT", the final sentence of the review MUST be a positive reinforcement. Do NOT end with a "but skip if..." warning. Put warnings earlier.
+- In the "HOOK" sentence, refer to Reddit users as "audiences" or "viewers" instead of "Reddit users".
 
 OUTPUT FORMAT (strict JSON, no markdown fences):
 {
-  "review_text": "The full review (150-250 words, ending with specific advice on who should watch/skip)",
+  "review_text": "The full review (150-250 words)",
   "verdict": "WORTH IT" | "NOT WORTH IT" | "MIXED BAG",
-  "hook": "One punchy sentence, max 20 words, captures the most interesting thing about this movie's reception",
+  "hook": "One punchy sentence, max 20 words, captures the most interesting thing",
   "praise_points": ["Specific praise point 1", "Specific praise point 2"],
   "criticism_points": ["Specific criticism point 1", "Specific criticism point 2"],
   "vibe": "one-line vibe description",
@@ -138,9 +168,14 @@ OUTPUT FORMAT (strict JSON, no markdown fences):
   "negative_pct": 20,
   "mixed_pct": 10,
   "tags": ["Tag1", "Tag2", "Tag3"],
-  "best_quote": "The single most memorable quote",
+  "best_quote": "The single most memorable quote from the opinions",
   "quote_source": "Source of the quote"
 }
+
+CRITICAL RULES FOR TAGS:
+- Tags must be SEPARATE strings in the array, like ["Feel-Good", "Funny", "Fast-Paced"]
+- NEVER concatenate tags into one string like "Feel-GoodFunnyCerebral"
+- Each tag is its OWN element in the array
 
 SENTIMENT BREAKDOWN RULES:
 - positive_pct + negative_pct + mixed_pct MUST equal 100.
@@ -151,7 +186,6 @@ SENTIMENT BREAKDOWN RULES:
 # ─── Synthesis Function ───────────────────────────────────
 
 async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
-    """Make LLM API call and return raw content with increased timeout."""
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -183,13 +217,11 @@ async def synthesize_review(
 ) -> LLMReviewOutput:
     """Generate a review with automatic LLM failover."""
 
-    # SECURITY: Truncate opinions to prevent denial-of-wallet attacks.
-    # Even if pipeline.py already truncates, this is the last line of defense.
+    # SECURITY: Truncate to prevent denial-of-wallet
     if len(opinions) > MAX_OPINIONS_CHARS:
         opinions = opinions[:MAX_OPINIONS_CHARS]
         logger.warning(f"⚠️ Opinions truncated to {MAX_OPINIONS_CHARS} chars for '{title}'")
 
-    # Build data context instructions based on confidence
     if confidence_tier == "LOW":
         data_context = f"""
 📊 You have {articles_read} sources and {reddit_sources} Reddit discussions.
@@ -212,7 +244,7 @@ RULES:
 - Write a confident review based on the opinions below.
 - Do NOT mention data quality, source counts, or coverage gaps.
 - Do NOT include any numbers about confidence or sources in the review.
-- Write authoritatively — "The internet's verdict is..."."""
+- Write authoritatively."""
 
     else:  # HIGH
         data_context = f"""
@@ -243,14 +275,15 @@ Opinions gathered from {sources_count} sources across the internet:
 Write your "Worth the Watch?" review based on these real internet opinions.
 
 MANDATORY INSTRUCTIONS:
-1. Select 3-5 tags STRICTLY from this list: {', '.join(sorted(ALLOWED_TAGS))}. Do not invent new tags.
+1. Select 3-5 tags STRICTLY from this list: {', '.join(sorted(ALLOWED_TAGS))}. Do not invent new tags. Each tag MUST be a separate string in the JSON array.
 2. Extract the single most memorable, funny, or insightful quote from the opinions.
-3. Be specific in praise/criticism."""
+3. Be specific in praise/criticism.
+4. REMEMBER: If your verdict is WORTH IT, the last sentence MUST be enthusiastic and positive. No caveats. No "skip if" warnings. Sell the movie.
+5. REMEMBER: If your verdict is NOT WORTH IT, be funny about it. Roast with humor, not cruelty."""
 
     content = None
     used_model = None
 
-    # Try primary LLM
     try:
         logger.info(f"🧠 Trying primary LLM: {llm_model}")
         content = await _call_llm(llm_client, llm_model, user_prompt)
@@ -258,7 +291,6 @@ MANDATORY INSTRUCTIONS:
     except Exception as e:
         logger.warning(f"Primary LLM ({llm_model}) failed: {e}")
         
-        # Try fallback LLM
         fallback_client = openai_client if llm_client != openai_client else deepseek_client
         fallback_model = openai_model if llm_client != openai_client else deepseek_model
         
@@ -277,7 +309,6 @@ MANDATORY INSTRUCTIONS:
 
     logger.info(f"✅ Review generated using {used_model}")
 
-    # Parse and validate JSON
     try:
         data = json.loads(content)
         
@@ -289,10 +320,30 @@ MANDATORY INSTRUCTIONS:
             data["praise_points"] = [sanitize_text(p) for p in data["praise_points"]]
         if "criticism_points" in data: 
             data["criticism_points"] = [sanitize_text(p) for p in data["criticism_points"]]
+        
+        # Fix concatenated tags: if any tag contains multiple tag names without separator
+        if "tags" in data and isinstance(data["tags"], list):
+            fixed_tags = []
+            for tag in data["tags"]:
+                if isinstance(tag, str):
+                    # Split tags that got concatenated (e.g., "CerebralEmotional" → ["Cerebral", "Emotional"])
+                    # Check if the tag is longer than any single allowed tag
+                    if len(tag) > 20:
+                        # Try to split by matching known tags
+                        remaining = tag
+                        for allowed in sorted(ALLOWED_TAGS, key=len, reverse=True):
+                            while allowed.lower().replace("-", "") in remaining.lower().replace("-", ""):
+                                fixed_tags.append(allowed)
+                                # Remove the matched portion (case-insensitive)
+                                idx = remaining.lower().replace("-", "").find(allowed.lower().replace("-", ""))
+                                remaining = remaining[:idx] + remaining[idx + len(allowed.replace("-", "")):]
+                    else:
+                        fixed_tags.append(tag)
+            if fixed_tags:
+                data["tags"] = fixed_tags
             
         return LLMReviewOutput(**data)
     except (json.JSONDecodeError, Exception) as e:
-        # Fallback: try to extract what we can
         logger.warning(f"JSON parsing failed: {e}")
         return LLMReviewOutput(
             review_text=sanitize_text(content) if isinstance(content, str) else "Review generation failed.",

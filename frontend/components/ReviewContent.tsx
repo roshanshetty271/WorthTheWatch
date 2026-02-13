@@ -9,15 +9,92 @@ interface ReviewContentProps {
   review: Review;
 }
 
+// Known allowed tags for splitting concatenated strings
+const KNOWN_TAGS = [
+  "Action-Packed", "Cerebral", "Dark", "Dialogue-Heavy",
+  "Emotional", "Family-Friendly", "Fast-Paced", "Feel-Good",
+  "Funny", "Gory", "Gritty", "Heartbreaking", "Mind-Bending",
+  "Sexy", "Slow-Burn", "Violent", "Visual-Masterpiece", "Whimsical",
+];
+
+/**
+ * Fix tags that got concatenated by the LLM.
+ * e.g. "CerebralEmotionalVisual-Masterpiece" → ["Cerebral", "Emotional", "Visual-Masterpiece"]
+ * Also handles normal tags that just need cleanup.
+ */
+function fixTags(rawTags: string[] | null | undefined): string[] {
+  if (!rawTags || rawTags.length === 0) return [];
+
+  const result: string[] = [];
+
+  for (const raw of rawTags) {
+    if (!raw || typeof raw !== "string") continue;
+
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) continue;
+
+    // Check if this is a single known tag (exact or case-insensitive match)
+    const exactMatch = KNOWN_TAGS.find(
+      (t) => t.toLowerCase() === trimmed.toLowerCase() ||
+        t.toLowerCase().replace(/-/g, "") === trimmed.toLowerCase().replace(/-/g, "")
+    );
+
+    if (exactMatch) {
+      if (!result.includes(exactMatch)) result.push(exactMatch);
+      continue;
+    }
+
+    // If the tag is suspiciously long (>20 chars), it is probably concatenated
+    // Try to extract known tags from the string
+    if (trimmed.length > 20) {
+      let remaining = trimmed;
+      // Sort by length descending so "Visual-Masterpiece" matches before "Visual"
+      const sorted = [...KNOWN_TAGS].sort((a, b) => b.length - a.length);
+
+      for (const known of sorted) {
+        // Check both hyphenated and non-hyphenated forms
+        const knownClean = known.toLowerCase().replace(/-/g, "");
+        const remainingClean = remaining.toLowerCase().replace(/-/g, "");
+
+        if (remainingClean.includes(knownClean)) {
+          if (!result.includes(known)) result.push(known);
+          // Remove the matched portion
+          const idx = remainingClean.indexOf(knownClean);
+          const before = remaining.substring(0, idx);
+          const after = remaining.substring(idx + knownClean.length);
+          remaining = before + after;
+        }
+      }
+    } else {
+      // Short but unrecognized — try normalizing: "feel good" → "Feel-Good"
+      const normalized = trimmed
+        .split(/[\s-]+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join("-");
+
+      const normalizedMatch = KNOWN_TAGS.find(
+        (t) => t.toLowerCase() === normalized.toLowerCase()
+      );
+
+      if (normalizedMatch) {
+        if (!result.includes(normalizedMatch)) result.push(normalizedMatch);
+      } else {
+        // Unknown tag — still display it, just clean it up
+        if (!result.includes(trimmed)) result.push(trimmed);
+      }
+    }
+  }
+
+  return result.slice(0, 5); // Max 5 tags
+}
+
 // Helper to format review text into readable paragraphs
 const formatReviewText = (text: string) => {
   if (!text) return [];
-  // If the text already has double newlines, use them
   if (text.includes('\n\n')) {
     return text.split('\n\n').filter(Boolean);
   }
 
-  // Otherwise, split by sentences and chunk every ~3-4 sentences
   const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g);
   if (!sentences) return [text];
 
@@ -26,7 +103,6 @@ const formatReviewText = (text: string) => {
 
   sentences.forEach((sentence) => {
     currentPara += sentence;
-    // Break if paragraph gets long enough (approx 250-300 chars)
     if (currentPara.length > 250) {
       paragraphs.push(currentPara.trim());
       currentPara = "";
@@ -42,10 +118,11 @@ const formatReviewText = (text: string) => {
 
 export default function ReviewContent({ review }: ReviewContentProps) {
   const paragraphs = formatReviewText(review.review_text);
+  const tags = fixTags(review.tags);
 
   return (
     <div className="animate-fade-in space-y-8">
-      {/* 1. THE VIBE - Now at the Top, Golden, Serif, Large, with Quotes */}
+      {/* 1. THE VIBE */}
       {review.vibe && (
         <div className="text-center px-4 pt-4">
           <p className="text-2xl md:text-3xl font-serif italic font-medium text-accent-gold leading-relaxed drop-shadow-lg">
@@ -59,7 +136,7 @@ export default function ReviewContent({ review }: ReviewContentProps) {
         <VerdictBadge verdict={review.verdict} size="lg" />
       </div>
 
-      {/* 3. THE HOOK - Now at the Bottom, White, Sans-serif, No Quotes */}
+      {/* 3. THE HOOK + Tags */}
       <div className="space-y-6 text-center">
         {review.hook && (
           <h4 className="font-display text-base md:text-lg text-white/90 tracking-wide max-w-xl mx-auto px-4">
@@ -67,10 +144,10 @@ export default function ReviewContent({ review }: ReviewContentProps) {
           </h4>
         )}
 
-        {/* Verdict DNA: Tags */}
-        {review.tags && review.tags.length > 0 && (
+        {/* Verdict DNA: Tags — properly split and displayed */}
+        {tags.length > 0 && (
           <div className="flex flex-wrap justify-center gap-2 pt-2 pb-4">
-            {review.tags.map((tag) => (
+            {tags.map((tag) => (
               <span
                 key={tag}
                 className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/50 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
@@ -82,7 +159,18 @@ export default function ReviewContent({ review }: ReviewContentProps) {
         )}
       </div>
 
-      {/* Main Review Text - RESTORED */}
+      {/* Sentiment Bar */}
+      {(review.positive_pct || review.negative_pct || review.mixed_pct) && (
+        <div className="max-w-xl mx-auto px-4">
+          <SentimentBar
+            positive={review.positive_pct ?? null}
+            mixed={review.mixed_pct ?? null}
+            negative={review.negative_pct ?? null}
+          />
+        </div>
+      )}
+
+      {/* Main Review Text */}
       <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-lg leading-relaxed text-text-secondary/90">
         {paragraphs.map((para, i) => (
           <p
@@ -96,7 +184,6 @@ export default function ReviewContent({ review }: ReviewContentProps) {
 
       {/* Praise & Criticism Grid */}
       <div className="grid gap-6 sm:grid-cols-2 pt-4">
-        {/* Praise */}
         {review.praise_points && review.praise_points.length > 0 && (
           <div className="rounded-xl bg-verdict-worth/5 border border-verdict-worth/10 p-5 transition-colors hover:bg-verdict-worth/10">
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-verdict-worth">
@@ -113,7 +200,6 @@ export default function ReviewContent({ review }: ReviewContentProps) {
           </div>
         )}
 
-        {/* Criticism */}
         {review.criticism_points && review.criticism_points.length > 0 && (
           <div className="rounded-xl bg-verdict-skip/5 border border-verdict-skip/10 p-5 transition-colors hover:bg-verdict-skip/10">
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-verdict-skip">

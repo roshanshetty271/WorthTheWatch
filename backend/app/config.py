@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,https://worth-the-watch.vercel.app"
 
     # Database (Neon PostgreSQL)
-    # SECURITY: No default. App crashes on startup if missing.
     DATABASE_URL: str
 
     # TMDB
@@ -25,8 +24,9 @@ class Settings(BaseSettings):
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
     TMDB_IMAGE_BASE: str = "https://image.tmdb.org/t/p"
 
-    # Serper (Google Search)
+    # Serper (Google Search) — primary + fallback
     SERPER_API_KEY: str = ""
+    SERPER_API_KEY_FALLBACK: str = ""
 
     # Jina Reader
     JINA_API_KEY: str = ""
@@ -42,33 +42,21 @@ class Settings(BaseSettings):
     ON_DEMAND_PER_IP_PER_HOUR: int = 10
     ON_DEMAND_PER_IP_PER_DAY: int = 30
 
-    # ═══════════════════════════════════════════════════════════════════
     # Phase 2 APIs
-    # ═══════════════════════════════════════════════════════════════════
-    
-    # OMDB (free 1000 req/day)
     OMDB_API_KEY: str = ""
-    
-    # KinoCheck (free 1000 req/day)
     KINOCHECK_API_KEY: str = ""
-    
-    # The Guardian (free)
     GUARDIAN_API_KEY: str = ""
-    
-    # NYT (free 500 req/day)
     NYT_API_KEY: str = ""
-    
-    # Watchmode (free 1000 req/month)
     WATCHMODE_API_KEY: str = ""
-    
+
     # Feature Flags
     USE_LANGGRAPH: bool = False
     USE_JINA: bool = False
 
-    # Cron — SECURITY: No default. Must be set in env.
+    # Cron — required in production
     CRON_SECRET: str
 
-    # Security — SECURITY: No default. Must be set in env.
+    # Security — required in production
     IP_HASH_SALT: str
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

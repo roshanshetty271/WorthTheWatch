@@ -2,6 +2,9 @@
 Worth the Watch? — Serper API Service
 Searches Google for review articles and Reddit discussions.
 Free tier: 2500 searches on signup.
+
+Supports automatic key failover: when primary key hits 402/429,
+switches to SERPER_API_KEY_FALLBACK for the rest of the session.
 """
 
 import httpx
@@ -23,20 +26,60 @@ class SerperService:
     def __init__(self):
         self.url = "https://google.serper.dev/search"
         self.image_url = "https://google.serper.dev/images"
-        self.headers = {
-            "X-API-KEY": settings.SERPER_API_KEY,
+        
+        # Primary key
+        self._primary_key = settings.SERPER_API_KEY
+        # Fallback key (from second account)
+        self._fallback_key = getattr(settings, "SERPER_API_KEY_FALLBACK", "")
+        # Active key starts as primary
+        self._active_key = self._primary_key
+        # Track if we already switched
+        self._switched_to_fallback = False
+
+    def _get_headers(self) -> dict:
+        return {
+            "X-API-KEY": self._active_key,
             "Content-Type": "application/json",
         }
 
+    def _switch_to_fallback(self) -> bool:
+        """
+        Switch to fallback key. Returns True if switch was successful,
+        False if no fallback available or already switched.
+        """
+        if self._switched_to_fallback:
+            logger.error("⛔ Both Serper keys exhausted. No more search credits.")
+            return False
+        
+        if not self._fallback_key:
+            logger.error("⛔ Primary Serper key exhausted and no SERPER_API_KEY_FALLBACK set.")
+            return False
+        
+        self._active_key = self._fallback_key
+        self._switched_to_fallback = True
+        logger.warning("🔄 Switched to fallback Serper API key.")
+        return True
+
     async def search_images(self, query: str, num_results: int = 3) -> list[dict]:
-        """Search Google Images via Serper. Returns list of {imageUrl, source, title}."""
+        """Search Google Images via Serper."""
         try:
             async with httpx.AsyncClient(timeout=8) as client:
                 resp = await client.post(
                     self.image_url,
-                    headers=self.headers,
+                    headers=self._get_headers(),
                     json={"q": query, "num": num_results},
                 )
+
+                if resp.status_code in (402, 429):
+                    if self._switch_to_fallback():
+                        # Retry with fallback key
+                        resp = await client.post(
+                            self.image_url,
+                            headers=self._get_headers(),
+                            json={"q": query, "num": num_results},
+                        )
+                    else:
+                        return []
 
                 if resp.status_code != 200:
                     logger.warning(f"Serper Images returned {resp.status_code}")
@@ -50,21 +93,31 @@ class SerperService:
             return []
 
     async def search(self, query: str, num_results: int = 10) -> list[dict]:
-        """Search Google via Serper. Returns list of {title, link, snippet}."""
+        """Search Google via Serper with automatic key failover."""
         try:
             async with httpx.AsyncClient(timeout=5) as client:
                 resp = await client.post(
                     self.url,
-                    headers=self.headers,
+                    headers=self._get_headers(),
                     json={"q": query, "num": num_results},
                 )
 
-                # Handle API limit errors
+                # Key exhausted — try fallback
                 if resp.status_code in (402, 429):
-                    logger.warning("⚠️ Serper API limit reached! Rotate key or wait.")
-                    return []
+                    logger.warning(f"⚠️ Serper key exhausted (HTTP {resp.status_code})")
+                    if self._switch_to_fallback():
+                        # Retry immediately with fallback key
+                        resp = await client.post(
+                            self.url,
+                            headers=self._get_headers(),
+                            json={"q": query, "num": num_results},
+                        )
+                        if resp.status_code in (402, 429):
+                            logger.error("⛔ Fallback Serper key also exhausted.")
+                            return []
+                    else:
+                        return []
 
-                # Handle server errors
                 if resp.status_code >= 500:
                     logger.error(f"Serper server error: {resp.status_code}")
                     return []
@@ -83,7 +136,6 @@ class SerperService:
             for item in data.get("organic", []):
                 link = item.get("link", "")
                 
-                # Blocklist filter
                 if any(blocked in link.lower() for blocked in self.BLOCKLIST):
                     continue
                     
@@ -105,7 +157,6 @@ class SerperService:
         """Search for critic review articles."""
         try:
             type_hint = "TV series" if media_type == "tv" else "movie"
-            # Force "review opinion" to avoid streaming sites
             query = f'"{title}" {year} {type_hint} review opinion'.strip()
             return await self.search(query, num_results=20)
         except Exception as e:
@@ -134,4 +185,3 @@ class SerperService:
 
 
 serper_service = SerperService()
-
