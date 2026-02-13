@@ -90,6 +90,8 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
 
     useEffect(() => {
         setRefreshKey(0);
+        setMovies([]);
+        setLoading(true);
     }, [mood]);
 
     const handleShuffle = () => {
@@ -113,7 +115,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                         {!loading && movies.length > 0 && (
                             <button
                                 onClick={handleShuffle}
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/70 text-xs font-bold uppercase tracking-wider hover:text-accent-gold hover:border-accent-gold/30 transition-all"
+                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/80 text-xs font-bold uppercase tracking-wider hover:text-accent-gold hover:border-accent-gold/30 transition-all"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -123,7 +125,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                         )}
                     </div>
 
-                    <p className="text-white/50 text-sm mb-8 max-w-lg">
+                    <p className="text-white/60 text-sm mb-8 max-w-lg">
                         {meta.description}
                     </p>
 
@@ -140,7 +142,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                     transition-all flex-shrink-0 border
                     ${key === mood
                                             ? m.pillActive
-                                            : "bg-white/5 text-white/50 border-white/10 hover:text-white hover:border-white/20"
+                                            : "bg-white/5 text-white/60 border-white/10 hover:text-white hover:border-white/20"
                                         }
                   `}
                                 >
@@ -154,7 +156,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                     {loading && (
                         <div className="flex flex-col items-center justify-center py-24">
                             <div className="w-8 h-8 border-2 border-accent-gold/30 border-t-accent-gold rounded-full animate-spin" />
-                            <p className="text-white/40 text-sm mt-4">Finding picks for you...</p>
+                            <p className="text-white/60 text-sm mt-4">Finding picks for you...</p>
                         </div>
                     )}
 
@@ -164,7 +166,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                             <h2 className="text-xl font-bold text-white mb-2">
                                 No picks for this mood yet
                             </h2>
-                            <p className="text-white/50 text-sm max-w-[300px] mb-6">
+                            <p className="text-white/60 text-sm max-w-[300px] mb-6">
                                 We are still building our library. Try searching for movies to help us grow it.
                             </p>
                             <Link

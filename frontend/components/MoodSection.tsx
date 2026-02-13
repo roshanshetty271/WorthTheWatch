@@ -50,44 +50,43 @@ export default function MoodSection() {
                 </div>
             </div>
 
-            {/* Horizontal Scroll — identical container to HorizontalSection */}
+            {/* Scroll container — identical to HorizontalSection */}
             <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scroll-pl-4 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                 {MOODS.map((mood) => (
+                    // Wrapper — identical to HorizontalSection movie wrapper
                     <div
                         key={mood.id}
-                        className="snap-start shrink-0 w-[160px] sm:w-[190px] md:w-[220px]"
+                        className="snap-start shrink-0 w-[140px] sm:w-[170px] md:w-[200px]"
                     >
-                        <button
+                        {/* Card — identical structure to MovieCard */}
+                        <div
                             onClick={() => router.push(`/browse/mood/${mood.id}`)}
-                            className="w-full text-left cursor-pointer group"
+                            className="group relative aspect-[2/3] w-full overflow-hidden rounded-2xl bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl hover:-translate-y-2 cursor-pointer"
                         >
-                            {/* Card — identical structure to MovieCard */}
-                            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl hover:-translate-y-2">
-                                {/* Poster */}
-                                <div className="absolute inset-0 z-0">
-                                    <Image
-                                        src={mood.poster}
-                                        alt={mood.label}
-                                        fill
-                                        sizes="(max-width: 768px) 160px, (max-width: 1200px) 190px, 220px"
-                                        className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                                    />
-                                </div>
+                            {/* Poster — same as MovieCard */}
+                            <div className="absolute inset-0 z-0">
+                                <Image
+                                    src={mood.poster}
+                                    alt={mood.label}
+                                    fill
+                                    sizes="(max-width: 640px) 140px, (max-width: 1024px) 170px, 200px"
+                                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                                />
+                            </div>
 
-                                {/* Overlays — same as MovieCard */}
-                                <div className="absolute inset-0 z-10 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
+                            {/* Gradient overlay — same as MovieCard */}
+                            <div className="absolute inset-0 z-10 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
 
-                                {/* Bottom content — same as MovieCard */}
-                                <div className="absolute bottom-0 left-0 right-0 z-20 p-3 sm:p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
-                                    <h3 className="font-display text-base sm:text-lg font-bold leading-tight text-white transition-all duration-300 group-hover:text-accent-gold">
-                                        {mood.label}
-                                    </h3>
-                                    <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/70">
-                                        {mood.subtitle}
-                                    </div>
+                            {/* Bottom content — same as MovieCard */}
+                            <div className="absolute bottom-0 left-0 right-0 z-20 p-3 sm:p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
+                                <h3 className="font-display text-base sm:text-lg font-bold leading-tight text-white transition-all duration-300 group-hover:text-accent-gold">
+                                    {mood.label}
+                                </h3>
+                                <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/80">
+                                    {mood.subtitle}
                                 </div>
                             </div>
-                        </button>
+                        </div>
                     </div>
                 ))}
             </div>

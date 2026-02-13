@@ -68,7 +68,7 @@ export default function Navbar() {
                             <Link
                                 key={cat.id}
                                 href={`/browse/${cat.id}`}
-                                className="text-sm font-medium text-white/70 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4"
+                                className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4"
                             >
                                 {cat.label}
                             </Link>
@@ -77,7 +77,7 @@ export default function Navbar() {
                         {/* My List */}
                         <Link
                             href="/my-list"
-                            className="text-sm font-medium text-white/70 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4 relative"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4 relative"
                         >
                             My List
                             {count > 0 && (
@@ -109,7 +109,7 @@ export default function Navbar() {
                         {/* My List icon (mobile) */}
                         <Link
                             href="/my-list"
-                            className="md:hidden p-2 text-white/80 hover:text-accent-gold transition-colors relative"
+                            className="md:hidden p-2 text-white hover:text-accent-gold transition-colors relative"
                             aria-label="My List"
                         >
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

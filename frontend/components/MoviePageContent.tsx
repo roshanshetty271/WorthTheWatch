@@ -53,6 +53,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 src={backdropSrc}
                                 alt={movie.title}
                                 fill
+                                sizes="100vw"
                                 className={`object-cover ${isPosterFallback ? "object-center opacity-60" : "object-top"}`}
                                 priority
                                 onError={handleImageError}
@@ -102,6 +103,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         src={movie.poster_url}
                                         alt={movie.title}
                                         fill
+                                        sizes="(max-width: 768px) 160px, 208px"
                                         className="object-cover"
                                         priority
                                         onError={(e) => {
@@ -276,7 +278,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 <div className="mt-8 flex items-center justify-between border-t border-surface-elevated pt-8">
                     <button
                         onClick={() => router.back()}
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-muted transition-colors hover:text-accent-gold"
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors hover:text-accent-gold"
                     >
                         <svg
                             className="h-4 w-4"
@@ -295,7 +297,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     </button>
                     <Link
                         href="/search"
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-muted transition-colors hover:text-accent-gold"
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors hover:text-accent-gold"
                     >
                         Search another title
                         <svg

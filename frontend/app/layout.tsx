@@ -36,6 +36,9 @@ export const metadata: Metadata = {
     description: "AI-powered verdicts on movies and TV shows.",
     images: ["/images/og-image.png"],
   },
+  other: {
+    "theme-color": "#09090b",
+  },
 };
 
 export default function RootLayout({
@@ -55,10 +58,10 @@ export default function RootLayout({
 
         {/* Footer */}
         <footer className="border-t border-surface-elevated/50 py-8 text-center">
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-text-secondary">
             Worth the Watch? — Should I stream this? The internet decides.
           </p>
-          <p className="mt-3 text-sm text-text-muted">
+          <p className="mt-3 text-sm text-text-secondary">
             Created with ❤️ by{" "}
             <a
               href="https://www.roshanshetty.dev/"
@@ -74,7 +77,7 @@ export default function RootLayout({
               href="https://www.roshanshetty.dev/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-text-muted hover:text-accent-primary transition-colors"
+              className="text-text-secondary hover:text-accent-primary transition-colors"
               aria-label="Portfolio"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -85,7 +88,7 @@ export default function RootLayout({
               href="https://www.linkedin.com/in/roshanshetty271/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-text-muted hover:text-accent-primary transition-colors"
+              className="text-text-secondary hover:text-accent-primary transition-colors"
               aria-label="LinkedIn"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">

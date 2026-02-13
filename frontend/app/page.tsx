@@ -90,7 +90,7 @@ function HorizontalSection({
         {movies.map((item) => (
           <div
             key={item.movie.tmdb_id}
-            className="snap-start shrink-0 w-[160px] sm:w-[190px] md:w-[220px]"
+            className="snap-start shrink-0 w-[140px] sm:w-[170px] md:w-[200px]"
           >
             <MovieCard data={item} />
           </div>
@@ -130,6 +130,7 @@ export default async function HomePage() {
               src={featured.movie.backdrop_url!}
               alt={featured.movie.title}
               fill
+              sizes="100vw"
               className="object-cover object-top transition-transform duration-[20s] hover:scale-105"
               priority
             />
@@ -196,7 +197,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           ALL SECTIONS — Inside one single container for consistent alignment
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8">
         {hasAnySections ? (
           <div className="space-y-2">
             {/* Mood Section — FIRST, same container as everything else */}

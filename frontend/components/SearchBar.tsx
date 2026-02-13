@@ -126,7 +126,7 @@ export default function SearchBar({
       <form onSubmit={handleSubmit} className="relative w-full">
         {/* Search Icon */}
         <div
-          className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${focused ? "text-accent-gold" : "text-text-muted"
+          className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${focused ? "text-accent-gold" : "text-text-secondary"
             }`}
         >
           {loading ? (
@@ -160,7 +160,7 @@ export default function SearchBar({
           }}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className={`w-full border !text-left bg-black/40 backdrop-blur-2xl text-text-primary placeholder:text-text-muted/60 transition-all duration-300 ${focused
+          className={`w-full border !text-left bg-black/40 backdrop-blur-2xl text-text-primary placeholder:text-white/50 transition-all duration-300 ${focused
             ? "border-accent-gold/50 shadow-sm shadow-black/40"
             : "border-white/10 hover:border-white/20 hover:bg-black/50"
             } ${isLarge
@@ -236,14 +236,14 @@ export default function SearchBar({
                     />
                   ) : (
                     <div className="w-10 h-14 rounded bg-surface-elevated flex items-center justify-center flex-shrink-0">
-                      <span className="text-text-muted text-xs">🎬</span>
+                      <span className="text-text-secondary text-xs" aria-hidden="true">🎬</span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text-primary truncate">
                       {getHighlightedText(movie.title, suggestion || (didYouMean ? "" : query))}
                     </p>
-                    <p className="text-xs text-text-muted">
+                    <p className="text-xs text-text-secondary">
                       {year && `${year} • `}
                       <span className="capitalize">{movie.media_type}</span>
                       {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
@@ -267,7 +267,7 @@ export default function SearchBar({
 
       {/* Keyboard hint */}
       {isLarge && focused && !showDropdown && (
-        <div className="absolute -bottom-8 left-0 text-xs text-text-muted">
+        <div className="absolute -bottom-8 left-0 text-xs text-text-secondary">
           Press{" "}
           <kbd className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono">
             Enter

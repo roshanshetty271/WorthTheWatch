@@ -26,8 +26,8 @@ const config: Config = {
         },
         text: {
           primary: "#fafafa",  // Zinc 50 (High contrast)
-          secondary: "#a1a1aa", // Zinc 400
-          muted: "#71717a",    // Zinc 500
+          secondary: "#d4d4d8", // Zinc 300
+          muted: "#a1a1aa",    // Zinc 400
         },
       },
       fontFamily: {

@@ -26,7 +26,7 @@ const verdictColor = (v: string | null) => {
         case "MIXED BAG":
             return "bg-orange-400/10 text-orange-400 border-orange-400/30";
         default:
-            return "bg-white/5 text-white/50 border-white/10";
+            return "bg-white/5 text-white/60 border-white/10";
     }
 };
 
@@ -150,12 +150,12 @@ export default function MyListPage() {
             <div className="min-h-screen bg-[#0a0a0a] pt-28 pb-16 px-4 md:px-8">
                 <div className="max-w-5xl mx-auto">
                     <div className="mb-8">
-                        <p className="text-white/40 text-sm uppercase tracking-widest mb-2">Shared Watchlist</p>
+                        <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Shared Watchlist</p>
                         <h1 className="text-3xl font-display font-black text-white">
                             Someone shared their <span className="text-accent-gold">picks</span> with you
                         </h1>
                         {!loadingShared && (
-                            <p className="text-white/50 text-sm mt-2">
+                            <p className="text-white/60 text-sm mt-2">
                                 {sharedMovies.length} {sharedMovies.length === 1 ? "movie" : "movies"}
                             </p>
                         )}
@@ -191,12 +191,12 @@ export default function MyListPage() {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-8">
                     <div>
-                        <p className="text-white/40 text-sm uppercase tracking-widest mb-2">Your Watchlist</p>
+                        <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Your Watchlist</p>
                         <h1 className="text-3xl font-display font-black text-white">
                             My <span className="text-accent-gold">List</span>
                         </h1>
                         {count > 0 && (
-                            <p className="text-white/50 text-sm mt-2">
+                            <p className="text-white/60 text-sm mt-2">
                                 {count} {count === 1 ? "movie" : "movies"} saved
                             </p>
                         )}
@@ -226,7 +226,7 @@ export default function MyListPage() {
                             </button>
                             <button
                                 onClick={() => setShowClearConfirm(true)}
-                                className="px-3 py-2.5 bg-white/5 text-white/40 text-xs font-medium rounded-xl hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                className="px-3 py-2.5 bg-white/5 text-white/60 text-xs font-medium rounded-xl hover:text-red-400 hover:bg-red-500/10 transition-all"
                             >
                                 Clear All
                             </button>
@@ -241,7 +241,7 @@ export default function MyListPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                         </svg>
                         <h2 className="text-xl font-bold text-white mb-2">Your list is empty</h2>
-                        <p className="text-white/40 text-sm max-w-[280px] mb-8">
+                        <p className="text-white/60 text-sm max-w-[280px] mb-8">
                             Save movies you want to watch and they will show up here.
                         </p>
                         <Link
@@ -283,7 +283,7 @@ export default function MyListPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                         <h3 className="text-lg font-bold text-white mb-1">Clear your watchlist?</h3>
-                        <p className="text-white/40 text-sm mb-6">
+                        <p className="text-white/60 text-sm mb-6">
                             This will remove all {count} saved {count === 1 ? "movie" : "movies"}. This cannot be undone.
                         </p>
                         <div className="flex gap-3">

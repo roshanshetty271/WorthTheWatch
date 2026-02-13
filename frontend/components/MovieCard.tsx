@@ -52,7 +52,7 @@ export default function MovieCard({ data }: MovieCardProps) {
     : {
       borderColor: "border-white/10",
       glowColor: "group-hover:shadow-white/10",
-      textColor: "text-white/70",
+      textColor: "text-white/80",
       label: "Unrated",
       gradient: "from-white/5 to-transparent",
       titleShadow: ""
@@ -80,7 +80,7 @@ export default function MovieCard({ data }: MovieCardProps) {
               src={movie.poster_url}
               alt={movie.title}
               fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              sizes="(max-width: 640px) 140px, (max-width: 1024px) 170px, 200px"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
               priority={false}
             />
@@ -131,18 +131,18 @@ export default function MovieCard({ data }: MovieCardProps) {
           </h3>
 
           {/* Metadata Line: Year · Type · Rating */}
-          <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/70">
+          <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/80">
             {year && <span>{year}</span>}
             {movie.media_type && (
               <>
-                <span className="h-1 w-1 rounded-full bg-white/30" />
+                <span className="h-1 w-1 rounded-full bg-white/40" aria-hidden="true" />
                 <span className="capitalize">{movie.media_type}</span>
               </>
             )}
             {rating && (
               <>
-                <span className="h-1 w-1 rounded-full bg-white/30" />
-                <span className="flex items-center gap-1 text-yellow-400">
+                <span className="h-1 w-1 rounded-full bg-white/40" aria-hidden="true" />
+                <span className="flex items-center gap-1 text-yellow-500">
                   <span className="text-[10px]">⭐</span>
                   <span className="font-bold">{rating.value}</span>
                 </span>

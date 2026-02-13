@@ -150,7 +150,7 @@ export default function ReviewContent({ review }: ReviewContentProps) {
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/50 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
+                className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
               >
                 {tag.replace(/-/g, " ")}
               </span>
@@ -225,7 +225,7 @@ export default function ReviewContent({ review }: ReviewContentProps) {
       )}
 
       {/* Sources & Meta */}
-      <div className="flex flex-wrap items-center justify-center gap-6 border-t border-white/5 pt-8 text-xs font-medium uppercase tracking-wider text-text-muted">
+      <div className="flex flex-wrap items-center justify-center gap-6 border-t border-white/5 pt-8 text-xs font-medium uppercase tracking-wider text-text-secondary">
         {review.imdb_score && (
           <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors">
             <span className="text-lg">⭐</span> IMDb {review.imdb_score}
