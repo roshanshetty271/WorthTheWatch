@@ -91,29 +91,39 @@ function fixTags(rawTags: string[] | null | undefined): string[] {
 // Helper to format review text into readable paragraphs
 const formatReviewText = (text: string) => {
   if (!text) return [];
-  if (text.includes('\n\n')) {
-    return text.split('\n\n').filter(Boolean);
-  }
 
-  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g);
-  if (!sentences) return [text];
+  // 1. Initial split by double newlines
+  const initialParas = text.split(/\n\s*\n/).filter(Boolean);
+  const finalParas: string[] = [];
 
-  const paragraphs: string[] = [];
-  let currentPara = "";
+  // 2. Break down any individual paragraphs that are still too long (>350 chars)
+  initialParas.forEach(para => {
+    if (para.length > 350) {
+      const sentences = para.match(/[^.!?]+[.!?]+(\s|$)/g);
+      if (!sentences) {
+        finalParas.push(para.trim());
+        return;
+      }
 
-  sentences.forEach((sentence) => {
-    currentPara += sentence;
-    if (currentPara.length > 250) {
-      paragraphs.push(currentPara.trim());
-      currentPara = "";
+      let currentPara = "";
+      sentences.forEach((sentence) => {
+        currentPara += sentence;
+        // Split if we hit ~280 chars to avoid very long blocks
+        if (currentPara.length > 280) {
+          finalParas.push(currentPara.trim());
+          currentPara = "";
+        }
+      });
+
+      if (currentPara.trim()) {
+        finalParas.push(currentPara.trim());
+      }
+    } else {
+      finalParas.push(para.trim());
     }
   });
 
-  if (currentPara.trim()) {
-    paragraphs.push(currentPara.trim());
-  }
-
-  return paragraphs;
+  return finalParas;
 };
 
 export default function ReviewContent({ review }: ReviewContentProps) {
@@ -177,8 +187,8 @@ export default function ReviewContent({ review }: ReviewContentProps) {
             const firstLetter = para.charAt(0);
             const restOfText = para.slice(1);
             return (
-              <p key={i} className="relative pl-14 sm:pl-16">
-                <span className="absolute left-0 top-0.5 text-6xl font-display font-bold text-accent-gold leading-none select-none">
+              <p key={i} className="relative pl-16 sm:pl-20">
+                <span className="absolute left-0 top-1 w-12 sm:w-16 flex justify-center text-6xl font-display font-bold text-accent-gold leading-none select-none">
                   {firstLetter}
                 </span>
                 {restOfText}
@@ -186,7 +196,7 @@ export default function ReviewContent({ review }: ReviewContentProps) {
             );
           }
           return (
-            <p key={i} className="pl-14 sm:pl-16">
+            <p key={i} className="pl-16 sm:pl-20">
               {para}
             </p>
           );
