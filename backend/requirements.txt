@@ -31,3 +31,6 @@ fake-useragent>=1.5.1
 
 # Fast HTML Parsing (Used in jina.py)
 selectolax>=0.3.21
+
+# Fuzzy Search (Used in tmdb.py)
+rapidfuzz>=3.11.0
