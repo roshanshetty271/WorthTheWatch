@@ -74,13 +74,23 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (!data) return { title: "Not Found | Worth the Watch?" };
 
   const verdict = data.review?.verdict || "";
+  const title = `Is ${data.movie.title} Worth Watching? | Worth the Watch`;
+  const description = data.review?.review_text?.slice(0, 155) || data.movie.overview?.slice(0, 155);
+  const image = data.movie.backdrop_url || data.movie.poster_url || "/images/twitter-share.png";
+
   return {
-    title: `Is ${data.movie.title} Worth Watching? | Worth the Watch`,
-    description: data.review?.review_text?.slice(0, 155) || data.movie.overview?.slice(0, 155),
+    title,
+    description,
     openGraph: {
       title: `${data.movie.title}: ${verdict} | Worth the Watch?`,
-      description: data.review?.review_text?.slice(0, 155),
-      images: data.movie.backdrop_url ? [data.movie.backdrop_url] : [],
+      description,
+      images: [image],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${data.movie.title}: ${verdict}`,
+      description,
+      images: [image],
     },
   };
 }

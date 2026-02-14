@@ -39,6 +39,13 @@ export async function generateMetadata({
         openGraph: {
             title: `${meta.title} | Worth the Watch?`,
             description: meta.description,
+            images: ["/images/twitter-share.png"],
+        },
+        twitter: {
+            card: "summary_large_image",
+            title: `${meta.title} | Worth the Watch?`,
+            description: meta.description,
+            images: ["/images/twitter-share.png"],
         },
     };
 }

@@ -14,18 +14,18 @@ export const metadata: Metadata = {
 
   // 2. OpenGraph (Facebook, WhatsApp, LinkedIn, Discord)
   openGraph: {
-    title: "Worth the Watch?",
-    description: "Should I stream this? The internet decides.",
+    title: "Worth the Watch? — Should I stream this?",
+    description: "AI-powered movie and TV reviews synthesized from real internet opinions. Get honest verdicts on whether to stream it or skip it.",
     url: "https://worth-the-watch.vercel.app",
     siteName: "Worth the Watch?",
     locale: "en_US",
     type: "website",
     images: [
       {
-        url: "/images/og-image.png", // Points to public/images/og-image.png
+        url: "/images/twitter-share.png",
         width: 1200,
         height: 630,
-        alt: "Worth the Watch? - AI Movie Reviews",
+        alt: "Worth the Watch? — AI Movie Reviews",
       },
     ],
   },
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
   // 3. Twitter Card (Twitter/X)
   twitter: {
     card: "summary_large_image",
-    title: "Worth the Watch?",
-    description: "AI-powered verdicts on movies and TV shows.",
-    images: ["/images/og-image.png"],
+    title: "Worth the Watch? — Should I stream this?",
+    description: "AI-powered movie and TV reviews synthesized from real internet opinions. Better than Rotten Tomatoes.",
+    images: ["/images/twitter-share.png"],
   },
   other: {
     "theme-color": "#09090b",
