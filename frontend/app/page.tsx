@@ -125,13 +125,13 @@ export default async function HomePage() {
       <section className="relative flex min-h-[100dvh] flex-col items-center justify-center">
         {/* Background Image */}
         {featured ? (
-          <div className="absolute inset-0 z-0 overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[80vh] md:inset-0 z-0 overflow-hidden">
             <Image
               src={featured.movie.backdrop_url!}
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="object-cover object-top transition-transform duration-[20s] hover:scale-105"
+              className="object-cover object-center md:object-top transition-transform duration-[20s] hover:scale-105"
               priority
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
