@@ -66,33 +66,51 @@ function generateJsonLd(movie: MovieWithReview) {
   };
 }
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
-  const { id } = await params;
-  const sParams = await searchParams;
-  const mediaType = sParams?.type;
-  const data = await getMovie(id, mediaType);
-  if (!data) return { title: "Not Found | Worth the Watch?" };
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  try {
+    const { id } = await params;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  const verdict = data.review?.verdict || "";
-  const title = `Is ${data.movie.title} Worth Watching? | Worth the Watch`;
-  const description = data.review?.review_text?.slice(0, 155) || data.movie.overview?.slice(0, 155);
-  const image = data.movie.backdrop_url || data.movie.poster_url || "/images/twitter-share.png";
+    const res = await fetch(`${API_URL}/api/movies/${id}`, { next: { revalidate: 3600 } });
 
-  return {
-    title,
-    description,
-    openGraph: {
-      title: `${data.movie.title}: ${verdict} | Worth the Watch?`,
-      description,
-      images: [image],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${data.movie.title}: ${verdict}`,
-      description,
-      images: [image],
-    },
-  };
+    if (!res.ok) return { title: 'Worth the Watch?' };
+
+    const data: MovieWithReview = await res.json();
+    const { movie, review } = data;
+
+    // Build full image URL - TMDB images need the full path
+    const imageUrl = movie.backdrop_path
+      ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+      : movie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+        : null;
+
+    const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+    const verdict = review?.verdict || '';
+    const hook = review?.hook || '';
+    const description = hook || `Is ${movie.title} worth watching? Find out what critics and Reddit think.`;
+
+    return {
+      title: `${movie.title}${year ? ` (${year})` : ''} — Worth the Watch?`,
+      description: description,
+      openGraph: {
+        title: `${movie.title} — ${verdict || 'Worth the Watch?'}`,
+        description: description,
+        ...(imageUrl && { images: [{ url: imageUrl, width: 1280, height: 720 }] }),
+        type: 'article',
+        siteName: 'Worth the Watch?',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${movie.title} — ${verdict || 'Worth the Watch?'}`,
+        description: description,
+        ...(imageUrl && { images: [imageUrl] }),
+      },
+    };
+  } catch (e) {
+    console.error("Metadata generation error:", e);
+    return { title: 'Worth the Watch?' };
+  }
 }
 
 import MoviePageContent from "@/components/MoviePageContent";

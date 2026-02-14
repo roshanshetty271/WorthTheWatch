@@ -5,20 +5,14 @@ import { Analytics } from "@vercel/analytics/next";
 import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
-  // 1. Base URL for resolving images
   metadataBase: new URL("https://worth-the-watch.vercel.app"),
-
-  title: "Worth the Watch? — Should I stream this? The internet decides.",
-  description:
-    "AI-powered movie and TV reviews synthesized from real internet opinions. Get honest verdicts on whether to stream it or skip it.",
-
-  // 2. OpenGraph (Facebook, WhatsApp, LinkedIn, Discord)
+  title: "Worth the Watch?",
+  description: "AI-powered movie verdicts. Find out what critics and Reddit actually think.",
   openGraph: {
-    title: "Worth the Watch? — Should I stream this?",
-    description: "AI-powered movie and TV reviews synthesized from real internet opinions. Get honest verdicts on whether to stream it or skip it.",
+    title: "Worth the Watch?",
+    description: "Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.",
     url: "https://worth-the-watch.vercel.app",
     siteName: "Worth the Watch?",
-    locale: "en_US",
     type: "website",
     images: [
       {
@@ -29,12 +23,10 @@ export const metadata: Metadata = {
       },
     ],
   },
-
-  // 3. Twitter Card (Twitter/X)
   twitter: {
     card: "summary_large_image",
-    title: "Worth the Watch? — Should I stream this?",
-    description: "AI-powered movie and TV reviews synthesized from real internet opinions. Better than Rotten Tomatoes.",
+    title: "Worth the Watch?",
+    description: "Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.",
     images: ["/images/twitter-share.png"],
   },
   other: {
