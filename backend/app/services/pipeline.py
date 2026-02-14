@@ -285,27 +285,26 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # (Lee Chung-hyun) and the American horror (Timothy Woodward Jr.).
     # Adding director name to Serper queries makes Google prefer the right film.
     # Cost: 1 TMDB API call (free, unlimited). Time: ~200ms (runs before parallel search).
+    #
+    # MOVIES ONLY: TV shows don't benefit from this. TV creators/showrunners
+    # (e.g. "Robert Kirkman", "David Zabel") pollute Google results with
+    # unrelated content (eBay listings, academic papers, obituaries).
+    # TV titles are already unique enough — no one confuses "Fear the Walking Dead"
+    # with another show. Movies like "The Call" or "The Host" need disambiguation.
     director_name = ""
-    try:
-        detail_endpoint = f"/{'tv' if movie.media_type == 'tv' else 'movie'}/{movie.tmdb_id}"
-        details_with_credits = await tmdb_service._get(
-            detail_endpoint, {"append_to_response": "credits"}
-        )
-        if details_with_credits and "credits" in details_with_credits:
-            crew = details_with_credits["credits"].get("crew", [])
-            directors = [c["name"] for c in crew if c.get("job") == "Director"]
-            if directors:
-                director_name = directors[0]
-                logger.info(f"🎬 Director: {director_name}")
-            elif movie.media_type == "tv":
-                # TV shows don't always have "Director" — try "Creator"
-                creators = details_with_credits.get("created_by", [])
-                if creators:
-                    director_name = creators[0].get("name", "")
-                    if director_name:
-                        logger.info(f"🎬 Creator: {director_name}")
-    except Exception as e:
-        logger.debug(f"Could not fetch director for '{title}': {e}")
+    if movie.media_type != "tv":
+        try:
+            details_with_credits = await tmdb_service._get(
+                f"/movie/{movie.tmdb_id}", {"append_to_response": "credits"}
+            )
+            if details_with_credits and "credits" in details_with_credits:
+                crew = details_with_credits["credits"].get("crew", [])
+                directors = [c["name"] for c in crew if c.get("job") == "Director"]
+                if directors:
+                    director_name = directors[0]
+                    logger.info(f"🎬 Director: {director_name}")
+        except Exception as e:
+            logger.debug(f"Could not fetch director for '{title}': {e}")
         
     # ─── LangGraph Agent Route ────────────────────────────────
     # Uses adaptive search with conditional broadening.
