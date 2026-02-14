@@ -44,7 +44,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[55vh] md:min-h-[70vh] flex flex-col justify-between overflow-hidden">
+            <section className="relative min-h-[40vh] md:min-h-screen flex flex-col justify-between overflow-hidden lg:overflow-visible">
                 {/* Background Image Logic */}
                 <div className="absolute inset-0 z-0">
                     {backdropSrc ? (
@@ -54,11 +54,11 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 alt={movie.title}
                                 fill
                                 sizes="100vw"
-                                className={`object-cover ${isPosterFallback ? "object-center opacity-60" : "object-top"}`}
+                                className={`object-cover ${isPosterFallback ? "object-center opacity-60" : "object-center md:object-center"}`}
                                 priority
                                 onError={handleImageError}
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent md:via-surface/40" />
                             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
                             {isPosterFallback && <div className="absolute inset-0 bg-black/40" />}
                         </>
@@ -165,6 +165,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         <BookmarkButton
                                             tmdb_id={movie.tmdb_id}
                                             title={movie.title}
+                                            overview={movie.overview}
                                             poster_path={movie.poster_path || null}
                                             verdict={review.verdict}
                                             variant="page"
