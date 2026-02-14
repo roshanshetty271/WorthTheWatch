@@ -81,18 +81,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
       : movie.poster_path
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : '/twitter-share.png';
+        : '/twitter-share.jpg';
 
     const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
     const verdict = review?.verdict || '';
-    const hook = review?.hook || `Is ${movie.title} worth watching?`;
+    const hook = review?.hook || '';
+    const description = (hook.length > 50 ? hook : null) || `Is ${movie.title} worth watching? Get honest, AI-powered movie verdicts synthesized from professional critics and real people on Reddit.`;
 
     return {
       title: `${movie.title}${year ? ` (${year})` : ''} — Worth the Watch?`,
-      description: hook,
+      description: description,
       openGraph: {
         title: `${movie.title} — ${verdict || 'Worth the Watch?'}`,
-        description: hook,
+        description: description,
         images: [{ url: imageUrl, width: 1280, height: 720 }],
         type: 'article',
         siteName: 'Worth the Watch?',
@@ -100,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       twitter: {
         card: 'summary_large_image',
         title: `${movie.title} — ${verdict || 'Worth the Watch?'}`,
-        description: hook,
+        description: description,
         images: [imageUrl],
       },
     };

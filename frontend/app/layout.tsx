@@ -6,20 +6,20 @@ import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://worth-the-watch.vercel.app'),
-  title: 'Worth the Watch?',
-  description: 'AI-powered movie verdicts. Find out what critics and Reddit actually think.',
+  title: 'Worth the Watch? — Instant AI Movie Reviews & Verdicts',
+  description: 'Stop scrolling and start watching. Get honest, AI-synthesized movie verdicts from critics and Reddit. Find out exactly if a movie is worth your time.',
   openGraph: {
-    title: 'Worth the Watch?',
-    description: 'Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.',
+    title: 'Worth the Watch? — Instant AI Movie Reviews & Verdicts',
+    description: 'Stop scrolling and start watching. Get honest, AI-synthesized movie verdicts from critics and Reddit. Find out exactly if a movie is worth your time.',
     siteName: 'Worth the Watch?',
-    images: [{ url: '/twitter-share.png', width: 1200, height: 630 }],
+    images: [{ url: '/twitter-share.jpg', width: 1200, height: 630 }],
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Worth the Watch?',
-    description: 'Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.',
-    images: ['/twitter-share.png'],
+    title: 'Worth the Watch? — Instant AI Movie Reviews & Verdicts',
+    description: 'Stop scrolling and start watching. Get honest, AI-synthesized movie verdicts from critics and Reddit. Find out exactly if a movie is worth your time.',
+    images: ['/twitter-share.jpg'],
   },
 };
 
