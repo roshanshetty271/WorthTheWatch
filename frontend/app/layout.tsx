@@ -5,32 +5,21 @@ import { Analytics } from "@vercel/analytics/next";
 import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://worth-the-watch.vercel.app"),
-  title: "Worth the Watch?",
-  description: "AI-powered movie verdicts. Find out what critics and Reddit actually think.",
+  metadataBase: new URL('https://worth-the-watch.vercel.app'),
+  title: 'Worth the Watch?',
+  description: 'AI-powered movie verdicts. Find out what critics and Reddit actually think.',
   openGraph: {
-    title: "Worth the Watch?",
-    description: "Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.",
-    url: "https://worth-the-watch.vercel.app",
-    siteName: "Worth the Watch?",
-    type: "website",
-    images: [
-      {
-        url: "/images/twitter-share.png",
-        width: 1200,
-        height: 630,
-        alt: "Worth the Watch? — AI Movie Reviews",
-      },
-    ],
+    title: 'Worth the Watch?',
+    description: 'Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.',
+    siteName: 'Worth the Watch?',
+    images: [{ url: '/twitter-share.png', width: 1200, height: 630 }],
+    type: 'website',
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Worth the Watch?",
-    description: "Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.",
-    images: ["/images/twitter-share.png"],
-  },
-  other: {
-    "theme-color": "#09090b",
+    card: 'summary_large_image',
+    title: 'Worth the Watch?',
+    description: 'Stop scrolling. Start watching. AI-powered movie verdicts from critics and Reddit.',
+    images: ['/twitter-share.png'],
   },
 };
 

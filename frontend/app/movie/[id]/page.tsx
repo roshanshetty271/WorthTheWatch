@@ -70,41 +70,38 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { id } = await params;
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-    const res = await fetch(`${API_URL}/api/movies/${id}`, { next: { revalidate: 3600 } });
-
+    const res = await fetch(`${API_URL}/api/movies/${id}`, {
+      next: { revalidate: 3600 }
+    });
     if (!res.ok) return { title: 'Worth the Watch?' };
-
     const data: MovieWithReview = await res.json();
     const { movie, review } = data;
 
-    // Build full image URL - TMDB images need the full path
     const imageUrl = movie.backdrop_path
       ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
       : movie.poster_path
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : null;
+        : '/twitter-share.png';
 
     const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
     const verdict = review?.verdict || '';
-    const hook = review?.hook || '';
-    const description = hook || `Is ${movie.title} worth watching? Find out what critics and Reddit think.`;
+    const hook = review?.hook || `Is ${movie.title} worth watching?`;
 
     return {
       title: `${movie.title}${year ? ` (${year})` : ''} — Worth the Watch?`,
-      description: description,
+      description: hook,
       openGraph: {
         title: `${movie.title} — ${verdict || 'Worth the Watch?'}`,
-        description: description,
-        ...(imageUrl && { images: [{ url: imageUrl, width: 1280, height: 720 }] }),
+        description: hook,
+        images: [{ url: imageUrl, width: 1280, height: 720 }],
         type: 'article',
         siteName: 'Worth the Watch?',
       },
       twitter: {
         card: 'summary_large_image',
         title: `${movie.title} — ${verdict || 'Worth the Watch?'}`,
-        description: description,
-        ...(imageUrl && { images: [imageUrl] }),
+        description: hook,
+        images: [imageUrl],
       },
     };
   } catch (e) {
