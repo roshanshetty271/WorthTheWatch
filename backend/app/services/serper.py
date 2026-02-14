@@ -153,31 +153,57 @@ class SerperService:
             logger.error(f"Serper search failed: {e}")
             return []
 
-    async def search_reviews(self, title: str, year: str = "", media_type: str = "movie") -> list[dict]:
-        """Search for critic review articles."""
+    async def search_reviews(self, title: str, year: str = "", media_type: str = "movie", context: str = "") -> list[dict]:
+        """Search for critic review articles.
+        
+        Args:
+            title: Movie/show title
+            year: Release year for disambiguation
+            media_type: "movie" or "tv"
+            context: Extra context like director name for same-title disambiguation
+                     e.g. "Lee Chung-hyun" to distinguish Korean "The Call" from American "The Call"
+        """
         try:
             type_hint = "TV series" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {type_hint} review opinion'.strip()
+            query = f'"{title}" {year} {context} {type_hint} review opinion'.strip()
+            # Clean up any double spaces from empty context
+            query = " ".join(query.split())
             return await self.search(query, num_results=20)
         except Exception as e:
             logger.error(f"search_reviews failed for '{title}': {e}")
             return []
 
-    async def search_reddit(self, title: str, year: str = "", media_type: str = "movie") -> list[dict]:
-        """Search Reddit discussions via Google."""
+    async def search_reddit(self, title: str, year: str = "", media_type: str = "movie", context: str = "") -> list[dict]:
+        """Search Reddit discussions via Google.
+        
+        Args:
+            title: Movie/show title
+            year: Release year for disambiguation
+            media_type: "movie" or "tv"
+            context: Extra context like director name for same-title disambiguation
+        """
         try:
             type_hint = "TV show" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {type_hint} reddit'.strip()
+            query = f'"{title}" {year} {context} {type_hint} reddit'.strip()
+            query = " ".join(query.split())
             return await self.search(query, num_results=15)
         except Exception as e:
             logger.error(f"search_reddit failed for '{title}': {e}")
             return []
 
-    async def search_forums(self, title: str, year: str = "", media_type: str = "movie") -> list[dict]:
-        """Search for forum discussions, blog posts, and user opinions."""
+    async def search_forums(self, title: str, year: str = "", media_type: str = "movie", context: str = "") -> list[dict]:
+        """Search for forum discussions, blog posts, and user opinions.
+        
+        Args:
+            title: Movie/show title
+            year: Release year for disambiguation
+            media_type: "movie" or "tv"
+            context: Extra context like director name for same-title disambiguation
+        """
         try:
             type_hint = "TV show" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {type_hint} review discussion opinions worth watching'.strip()
+            query = f'"{title}" {year} {context} {type_hint} review discussion opinions worth watching'.strip()
+            query = " ".join(query.split())
             return await self.search(query, num_results=10)
         except Exception as e:
             logger.error(f"search_forums failed for '{title}': {e}")

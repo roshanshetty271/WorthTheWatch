@@ -279,6 +279,33 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     search_title = normalize_for_search(title)
     if search_title != title:
         logger.info(f"🔤 Normalized for search: '{title}' → '{search_title}'")
+
+    # ─── Director Fetching (for search disambiguation) ─────
+    # Fixes title collision: "The Call 2020" matches both the Korean thriller
+    # (Lee Chung-hyun) and the American horror (Timothy Woodward Jr.).
+    # Adding director name to Serper queries makes Google prefer the right film.
+    # Cost: 1 TMDB API call (free, unlimited). Time: ~200ms (runs before parallel search).
+    director_name = ""
+    try:
+        detail_endpoint = f"/{'tv' if movie.media_type == 'tv' else 'movie'}/{movie.tmdb_id}"
+        details_with_credits = await tmdb_service._get(
+            detail_endpoint, {"append_to_response": "credits"}
+        )
+        if details_with_credits and "credits" in details_with_credits:
+            crew = details_with_credits["credits"].get("crew", [])
+            directors = [c["name"] for c in crew if c.get("job") == "Director"]
+            if directors:
+                director_name = directors[0]
+                logger.info(f"🎬 Director: {director_name}")
+            elif movie.media_type == "tv":
+                # TV shows don't always have "Director" — try "Creator"
+                creators = details_with_credits.get("created_by", [])
+                if creators:
+                    director_name = creators[0].get("name", "")
+                    if director_name:
+                        logger.info(f"🎬 Creator: {director_name}")
+    except Exception as e:
+        logger.debug(f"Could not fetch director for '{title}': {e}")
         
     # ─── LangGraph Agent Route ────────────────────────────────
     # Uses adaptive search with conditional broadening.
@@ -383,15 +410,18 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     else:
         search_query = search_title
         
-    logger.info(f"🔍 Search Query: '{search_query}'")
+    logger.info(f"🔍 Search Query: '{search_query}' | Year: '{year}' | Director: '{director_name or 'N/A'}'")
 
     try:
         # Run ALL searches in parallel — Serper + Guardian + NYT
+        # Director name is passed as context to Serper for disambiguation
+        # e.g. "The Call" 2020 "Lee Chung-hyun" → prefers Korean film over American remake
+        director_context = director_name if director_name else ""
         logger.info(f"🚀 Step 1/4: Launching parallel searches for '{title}'...")
         search_results = await asyncio.gather(
-            serper_service.search_reviews(search_query, year, movie.media_type or "movie"),
-            serper_service.search_reddit(search_query, year, movie.media_type or "movie"),
-            serper_service.search_forums(search_query, year, movie.media_type or "movie"),
+            serper_service.search_reviews(search_query, year, movie.media_type or "movie", director_context),
+            serper_service.search_reddit(search_query, year, movie.media_type or "movie", director_context),
+            serper_service.search_forums(search_query, year, movie.media_type or "movie", director_context),
             guardian_service.search_film_reviews(search_query, year),
             nyt_service.search_reviews(search_query),
             omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
