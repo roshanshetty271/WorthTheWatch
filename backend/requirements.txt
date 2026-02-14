@@ -26,12 +26,8 @@ python-multipart>=0.0.6
 # Web scraping (article reader)
 beautifulsoup4>=4.12.0
 
-# Robustness
+# Robustness (Used in jina.py for scraping)
 fake-useragent>=1.5.1
 
-# XML/HTML Parsing (Speed)
-lxml>=5.0.0
-
-# Fuzzy Search (Typo Handling)
-rapidfuzz>=3.11.0
+# Fast HTML Parsing (Used in jina.py)
 selectolax>=0.3.21

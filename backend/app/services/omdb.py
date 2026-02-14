@@ -152,7 +152,7 @@ class OMDBService:
         params = {
             "apikey": self.api_key,
             "t": title,
-            "type": "series" if media_type == "tv" else "movie",
+            "type": "series" if media_type in ("tv", "series") else "movie",
         }
         if year:
             params["y"] = year

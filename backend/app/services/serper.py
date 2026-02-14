@@ -20,7 +20,13 @@ class SerperService:
         "reelgood.com", "gatsby.tv", "moviefone.com", "streamin.co", 
         "freemoviescinema", "teepublic.com", "themoviedb.org", "imdb.com",
         "justwatch.com", "rottentomatoes.com", "metacritic.com", "simkl.com",
-        "facebook.com", "instagram.com", "twitter.com", "tiktok.com", "youtube.com"
+        "facebook.com", "instagram.com", "twitter.com", "tiktok.com", "youtube.com",
+        "ebay.com", "ebay.co.uk", "ebay.de", "quora.com",
+        "boardgamegeek.com", "rpggeek.com", "academic.oup.com", "dokumen.pub",
+        "idcrawl.com", "arovideo.co.nz", "buzzsprout.com", "feeds.buzzsprout.com",
+        "amazon.com", "amazon.co.uk", "walmart.com", "target.com",
+        "etsy.com", "aliexpress.com", "pinterest.com", "linkedin.com",
+        "wikihow.com", "wikipedia.org", "goodreads.com"
     ]
 
     def __init__(self):
