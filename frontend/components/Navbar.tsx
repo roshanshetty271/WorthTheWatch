@@ -5,11 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import CinemaRoulette from "./CinemaRoulette";
 import { useWatchlist } from "@/lib/useWatchlist";
+import AuthButton from "./AuthButton";
 
 const BROWSE_CATEGORIES = [
     { id: "trending", label: "Trending" },
-    { id: "worth-it", label: "Worth It" },
-    { id: "hidden-gems", label: "Hidden Gems" },
     { id: "tv-shows", label: "TV Shows" },
     { id: "movies", label: "Movies" },
 ];
@@ -92,7 +91,7 @@ export default function Navbar() {
                         {/* Roulette Trigger */}
                         <button
                             onClick={() => setRouletteOpen(true)}
-                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest ml-4 flex items-center gap-2 cursor-pointer group"
+                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group"
                         >
                             <span className="group-hover:animate-pulse">Can&apos;t decide?</span>
                         </button>
@@ -133,6 +132,10 @@ export default function Navbar() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </button>
+
+                        <div className="hidden md:block">
+                            <AuthButton />
+                        </div>
 
                         {/* Mobile Menu Toggle */}
                         <button
@@ -178,6 +181,10 @@ export default function Navbar() {
                         >
                             My List{mounted && count > 0 ? ` (${count})` : ""}
                         </Link>
+
+                        <div className="mt-4">
+                            <AuthButton />
+                        </div>
                     </div>
                 </div>
             </nav>

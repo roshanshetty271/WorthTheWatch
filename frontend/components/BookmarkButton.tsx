@@ -35,10 +35,10 @@ export default function BookmarkButton({
         }
     }, [isSaved, tmdb_id, mounted, watchlistMounted]);
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        const nowSaved = toggle({ tmdb_id, title, poster_path, verdict });
+        const nowSaved = await toggle({ tmdb_id, title, poster_path, verdict });
         setSaved(nowSaved);
         setPop(true);
         setTimeout(() => setPop(false), 300);

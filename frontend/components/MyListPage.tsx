@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useWatchlist } from "@/lib/useWatchlist";
 import BookmarkButton from "@/components/BookmarkButton";
+import { signIn } from "next-auth/react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
@@ -39,10 +40,10 @@ const getPosterUrl = (path: string | null) => {
 function MovieCard({ tmdb_id, title, poster_path, verdict }: {
     tmdb_id: number;
     title: string;
-    poster_path: string | null;
-    verdict: string | null;
+    poster_path?: string | null;
+    verdict?: string | null;
 }) {
-    const poster = getPosterUrl(poster_path);
+    const poster = getPosterUrl(poster_path ?? null);
 
     return (
         <Link href={`/movie/${tmdb_id}`} className="group relative">
@@ -65,8 +66,8 @@ function MovieCard({ tmdb_id, title, poster_path, verdict }: {
                 <BookmarkButton
                     tmdb_id={tmdb_id}
                     title={title}
-                    poster_path={poster_path}
-                    verdict={verdict}
+                    poster_path={poster_path ?? null}
+                    verdict={verdict ?? null}
                     variant="card"
                 />
             </div>
@@ -87,7 +88,7 @@ export default function MyListPage() {
     const sharedIds = searchParams.get("ids");
     const isSharedView = !!sharedIds;
 
-    const { items, count, getShareUrl, clear } = useWatchlist();
+    const { items, count, getShareUrl, clear, isSignedIn } = useWatchlist();
     const [sharedMovies, setSharedMovies] = useState<SharedMovie[]>([]);
     const [loadingShared, setLoadingShared] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -203,36 +204,58 @@ export default function MyListPage() {
                     </div>
 
                     {count > 0 && (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleShare}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-accent-gold text-black text-xs font-bold uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-[0.98] transition-all"
-                            >
-                                {copied ? (
-                                    <>
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Copied
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                        </svg>
-                                        Share List
-                                    </>
-                                )}
-                            </button>
-                            <button
-                                onClick={() => setShowClearConfirm(true)}
-                                className="px-3 py-2.5 bg-white/5 text-white/60 text-xs font-medium rounded-xl hover:text-red-400 hover:bg-red-500/10 transition-all"
-                            >
-                                Clear All
-                            </button>
+                        <div className="flex flex-col items-end gap-1">
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleShare}
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-accent-gold text-black text-xs font-bold uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-[0.98] transition-all"
+                                >
+                                    {copied ? (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Copied
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                            </svg>
+                                            Share List
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setShowClearConfirm(true)}
+                                    className="px-3 py-2.5 bg-white/5 text-white/60 text-xs font-medium rounded-xl hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                >
+                                    Clear All
+                                </button>
+                            </div>
+                            {isSignedIn && (
+                                <p className="text-[10px] text-text-muted mt-1 mr-1">
+                                    Shared links work for everyone, no sign-in needed
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
+
+                {!isSignedIn && items.length > 0 && (
+                    <div className="mb-6 p-4 rounded-xl bg-accent-gold/5 border border-accent-gold/20 text-center">
+                        <p className="text-sm text-text-secondary">
+                            Your list is saved locally.
+                            <button
+                                onClick={() => signIn("google")}
+                                className="text-accent-gold hover:text-accent-goldLight font-medium ml-1 underline underline-offset-2"
+                            >
+                                Sign in
+                            </button>
+                            {" "}to sync across devices.
+                        </p>
+                    </div>
+                )}
 
                 {/* Empty State */}
                 {count === 0 && (
@@ -261,8 +284,8 @@ export default function MyListPage() {
                                 key={item.tmdb_id}
                                 tmdb_id={item.tmdb_id}
                                 title={item.title}
-                                poster_path={item.poster_path}
-                                verdict={item.verdict}
+                                poster_path={item.poster_path ?? null}
+                                verdict={item.verdict ?? null}
                             />
                         ))}
                     </div>

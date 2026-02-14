@@ -44,6 +44,10 @@ const nextConfig = {
         hostname: "**.googleusercontent.com", // Google cached images
         pathname: "/**",
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
     ],
   },
 };
