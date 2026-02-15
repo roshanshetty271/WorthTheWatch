@@ -169,7 +169,7 @@ export default async function HomePage() {
                     <VerdictBadge verdict={featured.review.verdict} size="sm" />
                   )}
                 </div>
-                <Link href={`/movie/${featured.movie.tmdb_id}`} className="group block">
+                <Link href={`/movie/${featured.movie.tmdb_id}?type=${featured.movie.media_type || "movie"}`} className="group block">
                   <h2 className="font-display text-xl text-white drop-shadow-lg transition-colors group-hover:text-accent-gold sm:text-3xl md:text-4xl">
                     {featured.movie.title}
                   </h2>
@@ -180,7 +180,7 @@ export default async function HomePage() {
                   </p>
                 )}
                 <Link
-                  href={`/movie/${featured.movie.tmdb_id}`}
+                  href={`/movie/${featured.movie.tmdb_id}?type=${featured.movie.media_type || "movie"}`}
                   className="mt-3 inline-flex items-center gap-2 rounded-full bg-accent-gold px-4 py-2 text-xs font-semibold text-black transition-all hover:bg-accent-gold/90 hover:shadow-lg hover:shadow-accent-gold/30 sm:mt-4 sm:px-5 sm:py-2.5 sm:text-sm"
                 >
                   Read Full Review

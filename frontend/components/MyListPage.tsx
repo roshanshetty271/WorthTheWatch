@@ -11,11 +11,13 @@ import { signIn } from "next-auth/react";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 
+
 interface SharedMovie {
     tmdb_id: number;
     title: string;
     poster_path: string | null;
     verdict: string | null;
+    media_type: string;
 }
 
 const verdictColor = (v: string | null) => {
@@ -37,16 +39,17 @@ const getPosterUrl = (path: string | null) => {
     return `${TMDB_IMAGE_BASE}${path}`;
 };
 
-function MovieCard({ tmdb_id, title, poster_path, verdict }: {
+function MovieCard({ tmdb_id, title, poster_path, verdict, media_type }: {
     tmdb_id: number;
     title: string;
     poster_path?: string | null;
     verdict?: string | null;
+    media_type?: string;
 }) {
     const poster = getPosterUrl(poster_path ?? null);
 
     return (
-        <Link href={`/movie/${tmdb_id}`} className="group relative">
+        <Link href={`/movie/${tmdb_id}?type=${media_type || "movie"}`} className="group relative">
             <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5">
                 {poster ? (
                     <Image
@@ -112,6 +115,7 @@ export default function MyListPage() {
                         title: data.movie.title,
                         poster_path: data.movie.poster_path,
                         verdict: data.review?.verdict || null,
+                        media_type: data.movie.media_type || "movie",
                     } as SharedMovie;
                 } catch {
                     return null;
@@ -286,6 +290,7 @@ export default function MyListPage() {
                                 title={item.title}
                                 poster_path={item.poster_path ?? null}
                                 verdict={item.verdict ?? null}
+                                media_type={item.media_type}
                             />
                         ))}
                     </div>

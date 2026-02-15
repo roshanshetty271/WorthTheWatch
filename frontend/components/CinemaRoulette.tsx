@@ -31,6 +31,7 @@ interface RandomMovie {
         poster_path: string | null;
         release_date: string | null;
         tagline?: string;
+        media_type: string;
     };
     review: {
         verdict: "WORTH IT" | "NOT WORTH IT" | "MIXED BAG";
@@ -195,7 +196,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
     const handleViewReview = useCallback(() => {
         if (!movie) return;
         setNavigating(true);
-        router.push(`/movie/${movie.movie.tmdb_id}`);
+        router.push(`/movie/${movie.movie.tmdb_id}?type=${movie.movie.media_type || "movie"}`);
     }, [movie, router]);
 
     // Close: abort any in-flight fetch, stop animations, close modal

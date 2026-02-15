@@ -88,21 +88,23 @@ export default function Navbar() {
                             )}
                         </Link>
 
-                        {/* Movie Battle */}
-                        <Link
-                            href="/versus"
-                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest"
-                        >
-                            Movie Battle
-                        </Link>
+                        {/* Movie Battle + Can't decide? = Feature links */}
+                        <div className="flex items-center gap-8 ml-8 border-l border-white/10 pl-8">
+                            <Link
+                                href="/versus"
+                                className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                            >
+                                <span className="text-white">Movie </span><span className="text-accent-gold">Battle</span>
+                            </Link>
 
-                        {/* Roulette Trigger */}
-                        <button
-                            onClick={() => setRouletteOpen(true)}
-                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group"
-                        >
-                            <span className="group-hover:animate-pulse">Can&apos;t decide?</span>
-                        </button>
+                            {/* Roulette Trigger */}
+                            <button
+                                onClick={() => setRouletteOpen(true)}
+                                className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group"
+                            >
+                                <span className="group-hover:animate-pulse">Can&apos;t decide?</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Actions */}

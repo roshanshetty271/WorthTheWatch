@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useWatchlist } from "@/lib/useWatchlist";
+import BattleShareCard from "@/components/BattleShareCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
@@ -38,6 +39,8 @@ interface BattleResult {
     winner_title: string;
     loser_title: string;
     kill_reason: string;
+    winner_reasons: string[];
+    loser_reasons: string[];
     breakdown: string;
     winner_headline: string;
     loser_headline: string;
@@ -65,29 +68,29 @@ const TRENDING_BATTLES = [
         id: "barbenheimer",
         label: "The Barbenheimer Showdown",
         subtitle: "Pink vs. Plutonium",
-        a: { tmdb_id: 346698, title: "Barbie" },
-        b: { tmdb_id: 872585, title: "Oppenheimer" },
+        a: { tmdb_id: 346698, title: "Barbie", media_type: "movie" },
+        b: { tmdb_id: 872585, title: "Oppenheimer", media_type: "movie" },
     },
     {
         id: "superhero-goat",
         label: "Superhero Supremacy",
         subtitle: "Knight vs. Spider",
-        a: { tmdb_id: 155, title: "The Dark Knight" },
-        b: { tmdb_id: 324857, title: "Spider-Man: Into the Spider-Verse" },
+        a: { tmdb_id: 155, title: "The Dark Knight", media_type: "movie" },
+        b: { tmdb_id: 324857, title: "Spider-Man: Into the Spider-Verse", media_type: "movie" },
     },
     {
         id: "space-brain",
         label: "Nolan vs. Nolan",
         subtitle: "Dreams vs. Black Holes",
-        a: { tmdb_id: 27205, title: "Inception" },
-        b: { tmdb_id: 157336, title: "Interstellar" },
+        a: { tmdb_id: 27205, title: "Inception", media_type: "movie" },
+        b: { tmdb_id: 157336, title: "Interstellar", media_type: "movie" },
     },
     {
         id: "animated-kings",
         label: "Animation Throwdown",
         subtitle: "Ogre vs. Super Family",
-        a: { tmdb_id: 808, title: "Shrek" },
-        b: { tmdb_id: 9806, title: "The Incredibles" },
+        a: { tmdb_id: 808, title: "Shrek", media_type: "movie" },
+        b: { tmdb_id: 9806, title: "The Incredibles", media_type: "movie" },
     },
 ];
 
@@ -127,7 +130,7 @@ function getBackdropUrl(path: string | null): string | null {
 export default function Versus() {
     const router = useRouter();
     const { data: session } = useSession();
-    const { addItem } = useWatchlist();
+    const { addItem, removeItem, isInWatchlist } = useWatchlist();
     const [phase, setPhase] = useState<Phase>("landing");
 
     // Movie selection
@@ -141,7 +144,7 @@ export default function Versus() {
     // Battle state
     const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
     const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
-    const [saved, setSaved] = useState(false);
+
 
     // Trending battle poster cache
     const [trendingPosters, setTrendingPosters] = useState<Record<number, string>>({});
@@ -212,7 +215,7 @@ export default function Versus() {
             let imdbScore = null;
             let backdropPath = null;
             try {
-                const res = await fetch(`${API_BASE}/api/movies/${result.tmdb_id}`);
+                const res = await fetch(`${API_BASE}/api/movies/${result.tmdb_id}?media_type=${result.media_type}`);
                 if (res.ok) {
                     const data = await res.json();
                     backdropPath = data.movie?.backdrop_path || null;
@@ -246,11 +249,14 @@ export default function Versus() {
     );
 
     // ─── Start Battle ──────────────────────────────────
+    // CRITICAL: movieAType and movieBType are required to prevent TMDB ID
+    // collisions. TMDB ID 57911 can be both "Doraemon" (TV) and 
+    // "Harry and the Butler" (movie). Without media_type, the backend
+    // fetches the wrong title.
 
     const startBattle = useCallback(
-        async (movieAId: number, movieBId: number) => {
+        async (movieAId: number, movieBId: number, movieAType: string = "movie", movieBType: string = "movie") => {
             setPhase("loading");
-            setSaved(false);
 
             // Rotate loading messages
             let msgIdx = 0;
@@ -260,10 +266,16 @@ export default function Versus() {
             }, 1500);
 
             try {
-                const res = await fetch(
-                    `${API_BASE}/api/versus/battle?movie_a_id=${movieAId}&movie_b_id=${movieBId}`,
-                    { method: "POST" }
-                );
+                // Minimum loading time for suspense (3s)
+                const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 3000));
+
+                const [res] = await Promise.all([
+                    fetch(
+                        `${API_BASE}/api/versus/battle?movie_a_id=${movieAId}&movie_b_id=${movieBId}&movie_a_type=${movieAType}&movie_b_type=${movieBType}`,
+                        { method: "POST" }
+                    ),
+                    minLoadingTime
+                ]);
 
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
@@ -273,14 +285,14 @@ export default function Versus() {
                 const result: BattleResult = await res.json();
                 setBattleResult(result);
 
-                // Update slots with data from result
+                // Update slots with data from result (preserving correct media_type)
                 setSlotA({
                     tmdb_id: result.movie_a.tmdb_id,
                     title: result.movie_a.title,
                     poster_path: result.movie_a.poster_path,
                     backdrop_path: result.movie_a.backdrop_path,
                     release_date: result.movie_a.release_date,
-                    media_type: "movie",
+                    media_type: result.movie_a.media_type || movieAType,
                     tmdb_vote_average: result.movie_a.tmdb_vote_average,
                     verdict: result.movie_a.verdict,
                     imdb_score: result.movie_a.imdb_score,
@@ -291,7 +303,7 @@ export default function Versus() {
                     poster_path: result.movie_b.poster_path,
                     backdrop_path: result.movie_b.backdrop_path,
                     release_date: result.movie_b.release_date,
-                    media_type: "movie",
+                    media_type: result.movie_b.media_type || movieBType,
                     tmdb_vote_average: result.movie_b.tmdb_vote_average,
                     verdict: result.movie_b.verdict,
                     imdb_score: result.movie_b.imdb_score,
@@ -320,7 +332,7 @@ export default function Versus() {
                 poster_path: posterA || null,
                 backdrop_path: null,
                 release_date: null,
-                media_type: "movie",
+                media_type: battle.a.media_type,
                 tmdb_vote_average: null,
                 verdict: null,
                 imdb_score: null,
@@ -331,7 +343,7 @@ export default function Versus() {
                 poster_path: posterB || null,
                 backdrop_path: null,
                 release_date: null,
-                media_type: "movie",
+                media_type: battle.b.media_type,
                 tmdb_vote_average: null,
                 verdict: null,
                 imdb_score: null,
@@ -340,46 +352,60 @@ export default function Versus() {
             window.scrollTo({ top: 0, behavior: "smooth" });
             setPhase("pulsing");
             setTimeout(() => {
-                startBattle(battle.a.tmdb_id, battle.b.tmdb_id);
-            }, 1800);
+                startBattle(battle.a.tmdb_id, battle.b.tmdb_id, battle.a.media_type, battle.b.media_type);
+            }, 2800);
         },
         [startBattle, trendingPosters]
     );
 
     const handleCustomBattle = useCallback(() => {
         if (!slotA || !slotB) return;
-        if (slotA.tmdb_id === slotB.tmdb_id) return;
+        if (slotA.tmdb_id === slotB.tmdb_id && slotA.media_type === slotB.media_type) return;
         // Scroll to top, show pulsing phase, then start battle
         window.scrollTo({ top: 0, behavior: "smooth" });
         setPhase("pulsing");
         setTimeout(() => {
-            startBattle(slotA.tmdb_id, slotB.tmdb_id);
-        }, 1800);
+            startBattle(slotA.tmdb_id, slotB.tmdb_id, slotA.media_type, slotB.media_type);
+        }, 2800);
     }, [slotA, slotB, startBattle]);
 
     // ─── Winner Actions ────────────────────────────────
+
+    const winnerTmdbId = battleResult?.winner_id ?? 0;
+    const winnerIsSaved = isInWatchlist(winnerTmdbId);
 
     const handleSaveWinner = useCallback(async () => {
         if (!battleResult) return;
         const winner = battleResult.winner_id === battleResult.movie_a.tmdb_id
             ? battleResult.movie_a
             : battleResult.movie_b;
-        try {
-            await addItem({
-                tmdb_id: winner.tmdb_id,
-                title: battleResult.winner_title,
-                poster_path: winner.poster_path,
-                media_type: winner.media_type || "movie",
-                verdict: winner.verdict,
-            });
-            setSaved(true);
-        } catch { }
-    }, [battleResult, addItem]);
+
+        if (winnerIsSaved) {
+            try {
+                await removeItem(winner.tmdb_id);
+            } catch { }
+        } else {
+            try {
+                await addItem({
+                    tmdb_id: winner.tmdb_id,
+                    title: battleResult.winner_title,
+                    poster_path: winner.poster_path,
+                    media_type: winner.media_type || "movie",
+                    verdict: winner.verdict,
+                });
+            } catch { }
+        }
+    }, [battleResult, winnerIsSaved, addItem, removeItem]);
 
     const handleViewReview = useCallback(() => {
         if (!battleResult) return;
-        router.push(`/movie/${battleResult.winner_id}`);
+        const winner = battleResult.winner_id === battleResult.movie_a.tmdb_id
+            ? battleResult.movie_a
+            : battleResult.movie_b;
+        router.push(`/movie/${winner.tmdb_id}?type=${winner.media_type || "movie"}`);
     }, [battleResult, router]);
+
+
 
     const handleBattleAgain = useCallback(() => {
         setBattleResult(null);
@@ -388,14 +414,13 @@ export default function Versus() {
 
     const handleRematch = useCallback(() => {
         if (!slotA || !slotB) return;
-        startBattle(slotA.tmdb_id, slotB.tmdb_id);
+        startBattle(slotA.tmdb_id, slotB.tmdb_id, slotA.media_type, slotB.media_type);
     }, [slotA, slotB, startBattle]);
 
     const handleNewBattle = useCallback(() => {
         setSlotA(null);
         setSlotB(null);
         setBattleResult(null);
-        setSaved(false);
         setPhase("landing");
     }, []);
 
@@ -488,14 +513,14 @@ export default function Versus() {
 
                                         {/* Dropdown */}
                                         {searchResults.length > 0 && (
-                                            <div className="absolute top-full mt-1 left-0 right-0 bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden z-50 shadow-2xl max-h-64 overflow-y-auto">
+                                            <div className="mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl max-h-64 overflow-y-auto">
                                                 {searchResults.slice(0, 6).map((r) => {
                                                     const isOtherSlot =
                                                         (activeSlot === "a" && slotB?.tmdb_id === r.tmdb_id) ||
                                                         (activeSlot === "b" && slotA?.tmdb_id === r.tmdb_id);
                                                     return (
                                                         <button
-                                                            key={r.tmdb_id}
+                                                            key={`${r.tmdb_id}-${r.media_type}`}
                                                             onClick={() => !isOtherSlot && selectMovie(r)}
                                                             disabled={isOtherSlot}
                                                             className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left ${isOtherSlot ? "opacity-30 cursor-not-allowed" : ""}`}
@@ -533,8 +558,8 @@ export default function Versus() {
                         {/* Battle button */}
                         <motion.button
                             onClick={handleCustomBattle}
-                            disabled={!slotA || !slotB || slotA.tmdb_id === slotB?.tmdb_id}
-                            className={`w-full mt-6 py-4 rounded-2xl font-black uppercase tracking-wider text-sm transition-all ${slotA && slotB && slotA.tmdb_id !== slotB.tmdb_id
+                            disabled={!slotA || !slotB || (slotA.tmdb_id === slotB?.tmdb_id && slotA.media_type === slotB?.media_type)}
+                            className={`w-full mt-6 py-4 rounded-2xl font-black uppercase tracking-wider text-sm transition-all ${slotA && slotB && !(slotA.tmdb_id === slotB.tmdb_id && slotA.media_type === slotB.media_type)
                                 ? "bg-accent-gold text-black hover:brightness-110 active:scale-[0.98] shadow-xl shadow-accent-gold/10"
                                 : "bg-white/5 text-white/20 cursor-not-allowed"
                                 }`}
@@ -579,15 +604,16 @@ export default function Versus() {
 
                                         {/* VS + Labels */}
                                         <div className="flex-1 text-center">
-                                            <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">{battle.subtitle}</p>
-                                            <div className="flex items-center justify-center gap-2">
-                                                <span className="text-xs font-medium text-white/60 truncate max-w-[80px]">{battle.a.title}</span>
-                                                <span className="text-accent-gold font-black text-xs">VS</span>
-                                                <span className="text-xs font-medium text-white/60 truncate max-w-[80px]">{battle.b.title}</span>
+                                            <div className="flex flex-col items-center justify-center gap-1">
+                                                <div className="flex items-center justify-center gap-2 w-full px-2">
+                                                    <span className="text-sm font-bold text-white leading-tight">{battle.a.title}</span>
+                                                    <span className="text-accent-gold font-black text-sm px-1">VS</span>
+                                                    <span className="text-sm font-bold text-white leading-tight">{battle.b.title}</span>
+                                                </div>
+                                                <p className="text-[10px] text-accent-gold/60 mt-2 uppercase tracking-widest font-medium group-hover:text-accent-gold transition-colors">
+                                                    {battle.subtitle}
+                                                </p>
                                             </div>
-                                            <p className="text-[10px] text-accent-gold/60 mt-1 group-hover:text-accent-gold transition-colors">
-                                                Tap to simulate
-                                            </p>
                                         </div>
 
                                         {/* Poster B */}
@@ -695,7 +721,7 @@ export default function Versus() {
                             <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: [0, 1.5, 1] }}
-                                transition={{ delay: 0.4, duration: 0.4 }}
+                                transition={{ delay: 1.4, duration: 0.4 }}
                                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
                             >
                                 <div className="w-16 h-16 rounded-full bg-accent-gold/20 border-2 border-accent-gold flex items-center justify-center backdrop-blur-sm">
@@ -785,14 +811,14 @@ export default function Versus() {
                         />
                     </div>
 
-                    {/* Kill Reason — the headline */}
+                    {/* Verdict Quote — the hero */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="bg-surface-card border border-accent-gold/20 rounded-2xl p-8 mb-8 text-center"
+                        transition={{ delay: 1.3 }}
+                        className="bg-surface-card border border-accent-gold/20 rounded-2xl p-6 md:p-8 mb-6 text-center"
                     >
-                        <p className="text-[10px] text-accent-gold uppercase tracking-[0.3em] font-bold mb-4">
+                        <p className="text-[10px] text-accent-gold uppercase tracking-[0.3em] font-bold mb-3">
                             The Verdict
                         </p>
                         <p className="text-xl md:text-2xl font-display italic text-white leading-relaxed">
@@ -800,56 +826,103 @@ export default function Versus() {
                         </p>
                     </motion.div>
 
-                    {/* Breakdown — matches review page paragraph style */}
+                    {/* Winner vs Loser Stats Grid */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 }}
-                        className="mb-8"
+                        transition={{ delay: 1.5 }}
+                        className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8"
                     >
-                        <p className="font-serif text-lg leading-relaxed text-text-secondary/90">
-                            {battleResult.breakdown}
-                        </p>
+                        {/* Winner Stats */}
+                        <div className="bg-verdict-worth/5 border border-verdict-worth/20 p-5 rounded-xl">
+                            <h4 className="text-verdict-worth font-bold text-sm uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-verdict-worth/20 text-[10px]">✓</span>
+                                Why {battleResult.winner_title} Won
+                            </h4>
+                            <ul className="space-y-2">
+                                {(battleResult.winner_reasons?.length ? battleResult.winner_reasons : ['Superior execution', 'Stronger emotional impact', 'More rewatchable']).map((reason, i) => (
+                                    <li key={i} className="text-sm text-white/70 flex items-start gap-2">
+                                        <span className="text-verdict-worth mt-0.5 text-xs">●</span>
+                                        {reason}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Loser Stats */}
+                        <div className="bg-red-500/5 border border-red-500/15 p-5 rounded-xl opacity-70">
+                            <h4 className="text-red-400 font-bold text-sm uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/20 text-[10px]">✗</span>
+                                Why {battleResult.loser_title} Lost
+                            </h4>
+                            <ul className="space-y-2">
+                                {(battleResult.loser_reasons?.length ? battleResult.loser_reasons : ['Close matchup', 'Strong but outclassed', 'Different strengths']).map((reason, i) => (
+                                    <li key={i} className="text-sm text-white/50 flex items-start gap-2">
+                                        <span className="text-red-400/60 mt-0.5 text-xs">●</span>
+                                        {reason}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
                     </motion.div>
 
                     {/* Actions */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.7 }}
+                        transition={{ delay: 1.7 }}
                         className="space-y-3"
                     >
+                        {/* Primary: NEW BATTLE */}
                         <button
-                            onClick={handleViewReview}
-                            className="w-full py-4 bg-accent-gold text-black font-bold rounded-xl text-sm uppercase tracking-widest hover:bg-accent-goldLight active:scale-[0.98] transition-all"
+                            onClick={handleNewBattle}
+                            className="w-full py-4 bg-accent-gold text-black font-black rounded-xl text-sm uppercase tracking-widest hover:bg-accent-goldLight active:scale-[0.98] transition-all shadow-lg shadow-accent-gold/10"
                         >
-                            Read {battleResult.winner_title}&apos;s Full Review
+                            ⚔️ New Battle
                         </button>
 
+                        {/* Secondary row: Save | Share | Rematch */}
                         <div className="flex gap-3">
                             <button
                                 onClick={handleSaveWinner}
-                                disabled={saved}
-                                className={`flex-1 py-3.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all border ${saved
-                                    ? "bg-verdict-worth/10 text-verdict-worth border-verdict-worth/30"
-                                    : "bg-surface-elevated text-white/70 hover:text-white hover:bg-white/10 border-white/10"
+                                className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border ${winnerIsSaved
+                                    ? "bg-verdict-worth/10 text-verdict-worth border-verdict-worth/30 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                                    : "bg-surface-elevated text-white/60 hover:text-white hover:bg-white/10 border-white/10"
                                     }`}
                             >
-                                {saved ? "✓ Saved" : "Save Winner"}
+                                {winnerIsSaved ? "✗ Remove" : "💾 Save"}
                             </button>
+                            <BattleShareCard
+                                winnerTitle={battleResult.winner_title}
+                                loserTitle={battleResult.loser_title}
+                                winnerPosterPath={
+                                    battleResult.winner_id === battleResult.movie_a.tmdb_id
+                                        ? battleResult.movie_a.poster_path
+                                        : battleResult.movie_b.poster_path
+                                }
+                                loserPosterPath={
+                                    battleResult.winner_id === battleResult.movie_a.tmdb_id
+                                        ? battleResult.movie_b.poster_path
+                                        : battleResult.movie_a.poster_path
+                                }
+                                killReason={battleResult.kill_reason}
+                                winnerHeadline={battleResult.winner_headline}
+                                loserHeadline={battleResult.loser_headline}
+                            />
                             <button
                                 onClick={handleRematch}
-                                className="flex-1 py-3.5 bg-surface-elevated text-accent-gold rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-white/10 border border-accent-gold/20 transition-all"
+                                className="flex-1 py-3 bg-surface-elevated text-accent-gold rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/10 border border-accent-gold/20 transition-all"
                             >
-                                Rematch
+                                🔄 Rematch
                             </button>
                         </div>
 
+                        {/* Tertiary: Read Full Review */}
                         <button
-                            onClick={handleNewBattle}
-                            className="w-full py-3 bg-white/5 text-white/50 rounded-xl text-sm font-medium uppercase tracking-widest hover:bg-white/10 hover:text-white/80 border border-white/5 hover:border-white/10 transition-all"
+                            onClick={handleViewReview}
+                            className="w-full py-2 text-white/30 text-xs font-medium uppercase tracking-widest hover:text-white/60 transition-colors"
                         >
-                            New Battle
+                            Read {battleResult.winner_title}&apos;s Full Review →
                         </button>
                     </motion.div>
                 </motion.div>
@@ -947,7 +1020,7 @@ function ResultCard({
                 y: 0,
                 scale: isWinner ? 1.05 : 0.88,
             }}
-            transition={{ delay: isWinner ? 0.1 : 0.2, type: "spring", stiffness: 200 }}
+            transition={{ delay: isWinner ? 1.1 : 1.2, type: "spring", stiffness: 200 }}
             className={`flex flex-col items-center transition-all duration-500 ${isWinner
                 ? "z-10 w-44 md:w-56"
                 : "z-0 w-36 md:w-44 opacity-60"
@@ -962,7 +1035,7 @@ function ResultCard({
                 <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    transition={{ delay: 0.3, type: "spring" }}
+                    transition={{ delay: 1.3, type: "spring" }}
                     className="mb-2"
                 >
                     <div className="text-[9px] font-black text-black bg-accent-gold uppercase tracking-[0.2em] px-3 py-1 rounded-full">
@@ -990,12 +1063,11 @@ function ResultCard({
                 )}
             </div>
 
-            {/* Title + headline */}
-            <p className={`text-xs font-medium mt-2 truncate text-center w-full ${isWinner ? "text-white" : "text-white/30"}`}>
-                {movie.title}
-            </p>
-            <p className={`text-[9px] mt-0.5 ${isWinner ? "text-accent-gold font-bold" : "text-white/20"}`}>
+            <p className={`text-xs mt-0.5 ${isWinner ? "text-accent-gold font-bold" : "text-white/20"}`}>
                 {headline}
+            </p>
+            <p className={`mt-1 text-center w-full truncate ${isWinner ? "text-base md:text-lg font-black uppercase tracking-wider text-white" : "text-sm font-bold uppercase tracking-wide text-white/30"}`}>
+                {movie.title}
             </p>
         </motion.div>
     );

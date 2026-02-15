@@ -66,7 +66,7 @@ export default function MovieCard({ data }: MovieCardProps) {
       : null;
 
   return (
-    <Link href={`/movie/${movie.tmdb_id}`}>
+    <Link href={`/movie/${movie.tmdb_id}?type=${movie.media_type || "movie"}`}>
       <div className={`
         group relative aspect-[2/3] w-full overflow-hidden rounded-2xl 
         bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl

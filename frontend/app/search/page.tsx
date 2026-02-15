@@ -105,7 +105,7 @@ function SearchContent() {
 
               return (
                 <Link
-                  href={`/movie/${movie.tmdb_id}`}
+                  href={`/movie/${movie.tmdb_id}?type=${movie.media_type || "movie"}`}
                   key={movie.tmdb_id}
                   className="group relative flex flex-col overflow-hidden rounded-xl bg-surface-card border border-surface-elevated transition-all hover:scale-105 hover:shadow-xl hover:border-accent-gold/30 hover:z-10"
                 >

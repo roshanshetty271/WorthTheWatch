@@ -269,7 +269,18 @@ async def get_movie(
     if media_type:
         query = query.where(Movie.media_type == media_type)
     result = await db.execute(query)
-    movie = result.unique().scalar_one_or_none()
+    movies = result.unique().scalars().all()
+
+    # If multiple entries share the same tmdb_id (e.g. movie "Yellowknife" 
+    # and TV show "The 100" both have tmdb_id 48866), prefer the one 
+    # that has a review. This prevents showing the wrong title when 
+    # media_type is not specified in the URL.
+    movie = None
+    if len(movies) == 1:
+        movie = movies[0]
+    elif len(movies) > 1:
+        reviewed = [m for m in movies if m.review]
+        movie = reviewed[0] if reviewed else movies[0]
 
     if movie:
         return _format_movie_with_review(movie)

@@ -26,7 +26,8 @@ class SerperService:
         "idcrawl.com", "arovideo.co.nz", "buzzsprout.com", "feeds.buzzsprout.com",
         "amazon.com", "amazon.co.uk", "walmart.com", "target.com",
         "etsy.com", "aliexpress.com", "pinterest.com", "linkedin.com",
-        "wikihow.com", "wikipedia.org", "goodreads.com"
+        "wikihow.com", "wikipedia.org", "goodreads.com",
+        "fandom.com", "lan-portal.uob.edu.ly", "library.oapen.org"
     ]
 
     def __init__(self):

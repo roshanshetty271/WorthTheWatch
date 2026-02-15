@@ -102,3 +102,29 @@ class SearchEvent(Base):
     __table_args__ = (
         Index("idx_search_events_created", "created_at"),
     )
+
+
+class BattleCache(Base):
+    """Cache for AI-generated versus battle results."""
+    __tablename__ = "battle_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Always store the smaller tmdb_id as movie_a_id for consistent lookups
+    movie_a_id = Column(Integer, nullable=False)
+    movie_b_id = Column(Integer, nullable=False)
+    winner_id = Column(Integer, nullable=False)
+    loser_id = Column(Integer, nullable=False)
+    winner_title = Column(String(500))
+    loser_title = Column(String(500))
+    kill_reason = Column(Text)
+    breakdown = Column(Text)
+    winner_headline = Column(String(255))
+    loser_headline = Column(String(255))
+    result_json = Column(JSON)  # Full response JSON for future-proofing
+    llm_model = Column(String(50))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_battle_cache_pair", "movie_a_id", "movie_b_id", unique=True),
+    )
+
