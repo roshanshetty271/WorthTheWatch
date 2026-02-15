@@ -7,6 +7,7 @@ import TrailerEmbed from "./TrailerEmbed";
 
 interface ReviewContentProps {
   review: Review;
+  releaseDate?: string | null;
 }
 
 // Known allowed tags for splitting concatenated strings
@@ -126,12 +127,39 @@ const formatReviewText = (text: string) => {
   return finalParas;
 };
 
-export default function ReviewContent({ review }: ReviewContentProps) {
+export default function ReviewContent({ review, releaseDate }: ReviewContentProps) {
   const paragraphs = formatReviewText(review.review_text);
   const tags = fixTags(review.tags);
 
+  // Early Verdict: show banner when confidence is LOW and title released within 60 days
+  const isEarlyVerdict = (() => {
+    if (review.confidence !== "LOW") return false;
+    if (!releaseDate) return false;
+    try {
+      const release = new Date(releaseDate);
+      const now = new Date();
+      const daysSinceRelease = Math.floor((now.getTime() - release.getTime()) / (1000 * 60 * 60 * 24));
+      return daysSinceRelease <= 60;
+    } catch {
+      return false;
+    }
+  })();
+
   return (
     <div className="animate-fade-in space-y-8">
+      {/* Early Verdict Banner */}
+      {isEarlyVerdict && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 flex items-start gap-3">
+          <span className="text-xl mt-0.5">🎬</span>
+          <div>
+            <p className="text-sm font-bold text-amber-400">Early Verdict</p>
+            <p className="text-xs text-amber-200/70 mt-0.5 leading-relaxed">
+              This title just dropped and does not have many reviews online yet. Our AI is working with limited data, so check back later for a more informed take.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. THE VIBE */}
       {review.vibe && (
         <div className="text-center px-4 pt-4">

@@ -709,6 +709,7 @@ CRITICAL CONTEXT (Professional Reviews):
             confidence_tier=confidence_stats["confidence_tier"],
             articles_read=confidence_stats["articles_read"],
             reddit_sources=confidence_stats["reddit_sources"],
+            media_type=movie.media_type or "movie",
         )
         
         # Sanity check: verdict should match sentiment percentages
@@ -985,6 +986,7 @@ async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -
         confidence_tier="LOW",
         articles_read=0,
         reddit_sources=0,
+        media_type=movie.media_type or "movie",
     )
 
     review = Review(
@@ -998,6 +1000,15 @@ async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -
         sources_count=0,
         sources_urls=[],
         llm_model=llm_model,
+        hook=llm_output.hook,
+        tags=llm_output.tags,
+        critic_sentiment=llm_output.critic_sentiment,
+        reddit_sentiment=llm_output.reddit_sentiment,
+        positive_pct=llm_output.positive_pct,
+        negative_pct=llm_output.negative_pct,
+        mixed_pct=llm_output.mixed_pct,
+        best_quote=llm_output.best_quote,
+        quote_source=llm_output.quote_source,
     )
     db.add(review)
     await db.flush()

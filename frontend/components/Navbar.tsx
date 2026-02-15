@@ -88,6 +88,14 @@ export default function Navbar() {
                             )}
                         </Link>
 
+                        {/* Movie Battle */}
+                        <Link
+                            href="/versus"
+                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest"
+                        >
+                            Movie Battle
+                        </Link>
+
                         {/* Roulette Trigger */}
                         <button
                             onClick={() => setRouletteOpen(true)}
@@ -180,6 +188,13 @@ export default function Navbar() {
                             className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
                         >
                             My List{mounted && count > 0 ? ` (${count})` : ""}
+                        </Link>
+                        <Link
+                            href="/versus"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        >
+                            Movie Battle
                         </Link>
 
                         <div className="mt-4">

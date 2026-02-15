@@ -122,16 +122,16 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-[100dvh] flex-col items-center justify-center">
+      <section className="relative flex min-h-[80dvh] md:min-h-[100dvh] flex-col items-center justify-center">
         {/* Background Image */}
         {featured ? (
-          <div className="absolute top-0 left-0 right-0 h-[80vh] md:inset-0 z-0 overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[60vh] md:h-auto md:inset-0 z-0 overflow-hidden">
             <Image
               src={featured.movie.backdrop_url!}
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="object-cover object-center md:object-top transition-transform duration-[20s] hover:scale-105"
+              className="object-cover object-top transition-transform duration-[20s] hover:scale-105"
               priority
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
@@ -142,8 +142,8 @@ export default async function HomePage() {
         )}
 
         {/* Center Content */}
-        <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-32 mb-32 sm:mb-40">
-          <h1 className="mb-4 font-bold text-3xl text-white sm:text-5xl md:text-6xl tracking-tight drop-shadow-xl">
+        <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-24 mb-16 sm:pt-32 sm:mb-32 md:mb-40">
+          <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight drop-shadow-xl">
             Stop scrolling. <br className="hidden sm:block" />
             <span className="text-accent-gold">Start watching.</span>
           </h1>
@@ -157,7 +157,7 @@ export default async function HomePage() {
 
         {/* Bottom Left: Featured Movie Info */}
         {featured && (
-          <div className="absolute bottom-0 left-0 z-20 w-full p-6 sm:p-12 pointer-events-none">
+          <div className="absolute bottom-0 left-0 z-20 w-full p-4 sm:p-12 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
                 <div className="mb-2 flex items-center gap-3">
@@ -170,7 +170,7 @@ export default async function HomePage() {
                   )}
                 </div>
                 <Link href={`/movie/${featured.movie.tmdb_id}`} className="group block">
-                  <h2 className="font-display text-3xl text-white drop-shadow-lg transition-colors group-hover:text-accent-gold sm:text-4xl">
+                  <h2 className="font-display text-xl text-white drop-shadow-lg transition-colors group-hover:text-accent-gold sm:text-3xl md:text-4xl">
                     {featured.movie.title}
                   </h2>
                 </Link>
@@ -181,7 +181,7 @@ export default async function HomePage() {
                 )}
                 <Link
                   href={`/movie/${featured.movie.tmdb_id}`}
-                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-gold px-5 py-2.5 text-sm font-semibold text-black transition-all hover:bg-accent-gold/90 hover:shadow-lg hover:shadow-accent-gold/30"
+                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-accent-gold px-4 py-2 text-xs font-semibold text-black transition-all hover:bg-accent-gold/90 hover:shadow-lg hover:shadow-accent-gold/30 sm:mt-4 sm:px-5 sm:py-2.5 sm:text-sm"
                 >
                   Read Full Review
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

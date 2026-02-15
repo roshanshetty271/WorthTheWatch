@@ -1,0 +1,305 @@
+"""
+Worth the Watch? — Versus Router
+AI-powered 1v1 movie battles with witty comparisons.
+"""
+
+import json
+import logging
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.database import get_db
+from app.models import Movie, Review
+from app.services.tmdb import tmdb_service
+from app.middleware.rate_limit import check_rate_limit
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+# ─── Battle Prompt ────────────────────────────────────────
+
+VERSUS_SYSTEM_PROMPT = """You are the ROAST MASTER for "Worth the Watch?" movie battles.
+
+Two movies enter. One wins. The loser gets absolutely DESTROYED with the funniest, most savage roast the internet has ever seen.
+
+YOU ARE NOT A POLITE FILM CRITIC. You are:
+- The comedian at a roast who has zero filter but is so funny nobody can be mad
+- The group chat friend who drops takes so hot they start arguments
+- The person who makes people spit out their drink with one sentence
+
+THIS IS A ROAST, NOT A COMPARISON. The key difference:
+- BORING: "Movie A has better cinematography and stronger performances."
+- ROAST: "Movie A makes Movie B look like it was filmed on a calculator by someone who learned directing from a YouTube tutorial."
+
+THE KILL REASON — THIS IS EVERYTHING:
+- ONE sentence. So savage and funny that people screenshot it and post it on Twitter.
+- It MUST humiliate the loser using something specific about it.
+- It MUST praise the winner in a way that twists the knife.
+- THINK: If a stand-up comedian had to destroy one movie in front of an audience, what would they say?
+
+GREAT kill reasons (study these):
+- "Barbie wins because existential dread hits harder in neon pink, and Ken had more character development than Oppenheimer's entire supporting cast combined."
+- "Spider-Man wins because it reinvented what animation could be while Batman was still brooding in a cave wondering if he could get any darker. Spoiler: he could not."
+- "The Godfather wins because Shrek needed a talking donkey for comic relief while Vito Corleone just needed to whisper."
+- "Interstellar wins because Inception thought it was deep for having dreams inside dreams, which is basically the plot of every college student's Thursday night."
+- "Parasite wins because it exposed class warfare with a rock and a peach, while Joker needed an entire clown costume and a staircase to make a fraction of the same point."
+
+BAD kill reasons (NEVER do this):
+- "Movie A wins because it has better writing and direction." (BORING — no roast)
+- "Both movies are great but Movie A edges it out." (COWARD — commit to the destruction)
+- "Movie A is the superior film in terms of craft." (FILM SCHOOL ESSAY — nobody is screenshotting this)
+
+THE BREAKDOWN — 4-6 sentences of PURE COMEDY:
+- Roast specific scenes, characters, decisions. "Remember when [character] did [thing]? That was the cinematic equivalent of [savage comparison]."
+- Mock the loser's weaknesses by comparing them to the winner's strengths.
+- Use unexpected comparisons. "Watching [loser] after [winner] is like eating gas station sushi after a Michelin star meal."
+- End with a recommendation that is also a roast. "Watch [winner]. Then watch [loser] if you need a nap."
+
+ABSOLUTE RULES:
+- Pick a winner. No ties. No "both are great." PICK ONE AND DESTROY THE OTHER.
+- Do NOT use contractions. Write "do not" not "don't", "it is" not "it's", "could not" not "couldn't".
+- Do NOT use: "at the end of the day", "in conclusion", "to be fair"
+- EVERY sentence should be quotable. Zero filler. Zero generic praise.
+- Reference SPECIFIC characters, scenes, plot points, actors BY NAME.
+- The loser should feel personally attacked. The winner should feel like it won the Super Bowl.
+- If someone reads this and does NOT laugh at least once, you have FAILED.
+
+OUTPUT FORMAT (strict JSON, no markdown fences):
+{
+  "winner": "a" or "b",
+  "kill_reason": "ONE devastating, hilarious, specific sentence. The headline. The screenshot. The tweet. Make it HURT.",
+  "breakdown": "4-6 sentences of savage, funny, specific roasting. Reference actual characters and scenes. Make people laugh out loud.",
+  "winner_headline": "2-4 savage words (e.g. 'Flawless Victory', 'Total Annihilation', 'Not Even Close')",
+  "loser_headline": "2-4 words of mock sympathy (e.g. 'Rest In Peace', 'Thoughts & Prayers', 'Better Luck Never')"
+}"""
+
+
+# ─── Helper Functions ─────────────────────────────────────
+
+def _build_movie_context(movie_data: dict, review_data: dict | None, label: str) -> str:
+    """Build a rich context string for one movie."""
+    title = movie_data.get("title", "Unknown")
+    year = ""
+    release = movie_data.get("release_date")
+    if release:
+        year = str(release)[:4] if isinstance(release, str) else str(release.year) if hasattr(release, "year") else ""
+    
+    genres = ""
+    raw_genres = movie_data.get("genres")
+    if raw_genres and isinstance(raw_genres, list):
+        genre_names = [g.get("name", "") for g in raw_genres if isinstance(g, dict) and g.get("name")]
+        genres = ", ".join(genre_names)
+    
+    overview = movie_data.get("overview", "No overview available.")
+    
+    context = f"""MOVIE {label}: {title} ({year})
+Genre: {genres}
+Overview: {overview}"""
+    
+    if review_data:
+        verdict = review_data.get("verdict", "")
+        hook = review_data.get("hook", "")
+        imdb = review_data.get("imdb_score")
+        rt = review_data.get("rt_critic_score")
+        review_text = review_data.get("review_text", "")
+        
+        context += f"\nOur Verdict: {verdict}"
+        if hook:
+            context += f"\nHook: {hook}"
+        if imdb:
+            context += f"\nIMDb: {imdb}/10"
+        if rt:
+            context += f"\nRotten Tomatoes: {rt}%"
+        if review_text:
+            # Include first 500 chars of review for context
+            context += f"\nReview excerpt: {review_text[:500]}"
+    else:
+        tmdb_score = movie_data.get("tmdb_vote_average")
+        if tmdb_score:
+            context += f"\nTMDB Score: {tmdb_score}/10"
+        context += "\n(No detailed review available — use your knowledge of this film)"
+    
+    return context
+
+
+async def _get_movie_data(db: AsyncSession, tmdb_id: int) -> tuple[dict, dict | None]:
+    """
+    Fetch movie data + review from DB. If not in DB, fetch from TMDB.
+    Returns (movie_data_dict, review_data_dict_or_None)
+    """
+    # Try DB first
+    result = await db.execute(
+        select(Movie).options(joinedload(Movie.review)).where(Movie.tmdb_id == tmdb_id)
+    )
+    movie = result.unique().scalar_one_or_none()
+    
+    if movie:
+        movie_data = {
+            "title": movie.title,
+            "release_date": movie.release_date,
+            "genres": movie.genres,
+            "overview": movie.overview,
+            "poster_path": movie.poster_path,
+            "backdrop_path": movie.backdrop_path,
+            "tmdb_vote_average": movie.tmdb_vote_average,
+            "media_type": movie.media_type,
+        }
+        review_data = None
+        if movie.review:
+            review_data = {
+                "verdict": movie.review.verdict,
+                "hook": movie.review.hook,
+                "review_text": movie.review.review_text,
+                "imdb_score": movie.review.imdb_score,
+                "rt_critic_score": movie.review.rt_critic_score,
+            }
+        return movie_data, review_data
+    
+    # Not in DB — fetch from TMDB
+    tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
+    if not tmdb_data or not tmdb_data.get("id"):
+        # Try TV
+        tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
+    
+    if not tmdb_data or not tmdb_data.get("id"):
+        return {}, None
+    
+    normalized = tmdb_service.normalize_result({**tmdb_data, "media_type": tmdb_data.get("media_type", "movie")})
+    return normalized, None
+
+
+# ─── Battle Endpoint ──────────────────────────────────────
+
+@router.post("/battle")
+async def battle(
+    movie_a_id: int = Query(..., description="TMDB ID of movie A"),
+    movie_b_id: int = Query(..., description="TMDB ID of movie B"),
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate an AI-powered 1v1 movie battle with witty comparison.
+    Returns a winner with a devastating 'kill reason' and breakdown.
+    """
+    if movie_a_id == movie_b_id:
+        raise HTTPException(status_code=400, detail="Cannot battle a movie against itself")
+    
+    # Rate limit (same as review generation)
+    await check_rate_limit(request, is_generation=True)
+    
+    logger.info(f"⚔️ Versus battle: {movie_a_id} vs {movie_b_id}")
+    
+    # Fetch both movies' data in parallel
+    movie_a_data, review_a = await _get_movie_data(db, movie_a_id)
+    movie_b_data, review_b = await _get_movie_data(db, movie_b_id)
+    
+    if not movie_a_data.get("title") or not movie_b_data.get("title"):
+        raise HTTPException(status_code=404, detail="One or both movies not found")
+    
+    # Build context for LLM
+    context_a = _build_movie_context(movie_a_data, review_a, "A")
+    context_b = _build_movie_context(movie_b_data, review_b, "B")
+    
+    user_prompt = f"""{context_a}
+
+{context_b}
+
+These two titles are going head-to-head. Analyze everything — story, performances, cultural impact, scores, audience reception — and crown a winner.
+
+Remember: The kill_reason needs to be ONE sentence so clever and funny that people will screenshot it. Reference something specific about BOTH movies."""
+    
+    # Call LLM
+    from openai import AsyncOpenAI
+    from app.services.llm import llm_client, llm_model, openai_client, openai_model, deepseek_client, deepseek_model, sanitize_text
+    
+    content = None
+    try:
+        logger.info(f"🧠 Versus LLM call: {llm_model}")
+        response = await llm_client.chat.completions.create(
+            model=llm_model,
+            messages=[
+                {"role": "system", "content": VERSUS_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7,  # Higher temp for more creative/funny output
+            max_tokens=500,
+            timeout=30.0,
+        )
+        content = response.choices[0].message.content
+    except Exception as e:
+        logger.warning(f"Primary LLM failed for versus: {e}")
+        # Try fallback
+        fallback_client = openai_client if llm_client != openai_client else deepseek_client
+        fallback_model = openai_model if llm_client != openai_client else deepseek_model
+        
+        if fallback_client:
+            try:
+                response = await fallback_client.chat.completions.create(
+                    model=fallback_model,
+                    messages=[
+                        {"role": "system", "content": VERSUS_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.7,
+                    max_tokens=500,
+                    timeout=30.0,
+                )
+                content = response.choices[0].message.content
+            except Exception as fallback_error:
+                logger.error(f"Fallback LLM also failed for versus: {fallback_error}")
+                raise HTTPException(status_code=503, detail="AI battle generation failed")
+        else:
+            raise HTTPException(status_code=503, detail="AI battle generation failed")
+    
+    # Parse response
+    try:
+        data = json.loads(content)
+        
+        winner_id = movie_a_id if data.get("winner") == "a" else movie_b_id
+        loser_id = movie_b_id if winner_id == movie_a_id else movie_a_id
+        winner_data = movie_a_data if winner_id == movie_a_id else movie_b_data
+        loser_data = movie_b_data if winner_id == movie_a_id else movie_a_data
+        
+        result = {
+            "winner_id": winner_id,
+            "loser_id": loser_id,
+            "winner_title": winner_data.get("title", ""),
+            "loser_title": loser_data.get("title", ""),
+            "kill_reason": sanitize_text(data.get("kill_reason", "")),
+            "breakdown": sanitize_text(data.get("breakdown", "")),
+            "winner_headline": data.get("winner_headline", "The Winner"),
+            "loser_headline": data.get("loser_headline", "Good Try"),
+            "movie_a": {
+                "tmdb_id": movie_a_id,
+                "title": movie_a_data.get("title", ""),
+                "poster_path": movie_a_data.get("poster_path"),
+                "backdrop_path": movie_a_data.get("backdrop_path"),
+                "release_date": str(movie_a_data.get("release_date", "")),
+                "tmdb_vote_average": movie_a_data.get("tmdb_vote_average"),
+                "verdict": review_a.get("verdict") if review_a else None,
+                "imdb_score": review_a.get("imdb_score") if review_a else None,
+            },
+            "movie_b": {
+                "tmdb_id": movie_b_id,
+                "title": movie_b_data.get("title", ""),
+                "poster_path": movie_b_data.get("poster_path"),
+                "backdrop_path": movie_b_data.get("backdrop_path"),
+                "release_date": str(movie_b_data.get("release_date", "")),
+                "tmdb_vote_average": movie_b_data.get("tmdb_vote_average"),
+                "verdict": review_b.get("verdict") if review_b else None,
+                "imdb_score": review_b.get("imdb_score") if review_b else None,
+            },
+        }
+        
+        logger.info(f"⚔️ Battle result: {winner_data.get('title')} defeats {loser_data.get('title')}")
+        return result
+        
+    except (json.JSONDecodeError, Exception) as e:
+        logger.error(f"Failed to parse versus result: {e}")
+        raise HTTPException(status_code=500, detail="Battle result parsing failed")

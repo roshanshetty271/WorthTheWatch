@@ -214,6 +214,7 @@ async def synthesize_review(
     confidence_tier: str = "MEDIUM",
     articles_read: int = 0,
     reddit_sources: int = 0,
+    media_type: str = "movie",
 ) -> LLMReviewOutput:
     """Generate a review with automatic LLM failover."""
 
@@ -261,7 +262,9 @@ RULES:
     else:
         score_context = f"TMDB User Rating: {tmdb_score}/10 (based on {tmdb_vote_count} votes)"
 
-    user_prompt = f"""Movie/Show: {title} ({year})
+    content_label = "TV Series" if media_type == "tv" else "Movie"
+
+    user_prompt = f"""{content_label}: {title} ({year})
 Genre: {genres}
 {score_context}
 Description: {overview}

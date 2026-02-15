@@ -14,6 +14,7 @@ interface ReviewSectionProps {
     movieTitle: string;
     initialReview: Review | null;
     onReviewUpdate?: (review: Review) => void;
+    releaseDate?: string | null;
 }
 
 export default function ReviewSection({
@@ -22,6 +23,7 @@ export default function ReviewSection({
     movieTitle,
     initialReview,
     onReviewUpdate,
+    releaseDate,
 }: ReviewSectionProps) {
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
@@ -93,7 +95,7 @@ export default function ReviewSection({
 
     // STATE 1: Has review
     if (review) {
-        return <ReviewContent review={review} />;
+        return <ReviewContent review={review} releaseDate={releaseDate} />;
     }
 
     // STATE 3: Generating

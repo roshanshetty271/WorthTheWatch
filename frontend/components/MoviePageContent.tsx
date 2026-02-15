@@ -44,7 +44,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[35vh] md:min-h-screen flex flex-col justify-between overflow-hidden lg:overflow-visible">
+            <section className="relative min-h-[30vh] md:min-h-screen flex flex-col justify-between overflow-hidden lg:overflow-visible">
                 {/* Background Image Logic */}
                 <div className="absolute inset-0 z-0">
                     {backdropSrc ? (
@@ -54,7 +54,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 alt={movie.title}
                                 fill
                                 sizes="100vw"
-                                className={`object-cover ${isPosterFallback ? "object-center opacity-60" : "object-center md:object-center"}`}
+                                className={`object-cover ${isPosterFallback ? "object-top opacity-60" : "object-top"}`}
                                 priority
                                 onError={handleImageError}
                             />
@@ -68,7 +68,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 </div>
 
                 {/* Back Button — uses router.back() to respect browser history */}
-                <div className="relative z-30 pt-24 px-6">
+                <div className="relative z-30 pt-20 px-6 md:pt-24">
                     <div className="mx-auto max-w-7xl">
                         <button
                             onClick={() => router.back()}
@@ -95,10 +95,10 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 {/* Movie Info Overlay */}
                 <div className="relative z-20 w-full px-4 pb-8 sm:px-6">
                     <div className="mx-auto max-w-7xl">
-                        <div className="flex flex-col gap-6 md:flex-row md:items-end md:gap-8">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-end md:gap-8">
                             {/* Poster */}
                             {movie.poster_url && (
-                                <div className="relative mx-auto h-56 w-40 shrink-0 overflow-hidden rounded-xl shadow-2xl md:mx-0 md:h-72 md:w-52 border-2 border-white/10">
+                                <div className="relative mx-auto h-44 w-32 shrink-0 overflow-hidden rounded-xl shadow-2xl sm:h-56 sm:w-40 md:mx-0 md:h-72 md:w-52 border-2 border-white/10">
                                     <Image
                                         src={movie.poster_url}
                                         alt={movie.title}
@@ -116,13 +116,13 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             )}
 
                             {/* Info */}
-                            <div className="flex-1 space-y-3 text-center md:text-left">
-                                <h1 className="font-display text-2xl text-white drop-shadow-lg md:text-5xl">
+                            <div className="flex-1 space-y-2 text-center md:space-y-3 md:text-left">
+                                <h1 className="font-display text-xl text-white drop-shadow-lg sm:text-2xl md:text-5xl">
                                     {movie.title}
                                 </h1>
 
                                 {/* Rating - IMDb Preferred */}
-                                <div className="flex flex-wrap items-center justify-center gap-4 text-sm font-medium text-white/90 md:justify-start">
+                                <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-white/90 sm:gap-4 md:justify-start">
                                     {(review?.imdb_score ? (
                                         <span className="flex items-center gap-1.5 rounded-full bg-yellow-400/20 md:bg-black/40 md:backdrop-blur-md px-3 py-1 text-yellow-300 ring-1 ring-yellow-400/50">
                                             <span className="text-lg">⭐</span> <span className="font-bold text-white">{review.imdb_score}</span> <span className="text-xs opacity-70">IMDb</span>
@@ -165,7 +165,6 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         <BookmarkButton
                                             tmdb_id={movie.tmdb_id}
                                             title={movie.title}
-                                            overview={movie.overview}
                                             poster_path={movie.poster_path || null}
                                             verdict={review.verdict}
                                             variant="page"
@@ -271,6 +270,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             movieTitle={movie.title}
                             initialReview={review}
                             onReviewUpdate={setReview}
+                            releaseDate={movie.release_date || null}
                         />
                     </div>
                 </div>

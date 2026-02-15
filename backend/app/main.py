@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.database import init_db, get_db
 from app.models import Movie, Review, SearchEvent  # noqa: F401
-from app.routers import movies, search
+from app.routers import movies, search, versus
 from app.jobs.daily_sync import run_daily_sync
 from app.schemas import HealthCheck
 
@@ -87,6 +87,7 @@ app.add_middleware(
 
 app.include_router(movies.router, prefix="/api/movies", tags=["movies"])
 app.include_router(search.router, prefix="/api", tags=["search"])
+app.include_router(versus.router, prefix="/api/versus", tags=["versus"])
 
 
 # ─── Health Check ─────────────────────────────────────────
