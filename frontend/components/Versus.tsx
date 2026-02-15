@@ -13,7 +13,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useWatchlist } from "@/lib/useWatchlist";
-import BattleShareCard from "@/components/BattleShareCard";
+import dynamic from "next/dynamic";
+const BattleShareCard = dynamic(() => import("@/components/BattleShareCard"), {
+    ssr: false,
+    loading: () => (
+        <button disabled className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-surface-elevated text-white/30 border border-white/10">
+            Loading...
+        </button>
+    ),
+});
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
@@ -511,7 +519,6 @@ export default function Versus() {
                                                                         width={32}
                                                                         height={48}
                                                                         className="object-cover w-full h-full"
-                                                                        unoptimized
                                                                     />
                                                                 )}
                                                             </div>
@@ -575,7 +582,6 @@ export default function Versus() {
                                                     alt={battle.a.title}
                                                     fill
                                                     className="object-cover"
-                                                    unoptimized
                                                 />
                                             )}
                                         </div>
@@ -602,7 +608,6 @@ export default function Versus() {
                                                     alt={battle.b.title}
                                                     fill
                                                     className="object-cover"
-                                                    unoptimized
                                                 />
                                             )}
                                         </div>
@@ -630,7 +635,6 @@ export default function Versus() {
                                     alt={slotA.title}
                                     fill
                                     className="object-cover"
-                                    unoptimized
                                 />
                             )}
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
@@ -659,7 +663,6 @@ export default function Versus() {
                                     alt={slotB.title}
                                     fill
                                     className="object-cover"
-                                    unoptimized
                                 />
                             )}
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
@@ -691,7 +694,6 @@ export default function Versus() {
                                     alt={slotA?.title || "Movie A"}
                                     fill
                                     className="object-cover"
-                                    unoptimized
                                 />
                             </motion.div>
 
@@ -718,7 +720,6 @@ export default function Versus() {
                                     alt={slotB?.title || "Movie B"}
                                     fill
                                     className="object-cover"
-                                    unoptimized
                                 />
                             </motion.div>
                         </div>

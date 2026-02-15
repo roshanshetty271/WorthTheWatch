@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import CinemaRoulette from "./CinemaRoulette";
+import dynamic from "next/dynamic";
+const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
+    ssr: false,
+    loading: () => null,
+});
 import { useWatchlist } from "@/lib/useWatchlist";
 import AuthButton from "./AuthButton";
 

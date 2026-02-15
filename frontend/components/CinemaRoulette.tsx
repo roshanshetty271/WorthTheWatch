@@ -358,7 +358,6 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                                     height={POSTER_H}
                                                     className="object-cover w-full h-full"
                                                     priority={i >= WINNER_POS - 3 && i <= WINNER_POS + 3}
-                                                    unoptimized={src.startsWith("http")}
                                                 />
                                             )}
                                         </div>
@@ -390,7 +389,6 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                         fill
                                         className="object-cover"
                                         priority
-                                        unoptimized={winnerPoster.startsWith("http")}
                                     />
                                 )}
                                 <motion.div
@@ -414,7 +412,6 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                         fill
                                         className="object-cover"
                                         priority
-                                        unoptimized={winnerPoster.startsWith("http")}
                                     />
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black from-15% via-black/75 via-45% to-black/20 z-10" />

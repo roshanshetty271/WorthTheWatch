@@ -31,9 +31,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['"DM Serif Display"', "Georgia", "serif"],
-        body: ['"DM Sans"', "system-ui", "sans-serif"],
-        "serif-body": ['"Lora"', "serif"],
+        display: ["var(--font-dm-serif)", "Georgia", "serif"],
+        body: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
+        "serif-body": ["var(--font-lora)", "serif"],
         mono: ['"JetBrains Mono"', "monospace"],
       },
       animation: {
