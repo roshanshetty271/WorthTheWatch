@@ -56,7 +56,7 @@ interface QuickResult {
     has_review: boolean;
 }
 
-type Phase = "landing" | "loading" | "result";
+type Phase = "landing" | "pulsing" | "loading" | "result";
 
 // ─── Trending Battles ──────────────────────────────────
 
@@ -336,7 +336,12 @@ export default function Versus() {
                 verdict: null,
                 imdb_score: null,
             });
-            startBattle(battle.a.tmdb_id, battle.b.tmdb_id);
+            // Scroll to top, show pulsing phase, then start battle
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            setPhase("pulsing");
+            setTimeout(() => {
+                startBattle(battle.a.tmdb_id, battle.b.tmdb_id);
+            }, 1800);
         },
         [startBattle, trendingPosters]
     );
@@ -344,7 +349,12 @@ export default function Versus() {
     const handleCustomBattle = useCallback(() => {
         if (!slotA || !slotB) return;
         if (slotA.tmdb_id === slotB.tmdb_id) return;
-        startBattle(slotA.tmdb_id, slotB.tmdb_id);
+        // Scroll to top, show pulsing phase, then start battle
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        setPhase("pulsing");
+        setTimeout(() => {
+            startBattle(slotA.tmdb_id, slotB.tmdb_id);
+        }, 1800);
     }, [slotA, slotB, startBattle]);
 
     // ─── Winner Actions ────────────────────────────────
@@ -400,6 +410,7 @@ export default function Versus() {
                 </h1>
                 <p className="text-white/40 mt-2 text-sm max-w-md mx-auto">
                     {phase === "landing" && "Two movies enter. One leaves victorious."}
+                    {phase === "pulsing" && "Get ready..."}
                     {phase === "loading" && loadingMsg}
                     {phase === "result" && "The verdict is in."}
                 </p>
@@ -552,9 +563,9 @@ export default function Versus() {
                                     whileTap={{ scale: 0.98 }}
                                     className="relative overflow-hidden rounded-2xl border border-white/10 hover:border-accent-gold/30 transition-all group bg-surface-card p-4"
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-4">
                                         {/* Poster A */}
-                                        <div className="w-16 h-24 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
+                                        <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
                                             {trendingPosters[battle.a.tmdb_id] && (
                                                 <Image
                                                     src={trendingPosters[battle.a.tmdb_id]}
@@ -580,7 +591,7 @@ export default function Versus() {
                                         </div>
 
                                         {/* Poster B */}
-                                        <div className="w-16 h-24 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
+                                        <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
                                             {trendingPosters[battle.b.tmdb_id] && (
                                                 <Image
                                                     src={trendingPosters[battle.b.tmdb_id]}
@@ -595,6 +606,62 @@ export default function Versus() {
                                 </motion.button>
                             ))}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════ PULSING PHASE ═══════ */}
+            {phase === "pulsing" && (
+                <div className="max-w-3xl mx-auto px-4 md:px-8 pb-16">
+                    <div className="flex items-center justify-center gap-6 md:gap-12">
+                        {/* Poster A - pulsing */}
+                        <motion.div
+                            animate={{ scale: [1, 1.05, 1], opacity: [0.7, 1, 0.7] }}
+                            transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
+                            className="w-36 h-52 md:w-48 md:h-72 rounded-2xl overflow-hidden bg-white/5 relative border-2 border-accent-gold/40 shadow-2xl shadow-accent-gold/10"
+                        >
+                            {slotA?.poster_path && (
+                                <Image
+                                    src={slotA.poster_path.startsWith("http") ? slotA.poster_path : `${TMDB_IMG}${slotA.poster_path}`}
+                                    alt={slotA.title}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                />
+                            )}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                                <p className="text-xs font-bold text-white truncate">{slotA?.title}</p>
+                            </div>
+                        </motion.div>
+
+                        {/* VS Badge - pulsing */}
+                        <motion.div
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
+                            className="w-16 h-16 rounded-full bg-accent-gold/20 border-2 border-accent-gold flex items-center justify-center"
+                        >
+                            <span className="text-accent-gold font-black text-lg">VS</span>
+                        </motion.div>
+
+                        {/* Poster B - pulsing */}
+                        <motion.div
+                            animate={{ scale: [1, 1.05, 1], opacity: [0.7, 1, 0.7] }}
+                            transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                            className="w-36 h-52 md:w-48 md:h-72 rounded-2xl overflow-hidden bg-white/5 relative border-2 border-accent-gold/40 shadow-2xl shadow-accent-gold/10"
+                        >
+                            {slotB?.poster_path && (
+                                <Image
+                                    src={slotB.poster_path.startsWith("http") ? slotB.poster_path : `${TMDB_IMG}${slotB.poster_path}`}
+                                    alt={slotB.title}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                />
+                            )}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                                <p className="text-xs font-bold text-white truncate">{slotB?.title}</p>
+                            </div>
+                        </motion.div>
                     </div>
                 </div>
             )}
@@ -718,29 +785,29 @@ export default function Versus() {
                         />
                     </div>
 
-                    {/* Kill Reason — the headline, the shareable moment */}
+                    {/* Kill Reason — the headline */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="bg-surface-card border border-accent-gold/20 rounded-2xl p-6 mb-6 text-center"
+                        className="bg-surface-card border border-accent-gold/20 rounded-2xl p-8 mb-8 text-center"
                     >
-                        <p className="text-[10px] text-accent-gold uppercase tracking-[0.3em] font-bold mb-3">
+                        <p className="text-[10px] text-accent-gold uppercase tracking-[0.3em] font-bold mb-4">
                             The Verdict
                         </p>
-                        <p className="text-lg md:text-xl font-bold text-white leading-snug italic">
+                        <p className="text-xl md:text-2xl font-display italic text-white leading-relaxed">
                             &ldquo;{battleResult.kill_reason}&rdquo;
                         </p>
                     </motion.div>
 
-                    {/* Breakdown */}
+                    {/* Breakdown — matches review page paragraph style */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5 }}
-                        className="bg-white/5 rounded-2xl p-5 mb-6"
+                        className="mb-8"
                     >
-                        <p className="text-sm text-white/70 leading-relaxed">
+                        <p className="font-serif text-lg leading-relaxed text-text-secondary/90">
                             {battleResult.breakdown}
                         </p>
                     </motion.div>
@@ -750,29 +817,29 @@ export default function Versus() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.7 }}
-                        className="flex flex-col gap-2"
+                        className="space-y-3"
                     >
                         <button
                             onClick={handleViewReview}
-                            className="w-full py-3.5 bg-accent-gold text-black font-bold rounded-xl text-sm uppercase tracking-wider hover:brightness-110 active:scale-[0.98] transition-all"
+                            className="w-full py-4 bg-accent-gold text-black font-bold rounded-xl text-sm uppercase tracking-widest hover:bg-accent-goldLight active:scale-[0.98] transition-all"
                         >
                             Read {battleResult.winner_title}&apos;s Full Review
                         </button>
 
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                             <button
                                 onClick={handleSaveWinner}
                                 disabled={saved}
-                                className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${saved
-                                    ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                    : "bg-white/5 text-white/60 hover:bg-white/10 border-white/10"
+                                className={`flex-1 py-3.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all border ${saved
+                                    ? "bg-verdict-worth/10 text-verdict-worth border-verdict-worth/30"
+                                    : "bg-surface-elevated text-white/70 hover:text-white hover:bg-white/10 border-white/10"
                                     }`}
                             >
-                                {saved ? "Saved!" : "Save Winner"}
+                                {saved ? "✓ Saved" : "Save Winner"}
                             </button>
                             <button
                                 onClick={handleRematch}
-                                className="flex-1 py-3 bg-white/5 text-accent-gold rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-white/10 border border-accent-gold/20 transition-all"
+                                className="flex-1 py-3.5 bg-surface-elevated text-accent-gold rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-white/10 border border-accent-gold/20 transition-all"
                             >
                                 Rematch
                             </button>
@@ -780,7 +847,7 @@ export default function Versus() {
 
                         <button
                             onClick={handleNewBattle}
-                            className="w-full py-2.5 text-white/30 text-xs uppercase tracking-wider hover:text-white/50 transition-colors mt-1"
+                            className="w-full py-3 bg-white/5 text-white/50 rounded-xl text-sm font-medium uppercase tracking-widest hover:bg-white/10 hover:text-white/80 border border-white/5 hover:border-white/10 transition-all"
                         >
                             New Battle
                         </button>
