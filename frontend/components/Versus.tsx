@@ -68,29 +68,29 @@ const TRENDING_BATTLES = [
         id: "barbenheimer",
         label: "The Barbenheimer Showdown",
         subtitle: "Pink vs. Plutonium",
-        a: { tmdb_id: 346698, title: "Barbie", media_type: "movie" },
-        b: { tmdb_id: 872585, title: "Oppenheimer", media_type: "movie" },
+        a: { tmdb_id: 346698, title: "Barbie", media_type: "movie", poster_path: "/iuFNMS8U5cb6xfzi51Dbkovj7vM.jpg" },
+        b: { tmdb_id: 872585, title: "Oppenheimer", media_type: "movie", poster_path: "/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg" },
     },
     {
         id: "superhero-goat",
         label: "Superhero Supremacy",
         subtitle: "Knight vs. Spider",
-        a: { tmdb_id: 155, title: "The Dark Knight", media_type: "movie" },
-        b: { tmdb_id: 324857, title: "Spider-Man: Into the Spider-Verse", media_type: "movie" },
+        a: { tmdb_id: 155, title: "The Dark Knight", media_type: "movie", poster_path: "/qJ2tW6WMUDux911BTUgMe1St0x2.jpg" },
+        b: { tmdb_id: 324857, title: "Spider-Man: Into the Spider-Verse", media_type: "movie", poster_path: "/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg" },
     },
     {
         id: "space-brain",
         label: "Nolan vs. Nolan",
         subtitle: "Dreams vs. Black Holes",
-        a: { tmdb_id: 27205, title: "Inception", media_type: "movie" },
-        b: { tmdb_id: 157336, title: "Interstellar", media_type: "movie" },
+        a: { tmdb_id: 27205, title: "Inception", media_type: "movie", poster_path: "/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg" },
+        b: { tmdb_id: 157336, title: "Interstellar", media_type: "movie", poster_path: "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
     },
     {
         id: "animated-kings",
         label: "Animation Throwdown",
         subtitle: "Ogre vs. Super Family",
-        a: { tmdb_id: 808, title: "Shrek", media_type: "movie" },
-        b: { tmdb_id: 9806, title: "The Incredibles", media_type: "movie" },
+        a: { tmdb_id: 808, title: "Shrek", media_type: "movie", poster_path: "/iB64vpL3dIObOtMZgX3RqdVdQDc.jpg" },
+        b: { tmdb_id: 9806, title: "The Incredibles", media_type: "movie", poster_path: "/2LqaLgk1Z2GiOfMey7BysJMueM0.jpg" },
     },
 ];
 
@@ -146,37 +146,14 @@ export default function Versus() {
     const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
 
 
-    // Trending battle poster cache
-    const [trendingPosters, setTrendingPosters] = useState<Record<number, string>>({});
+
 
     const searchTimeout = useRef<NodeJS.Timeout | null>(null);
     const loadingInterval = useRef<NodeJS.Timeout | null>(null);
 
     // ─── Fetch trending posters on mount ───────────────
 
-    useEffect(() => {
-        async function fetchTrendingPosters() {
-            const allIds = TRENDING_BATTLES.flatMap((b) => [b.a.tmdb_id, b.b.tmdb_id]);
-            const uniqueIds = Array.from(new Set(allIds));
-            const posterMap: Record<number, string> = {};
 
-            await Promise.all(
-                uniqueIds.map(async (id) => {
-                    try {
-                        const res = await fetch(`${API_BASE}/api/movies/${id}`);
-                        if (res.ok) {
-                            const data = await res.json();
-                            const pp = data.movie?.poster_path;
-                            if (pp) posterMap[id] = getPosterUrl(pp);
-                        }
-                    } catch { }
-                })
-            );
-
-            setTrendingPosters(posterMap);
-        }
-        fetchTrendingPosters();
-    }, []);
 
     // ─── Search ────────────────────────────────────────
 
@@ -323,9 +300,10 @@ export default function Versus() {
 
     const handleTrendingBattle = useCallback(
         (battle: (typeof TRENDING_BATTLES)[0]) => {
+            setBattleResult(null);
             // Pre-populate slots so loading phase shows posters
-            const posterA = trendingPosters[battle.a.tmdb_id];
-            const posterB = trendingPosters[battle.b.tmdb_id];
+            const posterA = battle.a.poster_path;
+            const posterB = battle.b.poster_path;
             setSlotA({
                 tmdb_id: battle.a.tmdb_id,
                 title: battle.a.title,
@@ -355,7 +333,7 @@ export default function Versus() {
                 startBattle(battle.a.tmdb_id, battle.b.tmdb_id, battle.a.media_type, battle.b.media_type);
             }, 2800);
         },
-        [startBattle, trendingPosters]
+        [startBattle]
     );
 
     const handleCustomBattle = useCallback(() => {
@@ -418,9 +396,9 @@ export default function Versus() {
     }, [slotA, slotB, startBattle]);
 
     const handleNewBattle = useCallback(() => {
+        setBattleResult(null);
         setSlotA(null);
         setSlotB(null);
-        setBattleResult(null);
         setPhase("landing");
     }, []);
 
@@ -591,9 +569,9 @@ export default function Versus() {
                                     <div className="flex items-center gap-4">
                                         {/* Poster A */}
                                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
-                                            {trendingPosters[battle.a.tmdb_id] && (
+                                            {battle.a.poster_path && (
                                                 <Image
-                                                    src={trendingPosters[battle.a.tmdb_id]}
+                                                    src={`${TMDB_IMG}${battle.a.poster_path}`}
                                                     alt={battle.a.title}
                                                     fill
                                                     className="object-cover"
@@ -618,9 +596,9 @@ export default function Versus() {
 
                                         {/* Poster B */}
                                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
-                                            {trendingPosters[battle.b.tmdb_id] && (
+                                            {battle.b.poster_path && (
                                                 <Image
-                                                    src={trendingPosters[battle.b.tmdb_id]}
+                                                    src={`${TMDB_IMG}${battle.b.poster_path}`}
                                                     alt={battle.b.title}
                                                     fill
                                                     className="object-cover"
@@ -1023,11 +1001,11 @@ function ResultCard({
             transition={{ delay: isWinner ? 1.1 : 1.2, type: "spring", stiffness: 200 }}
             className={`flex flex-col items-center transition-all duration-500 ${isWinner
                 ? "z-10 w-44 md:w-56"
-                : "z-0 w-36 md:w-44 opacity-60"
+                : "z-0 w-36 md:w-44 opacity-80"
                 }`}
             style={{
                 transformStyle: "preserve-3d",
-                filter: isWinner ? "none" : "brightness(0.6)",
+                filter: isWinner ? "none" : "brightness(0.75)",
             }}
         >
             {/* Winner badge */}
@@ -1047,7 +1025,7 @@ function ResultCard({
             {/* Poster */}
             <div className={`w-full aspect-[2/3] rounded-xl overflow-hidden relative border-2 transition-all duration-500 ${isWinner
                 ? "border-accent-gold shadow-xl shadow-accent-gold/30 ring-1 ring-accent-gold/20"
-                : "border-white/10 grayscale"
+                : "border-white/10 grayscale-[60%]"
                 }`}>
                 <Image
                     src={getPosterUrl(movie.poster_path)}
@@ -1063,10 +1041,10 @@ function ResultCard({
                 )}
             </div>
 
-            <p className={`text-xs mt-0.5 ${isWinner ? "text-accent-gold font-bold" : "text-white/20"}`}>
+            <p className={`text-xs mt-0.5 ${isWinner ? "text-accent-gold font-bold" : "text-white/40"}`}>
                 {headline}
             </p>
-            <p className={`mt-1 text-center w-full truncate ${isWinner ? "text-base md:text-lg font-black uppercase tracking-wider text-white" : "text-sm font-bold uppercase tracking-wide text-white/30"}`}>
+            <p className={`mt-1 text-center w-full truncate ${isWinner ? "text-base md:text-lg font-black uppercase tracking-wider text-white" : "text-sm font-bold uppercase tracking-wide text-white/60"}`}>
                 {movie.title}
             </p>
         </motion.div>
