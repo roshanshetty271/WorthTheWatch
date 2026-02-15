@@ -1,9 +1,9 @@
 /**
  * Worth the Watch? — Battle Share Card
  * Generates a shareable PNG image from battle results.
- * 
+ *
  * Uses html-to-image to capture a hidden card div.
- * TMDB images are proxied through /api/image-proxy to avoid CORS.
+ * TMDB images are fetched as base64 via /api/image-proxy to avoid CORS.
  * Mobile: native share sheet (WhatsApp, Instagram, Twitter, etc.)
  * Desktop: downloads the PNG.
  */
@@ -24,14 +24,26 @@ interface ShareCardProps {
     loserHeadline: string;
 }
 
-// ─── Proxy helper ──────────────────────────────────────
-// Routes TMDB images through our Next.js API to avoid CORS
-function proxyUrl(posterPath: string | null): string {
+// ─── Convert image to base64 via proxy ─────────────
+async function fetchAsBase64(posterPath: string | null): Promise<string> {
     if (!posterPath) return "";
     const tmdbUrl = posterPath.startsWith("http")
         ? posterPath
         : `${TMDB_IMG}${posterPath}`;
-    return `/api/image-proxy?url=${encodeURIComponent(tmdbUrl)}`;
+    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(tmdbUrl)}`;
+    try {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) return "";
+        const blob = await res.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve("");
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        return "";
+    }
 }
 
 export default function BattleShareCard({
@@ -46,28 +58,28 @@ export default function BattleShareCard({
     const cardRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [imagesLoaded, setImagesLoaded] = useState(false);
+    const [winnerBase64, setWinnerBase64] = useState<string>("");
+    const [loserBase64, setLoserBase64] = useState<string>("");
 
-    // Pre-load proxied images so they're ready when we capture
+    // Pre-convert poster images to base64 on mount
+    // This bypasses ALL CORS and image loading issues on mobile
     useEffect(() => {
-        const urls = [proxyUrl(winnerPosterPath), proxyUrl(loserPosterPath)].filter(Boolean);
-        if (urls.length === 0) {
-            setImagesLoaded(true);
-            return;
+        let cancelled = false;
+        async function loadImages() {
+            const [w, l] = await Promise.all([
+                fetchAsBase64(winnerPosterPath),
+                fetchAsBase64(loserPosterPath),
+            ]);
+            if (!cancelled) {
+                setWinnerBase64(w);
+                setLoserBase64(l);
+                setImagesLoaded(true);
+            }
         }
-
-        let loaded = 0;
-        urls.forEach((url) => {
-            const img = new Image();
-            img.onload = () => {
-                loaded++;
-                if (loaded >= urls.length) setImagesLoaded(true);
-            };
-            img.onerror = () => {
-                loaded++;
-                if (loaded >= urls.length) setImagesLoaded(true);
-            };
-            img.src = url;
-        });
+        loadImages();
+        return () => {
+            cancelled = true;
+        };
     }, [winnerPosterPath, loserPosterPath]);
 
     const handleShare = useCallback(async () => {
@@ -75,22 +87,43 @@ export default function BattleShareCard({
         setIsGenerating(true);
 
         try {
-            // Small delay to ensure images are painted
+            // Wait for any pending paints
+            await new Promise((r) => setTimeout(r, 300));
+
+            // Warm-up call (fixes iOS Safari first-render bug)
+            try {
+                await toPng(cardRef.current, {
+                    pixelRatio: 1,
+                    cacheBust: true,
+                    backgroundColor: "#0a0a0a",
+                });
+            } catch {
+                // Expected to fail on first attempt on some browsers
+            }
+
             await new Promise((r) => setTimeout(r, 200));
 
+            // Actual capture at full quality
             const dataUrl = await toPng(cardRef.current, {
-                pixelRatio: 2, // Retina quality
+                pixelRatio: 2,
                 cacheBust: true,
                 backgroundColor: "#0a0a0a",
+                skipAutoScale: true,
             });
 
             // Convert data URL to blob
             const res = await fetch(dataUrl);
             const blob = await res.blob();
-            const file = new File([blob], "battle-verdict.png", { type: "image/png" });
+            const file = new File([blob], "battle-verdict.png", {
+                type: "image/png",
+            });
 
             // Mobile: native share sheet
-            if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {
+            if (
+                typeof navigator !== "undefined" &&
+                navigator.share &&
+                navigator.canShare?.({ files: [file] })
+            ) {
                 await navigator.share({
                     files: [file],
                     title: "Movie Battle Verdict",
@@ -109,7 +142,9 @@ export default function BattleShareCard({
             try {
                 const text = `🏆 ${winnerTitle} DEFEATS ${loserTitle}\n\n"${killReason}"\n\n⚔️ worth-the-watch.vercel.app/versus`;
                 await navigator.clipboard.writeText(text);
-                alert("Image generation failed — verdict copied to clipboard instead!");
+                alert(
+                    "Image generation failed — verdict copied to clipboard instead!"
+                );
             } catch {
                 alert("Share failed. Try again.");
             }
@@ -120,12 +155,7 @@ export default function BattleShareCard({
 
     return (
         <>
-            {/* ═══════ HIDDEN SHARE CARD ═══════
-                This div is positioned off-screen. It renders the shareable image
-                layout. html-to-image captures it as a PNG when user clicks Share.
-                Using regular <img> tags (NOT Next.js Image) with proxied URLs
-                to avoid CORS issues.
-            */}
+            {/* ═══════ HIDDEN SHARE CARD ═══════ */}
             <div
                 style={{
                     position: "fixed",
@@ -141,13 +171,15 @@ export default function BattleShareCard({
                     style={{
                         width: "600px",
                         height: "800px",
-                        background: "linear-gradient(180deg, #111111 0%, #0a0a0a 100%)",
+                        background:
+                            "linear-gradient(180deg, #111111 0%, #0a0a0a 100%)",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
                         padding: "40px",
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontFamily:
+                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                         position: "relative",
                         overflow: "hidden",
                     }}
@@ -161,7 +193,8 @@ export default function BattleShareCard({
                             transform: "translateX(-50%)",
                             width: "400px",
                             height: "400px",
-                            background: "radial-gradient(circle, rgba(212,168,67,0.08) 0%, transparent 70%)",
+                            background:
+                                "radial-gradient(circle, rgba(212,168,67,0.08) 0%, transparent 70%)",
                             pointerEvents: "none",
                         }}
                     />
@@ -216,17 +249,17 @@ export default function BattleShareCard({
                                     borderRadius: "12px",
                                     overflow: "hidden",
                                     border: "3px solid #d4a843",
-                                    boxShadow: "0 0 30px rgba(212,168,67,0.2)",
+                                    boxShadow:
+                                        "0 0 30px rgba(212,168,67,0.2)",
                                     position: "relative",
                                     background: "#1a1a1a",
                                 }}
                             >
-                                {winnerPosterPath && (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                {winnerBase64 && (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
-                                        src={proxyUrl(winnerPosterPath)}
+                                        src={winnerBase64}
                                         alt={winnerTitle}
-                                        crossOrigin="anonymous"
                                         style={{
                                             width: "100%",
                                             height: "100%",
@@ -250,7 +283,7 @@ export default function BattleShareCard({
                                     display: "inline-block",
                                 }}
                             >
-                                🏆 Winner
+                                Winner
                             </div>
                             <div
                                 style={{
@@ -316,12 +349,11 @@ export default function BattleShareCard({
                                     filter: "grayscale(70%) brightness(0.6)",
                                 }}
                             >
-                                {loserPosterPath && (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                {loserBase64 && (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
-                                        src={proxyUrl(loserPosterPath)}
+                                        src={loserBase64}
                                         alt={loserTitle}
-                                        crossOrigin="anonymous"
                                         style={{
                                             width: "100%",
                                             height: "100%",
@@ -389,7 +421,7 @@ export default function BattleShareCard({
                         </div>
                     </div>
 
-                    {/* Kill Reason — the star of the show */}
+                    {/* Kill Reason */}
                     <div
                         style={{
                             background: "rgba(212,168,67,0.06)",
@@ -426,7 +458,7 @@ export default function BattleShareCard({
                         </div>
                     </div>
 
-                    {/* Watermark — FREE MARKETING */}
+                    {/* Watermark */}
                     <div
                         style={{
                             position: "absolute",
