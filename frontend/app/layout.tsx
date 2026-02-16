@@ -29,19 +29,19 @@ const lora = Lora({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://worththewatch.app'),
-  title: 'Worth the Watch? — Don\'t watch another bad movie.',
-  description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
+  title: 'Worth the Watch? — Instant AI Movie Reviews & Verdicts',
+  description: 'Search any movie or TV show to get an instant, AI-powered verdict from fans and critics. Save time with honest reviews. No spoilers, just the truth.',
   openGraph: {
-    title: 'Worth the Watch? — Don\'t watch another bad movie.',
-    description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
+    title: 'Worth the Watch? — Instant AI Movie Reviews & Verdicts',
+    description: 'Search any movie or TV show to get an instant, AI-powered verdict from fans and critics. Save time with honest reviews. No spoilers, just the truth.',
     siteName: 'Worth the Watch?',
     images: [{ url: '/twitter-share.jpg', width: 1200, height: 630 }],
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Worth the Watch? — Don\'t watch another bad movie.',
-    description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
+    title: 'Worth the Watch? — Instant AI Movie Reviews & Verdicts',
+    description: 'Search any movie or TV show to get an instant, AI-powered verdict from fans and critics. Save time with honest reviews. No spoilers, just the truth.',
     images: [{ url: '/twitter-share.jpg', width: 1200, height: 630 }],
   },
 };
