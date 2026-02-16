@@ -30,6 +30,7 @@ export default function ReviewSection({
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState("Preparing...");
+    const [percent, setPercent] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
     // Poll for generation status
@@ -52,9 +53,11 @@ export default function ReviewSection({
                         router.refresh();
                     } else if (data.status === "generating") {
                         setProgress(data.progress || "Analyzing...");
+                        setPercent(data.percent || 10);
                     } else if (data.status === "not_found") {
                         // Still waiting for it to start
                         setProgress("Starting generation...");
+                        setPercent(5);
                     }
                 }
             } catch (e) {
@@ -111,9 +114,18 @@ export default function ReviewSection({
                 <h3 className="font-display text-lg text-accent-gold mb-4">
                     Analyzing the internet&apos;s opinions...
                 </h3>
-                <div className="mb-4">
+                <div className="mb-6">
                     <TriviaLoader />
                 </div>
+
+                {/* Visual Progress Bar */}
+                <div className="mx-auto w-64 h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
+                    <div
+                        className="h-full bg-accent-gold/50 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${percent}%` }}
+                    />
+                </div>
+
                 <p className="text-[10px] text-text-muted/40 uppercase tracking-widest">
                     This usually takes about 15 seconds
                 </p>

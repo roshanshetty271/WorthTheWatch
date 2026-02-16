@@ -174,8 +174,6 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                                 {review && (
                                     <div className="pt-3 animate-fade-in flex flex-wrap items-center gap-4 justify-center md:justify-start">
-                                        <StreamingAvailability tmdbId={movie.tmdb_id} />
-
                                         {/* Trailer jump link — YouTube Style */}
                                         {review.trailer_url && (
                                             <button
@@ -185,7 +183,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                                         block: "center"
                                                     });
                                                 }}
-                                                className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-all shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 group"
+                                                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-all shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 group"
                                             >
                                                 <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                                                     <path d="M8 5v14l11-7z" />
@@ -193,6 +191,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                                 Watch Trailer
                                             </button>
                                         )}
+
+                                        <StreamingAvailability tmdbId={movie.tmdb_id} />
                                     </div>
                                 )}
                             </div>

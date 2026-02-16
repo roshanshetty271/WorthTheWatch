@@ -209,14 +209,14 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
       )}
 
       {/* Main Review Text */}
-      <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-lg leading-relaxed text-text-secondary/90">
+      <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-base md:text-lg leading-relaxed text-text-secondary/90 text-justify hyphens-auto">
         {paragraphs.map((para, i) => {
           if (i === 0 && para.length > 0) {
             const firstLetter = para.charAt(0);
             const restOfText = para.slice(1);
             return (
-              <p key={i} className="relative pl-16 sm:pl-20">
-                <span className="absolute left-0 top-1 w-12 sm:w-16 flex justify-center text-6xl font-display font-bold text-accent-gold leading-none select-none">
+              <p key={i}>
+                <span className="float-left mr-3 mt-[-4px] text-5xl sm:text-6xl font-display font-bold text-accent-gold leading-[0.8]">
                   {firstLetter}
                 </span>
                 {restOfText}
@@ -224,7 +224,7 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
             );
           }
           return (
-            <p key={i} className="pl-16 sm:pl-20">
+            <p key={i}>
               {para}
             </p>
           );

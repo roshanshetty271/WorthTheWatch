@@ -161,40 +161,15 @@ export default function Versus() {
     const loadingInterval = useRef<NodeJS.Timeout | null>(null);
 
     // ─── Fetch trending posters on mount ───────────────
+    // ─── Fetch trending posters on mount ───────────────
     useEffect(() => {
-        async function fetchTrendingPosters() {
-            const allIds = TRENDING_BATTLES.flatMap((b) => [b.a, b.b]);
-            const uniqueEntries = allIds.filter((v, i, a) =>
-                a.findIndex(x => x.tmdb_id === v.tmdb_id) === i
-            );
-            const posterMap: Record<number, string> = {};
-
-            // Pre-fill with hardcoded fallbacks
-            uniqueEntries.forEach((entry) => {
-                if (entry.poster_path) {
-                    posterMap[entry.tmdb_id] = `${TMDB_IMG}${entry.poster_path}`;
-                }
-            });
-
-            // Try to fetch fresh posters (non-blocking)
-            try {
-                await Promise.all(
-                    uniqueEntries.map(async (entry) => {
-                        try {
-                            const res = await fetch(`${API_BASE}/api/movies/${entry.tmdb_id}`);
-                            if (res.ok) {
-                                const data = await res.json();
-                                const pp = data.movie?.poster_path;
-                                if (pp) posterMap[entry.tmdb_id] = pp.startsWith("http") ? pp : `${TMDB_IMG}${pp}`;
-                            }
-                        } catch { }
-                    })
-                );
-            } catch { }
-
-            setTrendingPosters(posterMap);
-        }
-        fetchTrendingPosters();
+        // Simple map of known posters from constants
+        const posterMap: Record<number, string> = {};
+        TRENDING_BATTLES.forEach((battle) => {
+            if (battle.a.poster_path) posterMap[battle.a.tmdb_id] = getPosterUrl(battle.a.poster_path);
+            if (battle.b.poster_path) posterMap[battle.b.tmdb_id] = getPosterUrl(battle.b.poster_path);
+        });
+        setTrendingPosters(posterMap);
     }, []);
 
 
@@ -619,7 +594,7 @@ export default function Versus() {
                                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
                                             {battle.a.poster_path && (
                                                 <Image
-                                                    src={trendingPosters[battle.a.tmdb_id] || `${TMDB_IMG}${battle.a.poster_path}`}
+                                                    src={trendingPosters[battle.a.tmdb_id] || getPosterUrl(battle.a.poster_path)}
                                                     alt={battle.a.title}
                                                     fill
                                                     className="object-cover"
@@ -650,7 +625,7 @@ export default function Versus() {
                                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
                                             {battle.b.poster_path && (
                                                 <Image
-                                                    src={trendingPosters[battle.b.tmdb_id] || `${TMDB_IMG}${battle.b.poster_path}`}
+                                                    src={trendingPosters[battle.b.tmdb_id] || getPosterUrl(battle.b.poster_path)}
                                                     alt={battle.b.title}
                                                     fill
                                                     className="object-cover"

@@ -255,9 +255,11 @@ async def check_generation_status(
     if not movie:
         # Check if it's currently processing but not yet in DB (unlikely with our flow)
         # or just started
-        progress = job_progress.get(tmdb_id)
-        if progress:
-             return {"status": "generating", "progress": progress}
+        progress_data = job_progress.get(tmdb_id)
+        if progress_data:
+             if isinstance(progress_data, dict):
+                 return {"status": "generating", "progress": progress_data.get("message", "Processing..."), "percent": progress_data.get("percent", 0)}
+             return {"status": "generating", "progress": str(progress_data), "percent": 0}
         return {"status": "not_found"}
 
     if movie.review:
@@ -283,8 +285,10 @@ async def check_generation_status(
         }
 
     # Movie exists but no review yet -> likely generating
-    progress = job_progress.get(tmdb_id, "Preparing...")
-    return {"status": "generating", "progress": progress}
+    progress_data = job_progress.get(tmdb_id, {"message": "Preparing...", "percent": 0})
+    if isinstance(progress_data, dict):
+        return {"status": "generating", "progress": progress_data.get("message", "Processing..."), "percent": progress_data.get("percent", 0)}
+    return {"status": "generating", "progress": str(progress_data), "percent": 0}
 
 
 async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):

@@ -64,7 +64,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
     if (streamingOptions.length === 0) return null;
 
     return (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5 pt-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
             <span className="font-display text-base sm:text-lg text-accent-gold flex items-center gap-2">
                 📺 Watch On
             </span>

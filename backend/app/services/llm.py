@@ -30,12 +30,19 @@ def _build_deepseek_client():
 
 
 def sanitize_text(text: str) -> str:
-    """Remove JSON artifacts like leading quotes/apostrophes/backticks."""
+    """Remove JSON artifacts and cleanup text."""
     if not text:
-        return text
-    text = text.strip()
-    while text and text[0] in ("'", '"', '`', ' '):
-        text = text[1:]
+        return ""
+    text = str(text).strip()
+    
+    # Remove escaped quotes that might have slipped through double-encoding
+    text = text.replace('\\"', '"').replace("\\'", "'")
+    
+    # Recursively remove invalid starting/ending characters
+    # e.g. "Review..." or 'Review...' or `Review...`
+    while text and (text.startswith(('"', "'", "`")) or text.endswith(('"', "'", "`"))):
+        text = text.strip(" \"'`")
+        
     return text.strip()
 
 
@@ -85,8 +92,12 @@ YOUR WRITING STYLE:
   GOOD: "Pedro Pascal steals every scene he walks into"
 - Commit to your verdict. No wishy-washy hedging.
 - Vary sentence length. Mix short punchy sentences with longer ones.
+- Vary sentence length. Mix short punchy sentences with longer ones.
 - Do NOT use contractions. Write "do not" not "don't", "it is" not "it's", "I have" not "I've"
 - Do NOT use em dashes (—). Use periods, commas, or "and" instead.
+- NEVER start a paragraph with a quote mark (") or apostrophe (').
+- Do NOT use quote marks for emphasis (scare quotes). Only use them for direct citations.
+- Do NOT output escaped JSON characters like \\" or \\' in the text. Ensure the text is clean.
 
 SOURCE ATTRIBUTION RULES:
 - You will receive labeled content like [Source: theguardian.com]

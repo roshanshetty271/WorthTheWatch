@@ -234,7 +234,7 @@ def calculate_confidence(
     return stats
 
 
-# Global progress tracker: {tmdb_id: "Step description"}
+# Global progress tracker: {tmdb_id: {"message": str, "percent": int}}
 job_progress = {}
 
 async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
@@ -311,7 +311,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # Slower and more expensive than pipeline, but better for obscure titles.
     if settings.USE_LANGGRAPH:
         logger.info(f"🤖 Using LangGraph agent for '{title}'")
-        job_progress[tmdb_id] = "Running LangGraph agent..."
+        job_progress[tmdb_id] = {"message": "Running AI Agent...", "percent": 10}
         
         try:
             from app.services.agent import run_agent_pipeline
@@ -396,7 +396,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             logger.error(f"LangGraph failed, falling back to pipeline: {e}")
     
     # ─── Procedural Pipeline Route ────────────────────────────
-    job_progress[tmdb_id] = "Searching for reviews..."
+    job_progress[tmdb_id] = {"message": "Searching for reviews...", "percent": 10}
     logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
 
     # ─── Step 1: SEARCH ────────────────────────────────────
@@ -531,7 +531,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
 
     # ─── Step 2: READ ──────────────────────────────────────
-    job_progress[tmdb_id] = "Gathering opinions..."
+    job_progress[tmdb_id] = {"message": "Reading articles...", "percent": 30}
     
     # ─── STEP: Read articles ───
     articles, failed_urls = await jina_service.read_urls(selected_urls, max_concurrent=5)
@@ -565,7 +565,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         articles = [snippets]
 
     # ─── Step 3: GREP ──────────────────────────────────────
-    job_progress[tmdb_id] = "Analyzing feedback..."
+    job_progress[tmdb_id] = {"message": "Analyzing feedback...", "percent": 60}
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
     
     # ─── STEP: Grep filter ONLY the scraped articles ───
@@ -655,7 +655,7 @@ CRITICAL CONTEXT (Professional Reviews):
         logger.info(f"   ⚠️ Using fallback snippets: {len(filtered_opinions)} chars")
 
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
-    job_progress[tmdb_id] = "Writing your verdict..."
+    job_progress[tmdb_id] = {"message": "Writing your verdict...", "percent": 80}
     logger.info(f"🧠 Step 4/4: Generating review with LLM for '{title}'")
     logger.info(f"   → Sending {len(filtered_opinions)} chars to LLM")
     logger.info(f"   → TMDB Score: {movie.tmdb_vote_average}")
