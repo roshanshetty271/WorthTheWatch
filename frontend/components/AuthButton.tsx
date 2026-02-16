@@ -33,7 +33,7 @@ export default function AuthButton() {
         return (
             <button
                 onClick={() => signIn("google")}
-                className="text-sm font-medium text-white/80 hover:text-accent-gold 
+                className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold 
                    transition-colors uppercase tracking-widest"
                 aria-label="Sign in with Google"
             >

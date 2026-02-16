@@ -268,7 +268,7 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
 
       {/* Trailer Embed */}
       {review.trailer_url && (
-        <div className="overflow-hidden rounded-xl border border-white/10 shadow-lg mt-4">
+        <div id="trailer-section" className="overflow-hidden rounded-xl border border-white/10 shadow-lg mt-4">
           <TrailerEmbed youtubeUrl={review.trailer_url} />
         </div>
       )}

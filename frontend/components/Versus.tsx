@@ -152,6 +152,7 @@ export default function Versus() {
     // Battle state
     const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
     const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
+    const [trendingPosters, setTrendingPosters] = useState<Record<number, string>>({});
 
 
 
@@ -160,6 +161,41 @@ export default function Versus() {
     const loadingInterval = useRef<NodeJS.Timeout | null>(null);
 
     // ─── Fetch trending posters on mount ───────────────
+    useEffect(() => {
+        async function fetchTrendingPosters() {
+            const allIds = TRENDING_BATTLES.flatMap((b) => [b.a, b.b]);
+            const uniqueEntries = allIds.filter((v, i, a) =>
+                a.findIndex(x => x.tmdb_id === v.tmdb_id) === i
+            );
+            const posterMap: Record<number, string> = {};
+
+            // Pre-fill with hardcoded fallbacks
+            uniqueEntries.forEach((entry) => {
+                if (entry.poster_path) {
+                    posterMap[entry.tmdb_id] = `${TMDB_IMG}${entry.poster_path}`;
+                }
+            });
+
+            // Try to fetch fresh posters (non-blocking)
+            try {
+                await Promise.all(
+                    uniqueEntries.map(async (entry) => {
+                        try {
+                            const res = await fetch(`${API_BASE}/api/movies/${entry.tmdb_id}`);
+                            if (res.ok) {
+                                const data = await res.json();
+                                const pp = data.movie?.poster_path;
+                                if (pp) posterMap[entry.tmdb_id] = pp.startsWith("http") ? pp : `${TMDB_IMG}${pp}`;
+                            }
+                        } catch { }
+                    })
+                );
+            } catch { }
+
+            setTrendingPosters(posterMap);
+        }
+        fetchTrendingPosters();
+    }, []);
 
 
 
@@ -417,7 +453,7 @@ export default function Versus() {
             {/* Header */}
             <div className="text-center pt-28 md:pt-32 pb-4">
                 <h1 className="text-5xl md:text-6xl font-black tracking-tighter">
-                    <span className="text-white">Movie </span><span className="text-accent-gold">Battle</span>
+                    <span className="text-white">Movie </span><span style={{ color: "#fbbf24" }}>Battle</span>
                 </h1>
                 <p className="text-white/40 mt-2 text-sm max-w-md mx-auto">
                     {phase === "landing" && "Two movies enter. One leaves victorious."}
@@ -519,6 +555,11 @@ export default function Versus() {
                                                                         width={32}
                                                                         height={48}
                                                                         className="object-cover w-full h-full"
+                                                                        unoptimized
+                                                                        onError={(e) => {
+                                                                            const target = e.target as HTMLImageElement;
+                                                                            target.style.display = "none";
+                                                                        }}
                                                                     />
                                                                 )}
                                                             </div>
@@ -578,10 +619,15 @@ export default function Versus() {
                                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
                                             {battle.a.poster_path && (
                                                 <Image
-                                                    src={`${TMDB_IMG}${battle.a.poster_path}`}
+                                                    src={trendingPosters[battle.a.tmdb_id] || `${TMDB_IMG}${battle.a.poster_path}`}
                                                     alt={battle.a.title}
                                                     fill
                                                     className="object-cover"
+                                                    unoptimized
+                                                    onError={(e) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        target.style.display = "none";
+                                                    }}
                                                 />
                                             )}
                                         </div>
@@ -604,10 +650,15 @@ export default function Versus() {
                                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
                                             {battle.b.poster_path && (
                                                 <Image
-                                                    src={`${TMDB_IMG}${battle.b.poster_path}`}
+                                                    src={trendingPosters[battle.b.tmdb_id] || `${TMDB_IMG}${battle.b.poster_path}`}
                                                     alt={battle.b.title}
                                                     fill
                                                     className="object-cover"
+                                                    unoptimized
+                                                    onError={(e) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        target.style.display = "none";
+                                                    }}
                                                 />
                                             )}
                                         </div>
@@ -635,6 +686,11 @@ export default function Versus() {
                                     alt={slotA.title}
                                     fill
                                     className="object-cover"
+                                    unoptimized
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = "none";
+                                    }}
                                 />
                             )}
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
@@ -663,6 +719,11 @@ export default function Versus() {
                                     alt={slotB.title}
                                     fill
                                     className="object-cover"
+                                    unoptimized
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = "none";
+                                    }}
                                 />
                             )}
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
@@ -694,6 +755,11 @@ export default function Versus() {
                                     alt={slotA?.title || "Movie A"}
                                     fill
                                     className="object-cover"
+                                    unoptimized
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = "none";
+                                    }}
                                 />
                             </motion.div>
 
@@ -720,6 +786,11 @@ export default function Versus() {
                                     alt={slotB?.title || "Movie B"}
                                     fill
                                     className="object-cover"
+                                    unoptimized
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = "none";
+                                    }}
                                 />
                             </motion.div>
                         </div>

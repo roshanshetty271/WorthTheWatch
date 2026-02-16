@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import TriviaLoader from "./TriviaLoader";
 import ReviewContent from "./ReviewContent";
 import ErrorState from "./ErrorState";
@@ -25,6 +26,7 @@ export default function ReviewSection({
     onReviewUpdate,
     releaseDate,
 }: ReviewSectionProps) {
+    const router = useRouter();
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState("Preparing...");
@@ -44,6 +46,10 @@ export default function ReviewSection({
                         setReview(data.movie.review);
                         setGenerating(false);
                         onReviewUpdate?.(data.movie.review);
+                        // Bust the server cache so navigating back shows the review
+                        fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
+                        // Refresh server components on this page
+                        router.refresh();
                     } else if (data.status === "generating") {
                         setProgress(data.progress || "Analyzing...");
                     } else if (data.status === "not_found") {
@@ -98,36 +104,19 @@ export default function ReviewSection({
         return <ReviewContent review={review} releaseDate={releaseDate} />;
     }
 
-    // STATE 3: Generating
     if (generating) {
         return (
             <div className="rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-8 text-center">
-                <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-accent-gold border-t-transparent" />
-                <h3 className="font-display text-lg text-accent-gold mb-2">
+                <div className="mx-auto mb-6 h-10 w-10 animate-spin rounded-full border-2 border-accent-gold border-t-transparent" />
+                <h3 className="font-display text-lg text-accent-gold mb-4">
                     Analyzing the internet&apos;s opinions...
                 </h3>
-
-                <div className="mb-6">
+                <div className="mb-4">
                     <TriviaLoader />
                 </div>
-
-                {/* Progress steps */}
-                <div className="text-xs text-text-muted space-y-1.5">
-                    <p className={progress.includes("Search") || progress.includes("Starting")
-                        ? "text-accent-gold" : "text-text-muted/50"}>
-                        🔍 Searching reviews and discussions...
-                    </p>
-                    <p className={progress.includes("Gather") || progress.includes("Reading")
-                        ? "text-accent-gold" : "text-text-muted/50"}>
-                        📖 Reading articles...
-                    </p>
-                    <p className={progress.includes("Analyz") || progress.includes("Writing")
-                        ? "text-accent-gold" : "text-text-muted/50"}>
-                        🤖 Generating verdict...
-                    </p>
-                </div>
-
-                <p className="mt-4 text-xs text-text-muted italic">{progress}</p>
+                <p className="text-[10px] text-text-muted/40 uppercase tracking-widest">
+                    This usually takes about 15 seconds
+                </p>
             </div>
         );
     }
