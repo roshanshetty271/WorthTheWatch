@@ -28,7 +28,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://worth-the-watch.vercel.app'),
+  metadataBase: new URL('https://worththewatch.app'),
   title: 'Worth the Watch? — Don\'t watch another bad movie.',
   description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
   openGraph: {
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Worth the Watch? — Don\'t watch another bad movie.',
     description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
-    images: ['/twitter-share.jpg'],
+    images: [{ url: '/twitter-share.jpg', width: 1200, height: 630 }],
   },
 };
 
