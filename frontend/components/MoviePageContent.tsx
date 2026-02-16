@@ -59,7 +59,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 );
                 if (res.ok) {
                     const data = await res.json();
-                    setCast(data.cast || []);
+                    setCast((data.cast || []).filter((person: CastMember) => person.profile_url));
                 }
             } catch { }
         }
