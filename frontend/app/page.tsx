@@ -144,11 +144,11 @@ export default async function HomePage() {
         {/* Center Content */}
         <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-24 mb-16 sm:pt-32 sm:mb-32 md:mb-40">
           <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight drop-shadow-xl">
-            Stop scrolling. <br className="hidden sm:block" />
-            <span className="text-accent-gold">Start watching.</span>
+            Don&apos;t watch <br className="hidden sm:block" />
+            <span className="text-accent-gold">another bad movie.</span>
           </h1>
           <p className="mx-auto mb-8 max-w-lg text-base sm:text-xl text-white/80 font-medium drop-shadow-md">
-            Cut through the noise with AI-powered verdicts.
+            Search any title to get an instant, AI-powered verdict from fans and critics.
           </p>
           <div className="mx-auto max-w-xl sm:max-w-2xl mb-12">
             <SearchBar placeholder="Search any movie or TV show..." size="lg" />

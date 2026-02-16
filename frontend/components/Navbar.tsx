@@ -98,7 +98,7 @@ export default function Navbar() {
                                 href="/versus"
                                 className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
                             >
-                                <span className="text-white">Movie </span><span className="text-accent-gold">Battle</span>
+                                <span className="text-accent-gold">Movie </span><span className="text-accent-gold">Battle</span>
                             </Link>
 
                             {/* Roulette Trigger */}

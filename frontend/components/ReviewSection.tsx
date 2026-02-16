@@ -108,27 +108,55 @@ export default function ReviewSection({
     }
 
     if (generating) {
+        // Map backend progress to percentage
+        const getProgressPercent = () => {
+            const p = progress.toLowerCase();
+            if (p.includes("start")) return 10;
+            if (p.includes("search")) return 25;
+            if (p.includes("read") || p.includes("gather")) return 50;
+            if (p.includes("filter") || p.includes("analy")) return 70;
+            if (p.includes("generat") || p.includes("writ")) return 85;
+            if (p.includes("sav")) return 95;
+            return 15;
+        };
+
+        const getProgressLabel = () => {
+            const p = progress.toLowerCase();
+            if (p.includes("start")) return "Starting search engines...";
+            if (p.includes("search")) return "Scouring the internet for opinions...";
+            if (p.includes("read") || p.includes("gather")) return "Reading critic reviews & Reddit...";
+            if (p.includes("filter") || p.includes("analy")) return "Filtering the noise...";
+            if (p.includes("generat") || p.includes("writ")) return "Writing your verdict...";
+            if (p.includes("sav")) return "Almost done...";
+            return "Warming up the AI...";
+        };
+
+        const pct = getProgressPercent();
+
         return (
             <div className="rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-8 text-center">
-                <div className="mx-auto mb-6 h-10 w-10 animate-spin rounded-full border-2 border-accent-gold border-t-transparent" />
-                <h3 className="font-display text-lg text-accent-gold mb-4">
-                    Analyzing the internet&apos;s opinions...
-                </h3>
+                {/* Fun fact while you wait */}
                 <div className="mb-6">
                     <TriviaLoader />
                 </div>
 
-                {/* Visual Progress Bar */}
-                <div className="mx-auto w-64 h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
-                    <div
-                        className="h-full bg-accent-gold/50 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${percent}%` }}
-                    />
+                {/* Progress bar */}
+                <div className="max-w-xs mx-auto mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-accent-gold font-medium">
+                            {getProgressLabel()}
+                        </span>
+                        <span className="text-xs text-accent-gold/60 font-bold">
+                            {pct}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-accent-gold rounded-full transition-all duration-1000 ease-out"
+                            style={{ width: `${pct}%` }}
+                        />
+                    </div>
                 </div>
-
-                <p className="text-[10px] text-text-muted/40 uppercase tracking-widest">
-                    This usually takes about 15 seconds
-                </p>
             </div>
         );
     }

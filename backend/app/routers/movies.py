@@ -355,6 +355,45 @@ async def get_streaming_availability(
     }
 
 
+    return {
+        "available": bool(flatrate or rent or buy or free),
+        "flatrate": flatrate, "rent": rent, "buy": buy, "free": free,
+        "justwatch_link": providers.get("link", ""),
+    }
+
+
+@router.get("/{tmdb_id}/credits")
+async def get_movie_credits(
+    tmdb_id: int,
+    media_type: str = Query("movie", pattern="^(movie|tv)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get cast list for a movie or TV show."""
+    try:
+        if media_type == "tv":
+            credits = await tmdb_service.get_tv_credits(tmdb_id)
+        else:
+            credits = await tmdb_service.get_movie_credits(tmdb_id)
+        
+        if not credits:
+            return {"cast": []}
+        
+        # Return top 12 cast members
+        cast = []
+        for person in credits.get("cast", [])[:12]:
+            cast.append({
+                "id": person.get("id"),
+                "name": person.get("name", ""),
+                "character": person.get("character", ""),
+                "profile_path": person.get("profile_path"),
+                "profile_url": f"https://image.tmdb.org/t/p/w185{person['profile_path']}" if person.get("profile_path") else None,
+            })
+        
+        return {"cast": cast}
+    except Exception as e:
+        return {"cast": []}
+
+
 def _format_movie_with_review(movie: Movie) -> MovieWithReview:
     movie_resp = MovieResponse(
         id=movie.id, tmdb_id=movie.tmdb_id, title=movie.title,

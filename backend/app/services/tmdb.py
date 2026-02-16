@@ -150,6 +150,34 @@ class TMDBService:
         """Full TV show details."""
         return await self._get(f"/tv/{tmdb_id}")
 
+    async def get_movie_credits(self, movie_id: int) -> dict:
+        """Get credits (cast + crew) for a movie."""
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f"{self.base}/movie/{movie_id}/credits",
+                    headers=TMDB_HEADERS,
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+        except Exception:
+            pass
+        return {}
+
+    async def get_tv_credits(self, tv_id: int) -> dict:
+        """Get credits (cast + crew) for a TV show."""
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f"{self.base}/tv/{tv_id}/aggregate_credits",
+                    headers=TMDB_HEADERS,
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+        except Exception:
+            pass
+        return {}
+
     async def search(self, query: str, page: int = 1) -> list[dict]:
         """
         Multi-search with smart year detection.

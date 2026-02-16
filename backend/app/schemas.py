@@ -65,6 +65,9 @@ class ReviewResponse(BaseModel):
     controversial: Optional[bool] = False
     # Phase 2 additions
     trailer_url: Optional[str] = None
+    awards: Optional[str] = None
+    box_office: Optional[str] = None
+    rated: Optional[str] = None
     positive_pct: Optional[int] = None
     negative_pct: Optional[int] = None
     mixed_pct: Optional[int] = None

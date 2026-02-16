@@ -13,7 +13,7 @@ from app.schemas import LLMReviewOutput, ALLOWED_TAGS
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-MAX_OPINIONS_CHARS = 15000
+MAX_OPINIONS_CHARS = 10000
 
 # ─── Client Configuration ─────────────────────────────────
 
@@ -39,7 +39,6 @@ def sanitize_text(text: str) -> str:
     text = text.replace('\\"', '"').replace("\\'", "'")
     
     # Recursively remove invalid starting/ending characters
-    # e.g. "Review..." or 'Review...' or `Review...`
     while text and (text.startswith(('"', "'", "`")) or text.endswith(('"', "'", "`"))):
         text = text.strip(" \"'`")
         
@@ -72,7 +71,7 @@ else:
     llm_model = "deepseek-chat"
 
 
-# ─── System Prompt ─────────────────────────────────────────
+# ─── System Prompt (UNCHANGED) ─────────────────────────────
 
 SYSTEM_PROMPT = """You are the voice behind "Worth the Watch?" — a movie review aggregator that reads what critics AND Reddit actually think, then delivers the real verdict.
 
@@ -205,7 +204,7 @@ async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
         ],
         response_format={"type": "json_object"},
         temperature=0.3,
-        max_tokens=600,
+        max_tokens=1000, # ✅ FIXED: Increased to 1000 to prevent JSON crash
         timeout=60.0,
     )
     return response.choices[0].message.content
@@ -227,7 +226,7 @@ async def synthesize_review(
     reddit_sources: int = 0,
     media_type: str = "movie",
 ) -> LLMReviewOutput:
-    """Generate a review with automatic LLM failover."""
+    """Generate a review with automatic LLM failover AND internal knowledge fallback."""
 
     # SECURITY: Truncate to prevent denial-of-wallet
     if len(opinions) > MAX_OPINIONS_CHARS:
@@ -275,6 +274,7 @@ RULES:
 
     content_label = "TV Series" if media_type == "tv" else "Movie"
 
+    # ✅ FIXED: Enforcing strict word counts in prompt to ensure speed within the new token limit
     user_prompt = f"""{content_label}: {title} ({year})
 Genre: {genres}
 {score_context}
@@ -292,12 +292,16 @@ MANDATORY INSTRUCTIONS:
 1. Select 3-5 tags STRICTLY from this list: {', '.join(sorted(ALLOWED_TAGS))}. Do not invent new tags. Each tag MUST be a separate string in the JSON array.
 2. Extract the single most memorable, funny, or insightful quote from the opinions.
 3. Be specific in praise/criticism.
-4. REMEMBER: If your verdict is WORTH IT, the last sentence MUST be enthusiastic and positive. No caveats. No "skip if" warnings. Sell the movie.
-5. REMEMBER: If your verdict is NOT WORTH IT, be funny about it. Roast with humor, not cruelty."""
+4. BE HONEST, NOT NICE. A 6.5/10 movie is MIXED BAG, not WORTH IT. If the opinions are split, lukewarm, or "it was okay", say MIXED BAG. WORTH IT means the viewer will genuinely enjoy this and it is worth their limited free time. MIXED BAG means it has good parts but also real problems. Do not hand out WORTH IT to be polite — earn it.
+5. REMEMBER: If your verdict is WORTH IT, the last sentence MUST be enthusiastic and positive. No caveats. No "skip if" warnings. Sell the movie.
+6. REMEMBER: If your verdict is NOT WORTH IT, be funny about it. Roast with humor, not cruelty.
+7. CRITICAL SPEED RULE: Keep 'review_text' under 180 words. Be punchy and direct.
+"""
 
     content = None
     used_model = None
 
+    # ─── TIER 1: Search Data ─────────────────────────────────
     try:
         logger.info(f"🧠 Trying primary LLM: {llm_model}")
         content = await _call_llm(llm_client, llm_model, user_prompt)
@@ -305,21 +309,67 @@ MANDATORY INSTRUCTIONS:
     except Exception as e:
         logger.warning(f"Primary LLM ({llm_model}) failed: {e}")
         
+        # Try fallback client with SAME prompt (Technical Failover)
         fallback_client = openai_client if llm_client != openai_client else deepseek_client
         fallback_model = openai_model if llm_client != openai_client else deepseek_model
         
         if fallback_client:
             try:
-                logger.info(f"🔄 Falling back to: {fallback_model}")
+                logger.info(f"🔄 Falling back to: {fallback_model} (Search Data)")
                 content = await _call_llm(fallback_client, fallback_model, user_prompt)
                 used_model = fallback_model
-            except Exception as fallback_error:
-                logger.error(f"Fallback LLM ({fallback_model}) also failed: {fallback_error}")
-                raise RuntimeError(
-                    f"All LLMs failed. Primary: {e}, Fallback: {fallback_error}"
-                )
+            except Exception as tech_fallback_error:
+                logger.error(f"Fallback LLM ({fallback_model}) also failed: {tech_fallback_error}")
+                content = None
         else:
-            raise RuntimeError(f"Primary LLM failed and no fallback available: {e}")
+            logger.error(f"No fallback client available for technical error: {e}")
+            content = None
+
+    # ─── TIER 2: Internal Knowledge Fallback ─────────────────
+    # If content is STILL None (meaning technical failover failed OR search data was empty/bad)
+    if content is None:
+        logger.warning(f"⚠️ Search-based generation failed completely. Attempting Internal Knowledge Fallback for '{title}'.")
+        
+        # ✅ FIXED: New prompt that explicitly asks LLM to use internal knowledge
+        knowledge_prompt = f"""
+        Review the {content_label}: "{title}" ({year}).
+        Genre: {genres}
+        Overview: {overview}
+        {score_context}
+
+        CRITICAL: I do not have external search data for this title. 
+        PLEASE USE YOUR INTERNAL KNOWLEDGE to write the review.
+        
+        If you absolutely do not know this movie, return valid JSON with:
+        {{ "verdict": "MIXED BAG", "review_text": "We could not find enough data on this title yet.", "hook": "Data unavailable." }}
+        
+        Otherwise, follow the standard review format strictly.
+        MANDATORY: Keep 'review_text' under 180 words.
+        """
+
+        try:
+            # We prefer OpenAI for internal knowledge (usually better training data than sanitized DeepSeek)
+            k_client = openai_client if openai_client else llm_client
+            k_model = "gpt-4o-mini"
+            
+            content = await _call_llm(k_client, k_model, knowledge_prompt)
+            used_model = f"{k_model} (Internal Knowledge)"
+            logger.info(f"✅ Generated review using Internal Knowledge.")
+            
+        except Exception as final_error:
+            # ─── TIER 3: Last Resort (Static Error) ────────────────
+            logger.error(f"❌ All LLM attempts failed: {final_error}")
+            return LLMReviewOutput(
+                review_text="We are having trouble reaching our AI critics right now. Please try again in a moment.",
+                verdict="MIXED BAG",
+                hook="Service temporarily unavailable.",
+                praise_points=[],
+                criticism_points=[],
+                vibe="System Error",
+                confidence="LOW",
+                critic_sentiment="mixed",
+                reddit_sentiment="mixed"
+            )
 
     logger.info(f"✅ Review generated using {used_model}")
 
@@ -341,14 +391,11 @@ MANDATORY INSTRUCTIONS:
             for tag in data["tags"]:
                 if isinstance(tag, str):
                     # Split tags that got concatenated (e.g., "CerebralEmotional" → ["Cerebral", "Emotional"])
-                    # Check if the tag is longer than any single allowed tag
                     if len(tag) > 20:
-                        # Try to split by matching known tags
                         remaining = tag
                         for allowed in sorted(ALLOWED_TAGS, key=len, reverse=True):
                             while allowed.lower().replace("-", "") in remaining.lower().replace("-", ""):
                                 fixed_tags.append(allowed)
-                                # Remove the matched portion (case-insensitive)
                                 idx = remaining.lower().replace("-", "").find(allowed.lower().replace("-", ""))
                                 remaining = remaining[:idx] + remaining[idx + len(allowed.replace("-", "")):]
                     else:

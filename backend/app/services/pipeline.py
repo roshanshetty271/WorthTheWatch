@@ -579,11 +579,10 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
          backfilled_count = len(articles) - len(selected_urls)
          final_source_urls.extend(backfill_urls[:backfilled_count])
 
-    labeled_sections = []
+    reddit_article_sections = []
+    critic_article_sections = []
     
     for url, article_text in zip(final_source_urls, articles):
-        # Extract best paragraphs from THIS article only
-        # Use a small limit per article to keep it focused
         best_paras = extract_opinion_paragraphs([article_text], max_paragraphs=5)
         
         if best_paras:
@@ -592,10 +591,14 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             except:
                 domain = "Source"
             
-            labeled_sections.append(f"[Source: {domain}]\n{best_paras}")
+            section = f"[Source: {domain}]\n{best_paras}"
+            if "reddit.com" in url.lower():
+                reddit_article_sections.append(section)
+            else:
+                critic_article_sections.append(section)
 
-    # Join all labeled sections
-    filtered_opinions = "\n\n".join(labeled_sections)
+    # Reddit articles first, then critics
+    filtered_opinions = "\n\n".join(reddit_article_sections + critic_article_sections)
     
     logger.info(
         f"🔍 FILTERED OPINIONS: {len(filtered_opinions)} chars "
@@ -607,7 +610,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # But we have 128k context with GPT-4o-mini, so we should use ~18k chars easily.
     # No need to aggressively truncate to 5k.
     
-    MAX_LLM_CHARS = 15000
+    MAX_LLM_CHARS = 10000
     
     # 1. Prepare Reddit Text
     reddit_text = ""
@@ -633,15 +636,40 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             critic_text = critic_text[:last_period+1]
         
     # 4. Assemble Final Input: Reddit FIRST
+    # Separate Reddit article opinions from critic opinions
+    reddit_articles_text = "\n\n".join(reddit_article_sections)
+    critic_articles_text = "\n\n".join(critic_article_sections)
+    
+    # Budget: Reddit snippets + Reddit articles get 50%, critics get 50%
+    half_budget = MAX_LLM_CHARS // 2
+    
+    # All Reddit content (snippets + full thread opinions)
+    all_reddit = ""
     if reddit_text:
-        final_opinions = f"""AUDIENCE REACTIONS (from Reddit/Forums):
-{reddit_text}
+        all_reddit = reddit_text
+    if reddit_articles_text:
+        all_reddit = all_reddit + "\n\n" + reddit_articles_text if all_reddit else reddit_articles_text
+    all_reddit = all_reddit[:half_budget]
+    
+    # Critic content gets the other half
+    critic_final = critic_articles_text[:half_budget]
+    # Clean cut at last period
+    last_period = critic_final.rfind('.')
+    if last_period > 0:
+        critic_final = critic_final[:last_period + 1]
+    
+    if all_reddit and critic_final:
+        final_opinions = f"""AUDIENCE REACTIONS (Reddit & Forums):
+{all_reddit}
 
-CRITICAL CONTEXT (Professional Reviews):
-{critic_text}"""
+CRITIC REVIEWS (Professional):
+{critic_final}"""
+    elif all_reddit:
+        final_opinions = f"""AUDIENCE REACTIONS (Reddit & Forums):
+{all_reddit}"""
     else:
-        final_opinions = f"""CRITICAL CONTEXT (Professional Reviews):
-{critic_text}"""
+        final_opinions = f"""CRITIC REVIEWS (Professional):
+{critic_final}"""
 
     filtered_opinions = final_opinions
 
@@ -712,18 +740,18 @@ CRITICAL CONTEXT (Professional Reviews):
             media_type=movie.media_type or "movie",
         )
         
+        
+        # Initialize override variables early to prevent UnboundLocalError
+        override_score = imdb_score if imdb_score else movie.tmdb_vote_average
+        override_votes = imdb_votes if imdb_votes else (movie.tmdb_vote_count or 0)
+        score_source = "IMDb" if imdb_score else "TMDB"
+
         # Sanity check: verdict should match sentiment percentages
         if llm_output.positive_pct is not None and llm_output.negative_pct is not None:
             pos = llm_output.positive_pct
             neg = llm_output.negative_pct
             
-
             # High Score Privilege — crowd has spoken
-            # Use IMDb if available (more reliable), else TMDB
-            override_score = imdb_score if imdb_score else movie.tmdb_vote_average
-            override_votes = imdb_votes if imdb_votes else (movie.tmdb_vote_count or 0)
-            score_source = "IMDb" if imdb_score else "TMDB"
-
             logger.info(f"📊 Using {score_source} score for overrides: {override_score}/10 ({override_votes} votes)")
 
             if (
@@ -814,14 +842,72 @@ CRITICAL CONTEXT (Professional Reviews):
             )
             llm_output.verdict = "MIXED BAG"
 
-        # LOW confidence + low data should not give definitive WORTH IT
+        # ─── 6.0-7.0 Mid-Score Calibration ───────────────────
+        # Only override when we DON'T have strong data.
+        # If we have solid article/Reddit coverage, the LLM actually
+        # read the opinions — trust it over a single IMDb number.
+        #
+        # "Strong data" = 5+ articles OR 2+ Reddit sources OR 5000+ opinion chars
+        # When data is thin, IMDb becomes a more important signal.
+        has_strong_data = (
+            confidence_stats["articles_read"] >= 5
+            or confidence_stats.get("reddit_sources", 0) >= 2
+            or confidence_stats.get("opinion_chars", 0) >= 5000
+        )
+
+        audience_loves_it = (
+            omdb_data is not None
+            and getattr(omdb_data, "rt_audience_score", None) is not None
+            and getattr(omdb_data, "rt_audience_score", 0) >= 70
+        )
+
+        if (
+            override_score is not None
+            and 6.0 <= override_score < 7.0
+            and override_votes is not None
+            and override_votes > 500
+            and llm_output.verdict == "WORTH IT"
+            and (not llm_output.positive_pct or llm_output.positive_pct < 75)
+            and not audience_loves_it
+            and not has_strong_data
+        ):
+            logger.info(
+                f"⚖️ Mid-Score Calibration: {title} "
+                f"({score_source} {override_score}, {override_votes} votes, "
+                f"positive {llm_output.positive_pct}%, "
+                f"articles {confidence_stats['articles_read']}, "
+                f"reddit {confidence_stats.get('reddit_sources', 0)}, "
+                f"RT audience {getattr(omdb_data, 'rt_audience_score', 'N/A') if omdb_data else 'N/A'}%) "
+                f"WORTH IT → MIXED BAG (thin data, trusting IMDb)"
+            )
+            llm_output.verdict = "MIXED BAG"
+
         
         # LOW confidence + low data should not give definitive WORTH IT
+        # BUT respect strong IMDb signals — niche/international titles
+        # may lack English articles but have real crowd consensus
         if confidence_stats["confidence_tier"] == "LOW" and llm_output.verdict == "WORTH IT":
-            # Only override if critically low data (reduced from < 4 to < 3)
             if confidence_stats["articles_read"] < 3:
-                logger.info(f"⚖️ Verdict override: WORTH IT → MIXED BAG (LOW confidence, only {confidence_stats['articles_read']} articles)")
-                llm_output.verdict = "MIXED BAG"
+                # Check if IMDb provides strong enough signal to trust the LLM
+                has_strong_imdb = (
+                    override_score is not None 
+                    and override_score >= 7.0 
+                    and override_votes is not None 
+                    and override_votes >= 1000
+                )
+                if has_strong_imdb:
+                    logger.info(
+                        f"✅ LOW confidence but strong IMDb signal: {title} "
+                        f"({score_source} {override_score}, {override_votes} votes) "
+                        f"— keeping WORTH IT despite only {confidence_stats['articles_read']} articles"
+                    )
+                else:
+                    logger.info(
+                        f"⚖️ Verdict override: WORTH IT → MIXED BAG "
+                        f"(LOW confidence, only {confidence_stats['articles_read']} articles, "
+                        f"IMDb {override_score or 'N/A'}/{override_votes or 0} votes — not enough signal)"
+                    )
+                    llm_output.verdict = "MIXED BAG"
         
         # Override confidence with our calculated value (not LLM's guess)
         llm_output.confidence = confidence_stats["confidence_tier"]
@@ -919,6 +1005,9 @@ CRITICAL CONTEXT (Professional Reviews):
         review.imdb_score = omdb_data.imdb_score
         review.rt_critic_score = omdb_data.rt_critic_score
         review.metascore = omdb_data.metascore
+        review.awards = getattr(omdb_data, "awards", None)
+        review.box_office = getattr(omdb_data, "box_office", None)
+        review.rated = getattr(omdb_data, "rated", None)
         # Calculate controversial flag (RT critic vs audience gap > 25)
         # We can only do this if we have both, currently we might lack audience score
         if omdb_data.rt_critic_score and review.rt_audience_score:

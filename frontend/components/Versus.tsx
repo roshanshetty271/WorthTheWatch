@@ -83,7 +83,7 @@ const TRENDING_BATTLES = [
         id: "superhero-goat",
         label: "Superhero Supremacy",
         subtitle: "Knight vs. Spider",
-        a: { tmdb_id: 155, title: "The Dark Knight", media_type: "movie", poster_path: "/qJ2tW6WMUDux911BTUgMe1St0x2.jpg" },
+        a: { tmdb_id: 155, title: "The Dark Knight", media_type: "movie", poster_path: "/qJ2tW6WMUDux911r6m7haRef0WH.jpg" },
         b: { tmdb_id: 324857, title: "Spider-Man: Into the Spider-Verse", media_type: "movie", poster_path: "/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg" },
     },
     {
@@ -98,7 +98,7 @@ const TRENDING_BATTLES = [
         label: "Animation Throwdown",
         subtitle: "Ogre vs. Super Family",
         a: { tmdb_id: 808, title: "Shrek", media_type: "movie", poster_path: "/iB64vpL3dIObOtMZgX3RqdVdQDc.jpg" },
-        b: { tmdb_id: 9806, title: "The Incredibles", media_type: "movie", poster_path: "/2LqaLgk1Z2GiOfMey7BysJMueM0.jpg" },
+        b: { tmdb_id: 9806, title: "The Incredibles", media_type: "movie", poster_path: "/2LqaLgk4Z226KkgPJuiOQ58wvrm.jpg" },
     },
 ];
 
@@ -431,7 +431,7 @@ export default function Versus() {
                     <span className="text-white">Movie </span><span style={{ color: "#fbbf24" }}>Battle</span>
                 </h1>
                 <p className="text-white/40 mt-2 text-sm max-w-md mx-auto">
-                    {phase === "landing" && "Two movies enter. One leaves victorious."}
+                    {phase === "landing" && "Can't decide what to watch? Let AI settle it. Pick two movies and we'll tell you which one deserves your time tonight."}
                     {phase === "pulsing" && "Get ready..."}
                     {phase === "loading" && loadingMsg}
                     {phase === "result" && "The verdict is in."}
@@ -440,209 +440,216 @@ export default function Versus() {
 
             {/* ═══════ LANDING PHASE ═══════ */}
             {phase === "landing" && (
-                <div className="max-w-6xl mx-auto px-4 md:px-8 pb-16">
+                <>
+                    {/* Subtle gradient orbs for visual interest */}
+                    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+                        <div className="absolute -top-40 -right-40 w-96 h-96 bg-accent-gold/[0.03] rounded-full blur-3xl" />
+                        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-accent-gold/[0.02] rounded-full blur-3xl" />
+                    </div>
+                    <div className="max-w-6xl mx-auto px-4 md:px-8 pb-16 relative z-10">
 
-                    {/* ── Custom Battle Builder ── */}
-                    <div className="mb-12">
-                        <p className="text-xs text-white/30 uppercase tracking-[0.2em] font-medium text-center mb-6">
-                            Create Your Battle
-                        </p>
+                        {/* ── Custom Battle Builder ── */}
+                        <div className="mb-12">
+                            <p className="text-xs text-white/30 uppercase tracking-[0.2em] font-medium text-center mb-6">
+                                Create Your Battle
+                            </p>
 
-                        <div className="flex items-center gap-4 md:gap-10 justify-center">
-                            {/* Slot A */}
-                            <MovieSlot
-                                movie={slotA}
-                                isActive={activeSlot === "a"}
-                                onClick={() => {
-                                    setActiveSlot(activeSlot === "a" ? null : "a");
-                                    setQuery("");
-                                    setSearchResults([]);
-                                }}
-                                onClear={() => setSlotA(null)}
-                                label="A"
-                            />
+                            <div className="flex items-center gap-4 md:gap-10 justify-center">
+                                {/* Slot A */}
+                                <MovieSlot
+                                    movie={slotA}
+                                    isActive={activeSlot === "a"}
+                                    onClick={() => {
+                                        setActiveSlot(activeSlot === "a" ? null : "a");
+                                        setQuery("");
+                                        setSearchResults([]);
+                                    }}
+                                    onClear={() => setSlotA(null)}
+                                    label="A"
+                                />
 
-                            {/* VS Badge */}
-                            <div className="flex-shrink-0">
-                                <div className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-accent-gold/10 border-2 border-accent-gold/30 flex items-center justify-center">
-                                    <span className="text-accent-gold font-black text-base md:text-xl">VS</span>
+                                {/* VS Badge */}
+                                <div className="flex-shrink-0">
+                                    <div className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-accent-gold/10 border-2 border-accent-gold/30 flex items-center justify-center">
+                                        <span className="text-accent-gold font-black text-base md:text-xl">VS</span>
+                                    </div>
                                 </div>
+
+                                {/* Slot B */}
+                                <MovieSlot
+                                    movie={slotB}
+                                    isActive={activeSlot === "b"}
+                                    onClick={() => {
+                                        setActiveSlot(activeSlot === "b" ? null : "b");
+                                        setQuery("");
+                                        setSearchResults([]);
+                                    }}
+                                    onClear={() => setSlotB(null)}
+                                    label="B"
+                                />
                             </div>
 
-                            {/* Slot B */}
-                            <MovieSlot
-                                movie={slotB}
-                                isActive={activeSlot === "b"}
-                                onClick={() => {
-                                    setActiveSlot(activeSlot === "b" ? null : "b");
-                                    setQuery("");
-                                    setSearchResults([]);
-                                }}
-                                onClear={() => setSlotB(null)}
-                                label="B"
-                            />
-                        </div>
-
-                        {/* Search bar — appears when a slot is active */}
-                        <AnimatePresence>
-                            {activeSlot && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: "auto", opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="mt-4 overflow-hidden"
-                                >
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={query}
-                                            onChange={(e) => handleSearch(e.target.value)}
-                                            placeholder={`Search for Movie ${activeSlot.toUpperCase()}...`}
-                                            className="w-full px-5 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-accent-gold/50 transition-colors text-sm"
-                                            autoFocus
-                                        />
-                                        {searching && (
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                                <div className="w-4 h-4 border-2 border-accent-gold/30 border-t-accent-gold rounded-full animate-spin" />
-                                            </div>
-                                        )}
-
-                                        {/* Dropdown */}
-                                        {searchResults.length > 0 && (
-                                            <div className="mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl max-h-64 overflow-y-auto">
-                                                {searchResults.slice(0, 6).map((r) => {
-                                                    const isOtherSlot =
-                                                        (activeSlot === "a" && slotB?.tmdb_id === r.tmdb_id) ||
-                                                        (activeSlot === "b" && slotA?.tmdb_id === r.tmdb_id);
-                                                    return (
-                                                        <button
-                                                            key={`${r.tmdb_id}-${r.media_type}`}
-                                                            onClick={() => !isOtherSlot && selectMovie(r)}
-                                                            disabled={isOtherSlot}
-                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left ${isOtherSlot ? "opacity-30 cursor-not-allowed" : ""}`}
-                                                        >
-                                                            <div className="w-8 h-12 rounded overflow-hidden bg-white/5 flex-shrink-0 relative">
-                                                                {r.poster_url && (
-                                                                    <Image
-                                                                        src={r.poster_url.startsWith("http") ? r.poster_url : getPosterUrl(r.poster_path)}
-                                                                        alt=""
-                                                                        width={32}
-                                                                        height={48}
-                                                                        className="object-cover w-full h-full"
-                                                                        unoptimized
-                                                                        onError={(e) => {
-                                                                            const target = e.target as HTMLImageElement;
-                                                                            target.style.display = "none";
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-xs font-medium text-white truncate">{r.title}</p>
-                                                                <p className="text-[10px] text-white/40">
-                                                                    {r.release_date?.split("-")[0] || ""} · {r.media_type === "tv" ? "TV" : "Movie"}
-                                                                    {r.tmdb_vote_average ? ` · ★ ${r.tmdb_vote_average.toFixed(1)}` : ""}
-                                                                </p>
-                                                            </div>
-                                                            {isOtherSlot && <span className="text-[10px] text-white/30">Other slot</span>}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* Battle button */}
-                        <motion.button
-                            onClick={handleCustomBattle}
-                            disabled={!slotA || !slotB || (slotA.tmdb_id === slotB?.tmdb_id && slotA.media_type === slotB?.media_type)}
-                            className={`w-full mt-6 py-4 rounded-2xl font-black uppercase tracking-wider text-sm transition-all ${slotA && slotB && !(slotA.tmdb_id === slotB.tmdb_id && slotA.media_type === slotB.media_type)
-                                ? "bg-accent-gold text-black hover:brightness-110 active:scale-[0.98] shadow-xl shadow-accent-gold/10"
-                                : "bg-white/5 text-white/20 cursor-not-allowed"
-                                }`}
-                            whileTap={slotA && slotB ? { scale: 0.98 } : {}}
-                        >
-                            {!slotA && !slotB
-                                ? "Pick two movies above"
-                                : !slotA || !slotB
-                                    ? "Pick one more movie"
-                                    : "Simulate Battle"}
-                        </motion.button>
-                    </div>
-
-                    {/* ── Trending Battles ── */}
-                    <div>
-                        <p className="text-xs text-white/30 uppercase tracking-[0.2em] font-medium text-center mb-6">
-                            Trending Battles
-                        </p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {TRENDING_BATTLES.map((battle) => (
-                                <motion.button
-                                    key={battle.id}
-                                    onClick={() => handleTrendingBattle(battle)}
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    className="relative overflow-hidden rounded-2xl border border-white/10 hover:border-accent-gold/30 transition-all group bg-surface-card p-4"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        {/* Poster A */}
-                                        <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
-                                            {battle.a.poster_path && (
-                                                <Image
-                                                    src={trendingPosters[battle.a.tmdb_id] || getPosterUrl(battle.a.poster_path)}
-                                                    alt={battle.a.title}
-                                                    fill
-                                                    className="object-cover"
-                                                    unoptimized
-                                                    onError={(e) => {
-                                                        const target = e.target as HTMLImageElement;
-                                                        target.style.display = "none";
-                                                    }}
-                                                />
-                                            )}
-                                        </div>
-
-                                        {/* VS + Labels */}
-                                        <div className="flex-1 text-center">
-                                            <div className="flex flex-col items-center justify-center gap-1">
-                                                <div className="flex items-center justify-center gap-2 w-full px-2">
-                                                    <span className="text-sm font-bold text-white leading-tight">{battle.a.title}</span>
-                                                    <span className="text-accent-gold font-black text-sm px-1">VS</span>
-                                                    <span className="text-sm font-bold text-white leading-tight">{battle.b.title}</span>
+                            {/* Search bar — appears when a slot is active */}
+                            <AnimatePresence>
+                                {activeSlot && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="mt-4 overflow-hidden"
+                                    >
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={query}
+                                                onChange={(e) => handleSearch(e.target.value)}
+                                                placeholder={`Search for Movie ${activeSlot.toUpperCase()}...`}
+                                                className="w-full px-5 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-accent-gold/50 transition-colors text-sm"
+                                                autoFocus
+                                            />
+                                            {searching && (
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                    <div className="w-4 h-4 border-2 border-accent-gold/30 border-t-accent-gold rounded-full animate-spin" />
                                                 </div>
-                                                <p className="text-[10px] text-accent-gold/60 mt-2 uppercase tracking-widest font-medium group-hover:text-accent-gold transition-colors">
-                                                    {battle.subtitle}
-                                                </p>
-                                            </div>
-                                        </div>
+                                            )}
 
-                                        {/* Poster B */}
-                                        <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
-                                            {battle.b.poster_path && (
-                                                <Image
-                                                    src={trendingPosters[battle.b.tmdb_id] || getPosterUrl(battle.b.poster_path)}
-                                                    alt={battle.b.title}
-                                                    fill
-                                                    className="object-cover"
-                                                    unoptimized
-                                                    onError={(e) => {
-                                                        const target = e.target as HTMLImageElement;
-                                                        target.style.display = "none";
-                                                    }}
-                                                />
+                                            {/* Dropdown */}
+                                            {searchResults.length > 0 && (
+                                                <div className="mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl max-h-64 overflow-y-auto">
+                                                    {searchResults.slice(0, 6).map((r) => {
+                                                        const isOtherSlot =
+                                                            (activeSlot === "a" && slotB?.tmdb_id === r.tmdb_id) ||
+                                                            (activeSlot === "b" && slotA?.tmdb_id === r.tmdb_id);
+                                                        return (
+                                                            <button
+                                                                key={`${r.tmdb_id}-${r.media_type}`}
+                                                                onClick={() => !isOtherSlot && selectMovie(r)}
+                                                                disabled={isOtherSlot}
+                                                                className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left ${isOtherSlot ? "opacity-30 cursor-not-allowed" : ""}`}
+                                                            >
+                                                                <div className="w-8 h-12 rounded overflow-hidden bg-white/5 flex-shrink-0 relative">
+                                                                    {r.poster_url && (
+                                                                        <Image
+                                                                            src={r.poster_url.startsWith("http") ? r.poster_url : getPosterUrl(r.poster_path)}
+                                                                            alt=""
+                                                                            width={32}
+                                                                            height={48}
+                                                                            className="object-cover w-full h-full"
+                                                                            unoptimized
+                                                                            onError={(e) => {
+                                                                                const target = e.target as HTMLImageElement;
+                                                                                target.style.display = "none";
+                                                                            }}
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-medium text-white truncate">{r.title}</p>
+                                                                    <p className="text-[10px] text-white/40">
+                                                                        {r.release_date?.split("-")[0] || ""} · {r.media_type === "tv" ? "TV" : "Movie"}
+                                                                        {r.tmdb_vote_average ? ` · ★ ${r.tmdb_vote_average.toFixed(1)}` : ""}
+                                                                    </p>
+                                                                </div>
+                                                                {isOtherSlot && <span className="text-[10px] text-white/30">Other slot</span>}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                </motion.button>
-                            ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Battle button */}
+                            <motion.button
+                                onClick={handleCustomBattle}
+                                disabled={!slotA || !slotB || (slotA.tmdb_id === slotB?.tmdb_id && slotA.media_type === slotB?.media_type)}
+                                className={`w-full mt-6 py-4 rounded-2xl font-black uppercase tracking-wider text-sm transition-all ${slotA && slotB && !(slotA.tmdb_id === slotB.tmdb_id && slotA.media_type === slotB.media_type)
+                                    ? "bg-accent-gold text-black hover:brightness-110 active:scale-[0.98] shadow-xl shadow-accent-gold/10"
+                                    : "bg-white/5 text-white/20 cursor-not-allowed"
+                                    }`}
+                                whileTap={slotA && slotB ? { scale: 0.98 } : {}}
+                            >
+                                {!slotA && !slotB
+                                    ? "Pick two movies above"
+                                    : !slotA || !slotB
+                                        ? "Pick one more movie"
+                                        : "Simulate Battle"}
+                            </motion.button>
+                        </div>
+
+                        {/* ── Trending Battles ── */}
+                        <div>
+                            <p className="text-xs text-white/30 uppercase tracking-[0.2em] font-medium text-center mb-6">
+                                Trending Battles
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {TRENDING_BATTLES.map((battle) => (
+                                    <motion.button
+                                        key={battle.id}
+                                        onClick={() => handleTrendingBattle(battle)}
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className="relative overflow-hidden rounded-2xl border border-white/10 hover:border-accent-gold/30 transition-all group bg-surface-card p-4"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            {/* Poster A */}
+                                            <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
+                                                {battle.a.poster_path && (
+                                                    <Image
+                                                        src={trendingPosters[battle.a.tmdb_id] || getPosterUrl(battle.a.poster_path)}
+                                                        alt={battle.a.title}
+                                                        fill
+                                                        className="object-cover"
+                                                        unoptimized
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.style.display = "none";
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+
+                                            {/* VS + Labels */}
+                                            <div className="flex-1 text-center">
+                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                    <div className="flex items-center justify-center gap-2 w-full px-2">
+                                                        <span className="text-sm font-bold text-white leading-tight">{battle.a.title}</span>
+                                                        <span className="text-accent-gold font-black text-sm px-1">VS</span>
+                                                        <span className="text-sm font-bold text-white leading-tight">{battle.b.title}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-accent-gold/60 mt-2 uppercase tracking-widest font-medium group-hover:text-accent-gold transition-colors">
+                                                        {battle.subtitle}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Poster B */}
+                                            <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/5 flex-shrink-0 relative">
+                                                {battle.b.poster_path && (
+                                                    <Image
+                                                        src={trendingPosters[battle.b.tmdb_id] || getPosterUrl(battle.b.poster_path)}
+                                                        alt={battle.b.title}
+                                                        fill
+                                                        className="object-cover"
+                                                        unoptimized
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.style.display = "none";
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </motion.button>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
+                </>
             )}
 
             {/* ═══════ PULSING PHASE ═══════ */}

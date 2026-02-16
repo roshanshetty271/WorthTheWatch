@@ -253,7 +253,7 @@ export default function SearchBar({
                   </div>
                   {movie.has_review && (
                     <span className="text-xs text-verdict-worth font-medium flex-shrink-0">
-                      ✅ Reviewed
+                      ⚡ Instant Verdict
                     </span>
                   )}
                 </Link>

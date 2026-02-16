@@ -65,6 +65,9 @@ class Review(Base):
     negative_pct = Column(Integer, nullable=True)
     mixed_pct = Column(Integer, nullable=True)
     trailer_url = Column(String(500), nullable=True)
+    awards = Column(Text, nullable=True)
+    box_office = Column(String(100), nullable=True)
+    rated = Column(String(20), nullable=True)
     last_refreshed_at = Column(DateTime, nullable=True)
 
     # Verdict DNA (Phase 3)
