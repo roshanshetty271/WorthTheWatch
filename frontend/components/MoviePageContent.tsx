@@ -8,6 +8,7 @@ import ReviewSection from "@/components/ReviewSection";
 import VerdictBadge from "@/components/VerdictBadge";
 import StreamingAvailability from "@/components/StreamingAvailability";
 import BookmarkButton from "@/components/BookmarkButton";
+import SimilarMovies from "@/components/SimilarMovies";
 import type { MovieWithReview, Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -28,6 +29,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const { movie, review: initialReview } = movieData;
     const [review, setReview] = useState<Review | null>(initialReview);
     const [cast, setCast] = useState<CastMember[]>([]);
+    const [castOpen, setCastOpen] = useState(true);
     const router = useRouter();
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
@@ -75,6 +77,35 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     };
 
     const boxOfficeDisplay = formatBoxOffice((review as any)?.box_office);
+
+    // Review/Generate block — rendered in different positions based on review state
+    const verdictBlock = (
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+            <div className={review ? "mt-12" : "mt-4"}>
+                <div className="mb-8 text-center">
+                    <span className="mb-2 block font-display text-sm uppercase tracking-wider text-accent-gold/80">
+                        Consensus
+                    </span>
+                    <h2 className="font-display text-3xl text-text-primary drop-shadow-md">
+                        The Internet&apos;s Verdict
+                    </h2>
+                </div>
+
+                <div className="relative rounded-2xl border border-white/10 bg-surface-card/50 p-6 shadow-2xl backdrop-blur-sm sm:p-10">
+                    <div className="absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-50" />
+
+                    <ReviewSection
+                        tmdbId={movie.tmdb_id}
+                        mediaType={movie.media_type || "movie"}
+                        movieTitle={movie.title}
+                        initialReview={review}
+                        onReviewUpdate={setReview}
+                        releaseDate={movie.release_date || null}
+                    />
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="animate-slide-up">
@@ -335,75 +366,84 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 )}
             </div>
 
+
             {/* ═══════════════════════════════════════════════════════════════════
-            CAST LIST
+            CAST LIST — Collapsible
             ═══════════════════════════════════════════════════════════════════ */}
             {cast.length > 0 && (
                 <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 mb-4">
-                        Cast
-                    </h3>
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
-                        {cast.map((person) => (
-                            <div
-                                key={person.id}
-                                className="flex-shrink-0 w-20 text-center"
-                            >
-                                <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border border-white/10 mx-auto relative">
-                                    {person.profile_url ? (
-                                        <Image
-                                            src={person.profile_url}
-                                            alt={person.name}
-                                            fill
-                                            className="object-cover"
-                                            sizes="80px"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl">
-                                            👤
-                                        </div>
-                                    )}
+                    <button
+                        onClick={() => setCastOpen(!castOpen)}
+                        className="flex items-center gap-2 mb-4 group cursor-pointer"
+                    >
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 group-hover:text-white/60 transition-colors">
+                            Cast
+                        </h3>
+                        <svg
+                            className={`w-3.5 h-3.5 text-white/30 group-hover:text-white/50 transition-all ${castOpen ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    {castOpen && (
+                        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+                            {cast.map((person) => (
+                                <div
+                                    key={person.id}
+                                    className="flex-shrink-0 w-20 text-center"
+                                >
+                                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border border-white/10 mx-auto relative">
+                                        {person.profile_url ? (
+                                            <Image
+                                                src={person.profile_url}
+                                                alt={person.name}
+                                                fill
+                                                className="object-cover"
+                                                sizes="80px"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl">
+                                                👤
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="mt-2 text-[11px] font-medium text-white/80 truncate">
+                                        {person.name}
+                                    </p>
+                                    <p className="text-[10px] text-white/40 truncate">
+                                        {person.character}
+                                    </p>
                                 </div>
-                                <p className="mt-2 text-[11px] font-medium text-white/80 truncate">
-                                    {person.name}
-                                </p>
-                                <p className="text-[10px] text-white/40 truncate">
-                                    {person.character}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════
-            REVIEW SECTION
+            VERDICT — Always after cast
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-                <div className="mt-12">
-                    <div className="mb-8 text-center">
-                        <span className="mb-2 block font-display text-sm uppercase tracking-wider text-accent-gold/80">
-                            Consensus
-                        </span>
-                        <h2 className="font-display text-3xl text-text-primary drop-shadow-md">
-                            The Internet&apos;s Verdict
-                        </h2>
-                    </div>
+            {verdictBlock}
 
-                    <div className="relative rounded-2xl border border-white/10 bg-surface-card/50 p-6 shadow-2xl backdrop-blur-sm sm:p-10">
-                        <div className="absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-50" />
-
-                        <ReviewSection
-                            tmdbId={movie.tmdb_id}
-                            mediaType={movie.media_type || "movie"}
-                            movieTitle={movie.title}
-                            initialReview={review}
-                            onReviewUpdate={setReview}
-                            releaseDate={movie.release_date || null}
-                        />
-                    </div>
+            {/* ═══════════════════════════════════════════════════════════════════
+            SIMILAR / RECOMMENDATIONS — Only after review exists
+            ═══════════════════════════════════════════════════════════════════ */}
+            {review && (
+                <div className="mx-auto max-w-4xl px-4 sm:px-6">
+                    <SimilarMovies
+                        tmdbId={movie.tmdb_id}
+                        mediaType={movie.media_type || "movie"}
+                        title={movie.title}
+                    />
                 </div>
+            )}
 
+            {/* Main content wrapper for bottom nav */}
+            <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
                 {/* Bottom Navigation */}
                 <div className="mt-8 flex items-center justify-between border-t border-surface-elevated pt-8">
                     <button

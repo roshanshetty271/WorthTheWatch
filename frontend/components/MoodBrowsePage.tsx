@@ -62,17 +62,15 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
     const router = useRouter();
     const [movies, setMovies] = useState<MovieWithReview[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refreshKey, setRefreshKey] = useState(0);
+    const [isShuffled, setIsShuffled] = useState(false);
 
     const meta = MOOD_META[mood] || MOOD_META["fun"];
 
-    const fetchMovies = useCallback(async () => {
+    const fetchMovies = useCallback(async (shuffle: boolean = false) => {
         setLoading(true);
-        setMovies([]);
         try {
-            const res = await fetch(
-                `${API_BASE}/api/movies?category=mood-${mood}&limit=6`
-            );
+            const url = `${API_BASE}/api/movies?category=mood-${mood}&limit=20${shuffle ? "&shuffle=true" : ""}`;
+            const res = await fetch(url);
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
             setMovies(data.movies || []);
@@ -84,18 +82,15 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
         }
     }, [mood]);
 
+    // Initial load — stable sort (most popular first)
     useEffect(() => {
-        fetchMovies();
-    }, [fetchMovies, refreshKey]);
-
-    useEffect(() => {
-        setRefreshKey(0);
-        setMovies([]);
-        setLoading(true);
-    }, [mood]);
+        setIsShuffled(false);
+        fetchMovies(false);
+    }, [mood, fetchMovies]);
 
     const handleShuffle = () => {
-        setRefreshKey((k) => k + 1);
+        setIsShuffled(true);
+        fetchMovies(true);
     };
 
     return (
@@ -115,9 +110,13 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                         {!loading && movies.length > 0 && (
                             <button
                                 onClick={handleShuffle}
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/80 text-xs font-bold uppercase tracking-wider hover:text-accent-gold hover:border-accent-gold/30 transition-all"
+                                disabled={loading}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-wider transition-all ${isShuffled
+                                        ? "bg-accent-gold/10 text-accent-gold border-accent-gold/30"
+                                        : "bg-white/5 border-white/10 text-white/80 hover:text-accent-gold hover:border-accent-gold/30"
+                                    }`}
                             >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
                                 Shuffle
@@ -138,13 +137,13 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                                     key={key}
                                     onClick={() => router.push(`/browse/mood/${key}`)}
                                     className={`
-                    flex items-center px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider
-                    transition-all flex-shrink-0 border
-                    ${key === mood
+                                        flex items-center px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider
+                                        transition-all flex-shrink-0 border
+                                        ${key === mood
                                             ? m.pillActive
                                             : "bg-white/5 text-white/60 border-white/10 hover:text-white hover:border-white/20"
                                         }
-                  `}
+                                    `}
                                 >
                                     {m.label}
                                 </button>
@@ -178,7 +177,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
                         </div>
                     )}
 
-                    {/* Movie Grid — uses your existing MovieCard, same as homepage */}
+                    {/* Movie Grid */}
                     {!loading && movies.length > 0 && (
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-6">
                             {movies.map((movie) => (

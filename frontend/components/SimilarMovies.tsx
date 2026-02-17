@@ -1,0 +1,130 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
+
+interface SimilarMovie {
+    tmdb_id: number;
+    title: string;
+    media_type: string;
+    poster_url: string | null;
+    tmdb_vote_average: number | null;
+    release_date: string | null;
+    verdict?: string | null;
+    has_review?: boolean;
+}
+
+interface SimilarMoviesProps {
+    tmdbId: number;
+    mediaType: string;
+    title: string;
+}
+
+export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMoviesProps) {
+    const [movies, setMovies] = useState<SimilarMovie[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchSimilar() {
+            try {
+                const res = await fetch(
+                    `${API_BASE}/api/movies/${tmdbId}/recommendations?media_type=${mediaType}`
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    setMovies(data.results || []);
+                }
+            } catch {
+                setMovies([]);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchSimilar();
+    }, [tmdbId, mediaType]);
+
+    if (!loading && movies.length === 0) return null;
+
+    return (
+        <section className="py-6">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 mb-4">
+                If you liked {title}
+            </h3>
+
+            {loading ? (
+                <div className="flex gap-4 overflow-hidden">
+                    {[...Array(5)].map((_, i) => (
+                        <div key={i} className="shrink-0 w-[120px] animate-pulse">
+                            <div className="aspect-[2/3] rounded-lg bg-white/5" />
+                            <div className="mt-2 h-2.5 bg-white/5 rounded w-3/4" />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+                    {movies.map((movie) => (
+                        <Link
+                            key={movie.tmdb_id}
+                            href={`/movie/${movie.tmdb_id}?type=${movie.media_type}`}
+                            className="shrink-0 w-[120px] group"
+                        >
+                            <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
+                                {movie.poster_url ? (
+                                    <Image
+                                        src={movie.poster_url}
+                                        alt={movie.title}
+                                        fill
+                                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                        sizes="120px"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl">
+                                        🎬
+                                    </div>
+                                )}
+
+                                {/* Rating */}
+                                {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
+                                    <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold">
+                                        ★ {movie.tmdb_vote_average.toFixed(1)}
+                                    </div>
+                                )}
+
+                                {/* Verdict badge if we have a review */}
+                                {movie.verdict && (
+                                    <div className="absolute bottom-1.5 left-1.5">
+                                        <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${movie.verdict === "WORTH IT"
+                                                ? "text-green-400 bg-green-400/10 border-green-400/30"
+                                                : movie.verdict === "NOT WORTH IT"
+                                                    ? "text-red-400 bg-red-400/10 border-red-400/30"
+                                                    : "text-yellow-400 bg-yellow-400/10 border-yellow-400/30"
+                                            }`}>
+                                            {movie.verdict}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* "Instant Verdict" badge */}
+                                {movie.has_review && !movie.verdict && (
+                                    <div className="absolute bottom-1.5 left-1.5">
+                                        <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full bg-accent-gold/10 text-accent-gold border border-accent-gold/30 backdrop-blur-sm">
+                                            ⚡ REVIEWED
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="mt-1.5 text-[11px] font-medium text-white/60 truncate group-hover:text-white/90 transition-colors">
+                                {movie.title}
+                            </p>
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}

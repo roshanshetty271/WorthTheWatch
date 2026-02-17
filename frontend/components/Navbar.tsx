@@ -11,12 +11,6 @@ const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
 import { useWatchlist } from "@/lib/useWatchlist";
 import AuthButton from "./AuthButton";
 
-const BROWSE_CATEGORIES = [
-    { id: "trending", label: "Trending" },
-    { id: "tv-shows", label: "TV Shows" },
-    { id: "movies", label: "Movies" },
-];
-
 export default function Navbar() {
     const [rouletteOpen, setRouletteOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
@@ -68,21 +62,40 @@ export default function Navbar() {
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <div className="hidden md:flex items-center gap-8">
-                        {BROWSE_CATEGORIES.map((cat) => (
-                            <Link
-                                key={cat.id}
-                                href={`/browse/${cat.id}`}
-                                className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4"
-                            >
-                                {cat.label}
-                            </Link>
-                        ))}
+                    <div className="hidden md:flex items-center gap-7">
+                        <Link
+                            href="/discover"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
+                        >
+                            What&apos;s New
+                        </Link>
+
+                        <Link
+                            href="/browse/mood/tired"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
+                        >
+                            Mood Based
+                        </Link>
+
+                        <Link
+                            href="/versus"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
+                        >
+                            Movie Battle
+                        </Link>
+
+                        {/* Roulette Trigger */}
+                        <button
+                            onClick={() => setRouletteOpen(true)}
+                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group"
+                        >
+                            <span className="group-hover:animate-pulse">Can&apos;t Decide?</span>
+                        </button>
 
                         {/* My List */}
                         <Link
                             href="/my-list"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest hover:underline decoration-accent-gold decoration-2 underline-offset-4 relative"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest relative"
                         >
                             My List
                             {mounted && count > 0 && (
@@ -91,22 +104,6 @@ export default function Navbar() {
                                 </span>
                             )}
                         </Link>
-
-                        {/* Movie Battle + Can't decide? = Feature links */}
-                        <Link
-                            href="/versus"
-                            className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
-                        >
-                            <span className="text-accent-gold">Movie </span><span className="text-accent-gold">Battle</span>
-                        </Link>
-
-                        {/* Roulette Trigger */}
-                        <button
-                            onClick={() => setRouletteOpen(true)}
-                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group"
-                        >
-                            <span className="group-hover:animate-pulse">Can&apos;t decide?</span>
-                        </button>
                     </div>
 
                     {/* Actions */}
@@ -116,7 +113,7 @@ export default function Navbar() {
                             onClick={() => setRouletteOpen(true)}
                             className="md:hidden text-xs font-bold text-accent-gold uppercase tracking-wide mr-2"
                         >
-                            Can&apos;t decide?
+                            Can&apos;t Decide?
                         </button>
 
                         {/* My List icon (mobile) */}
@@ -176,22 +173,19 @@ export default function Navbar() {
                     `}
                 >
                     <div className="flex flex-col items-center gap-8">
-                        {BROWSE_CATEGORIES.map((cat) => (
-                            <Link
-                                key={cat.id}
-                                href={`/browse/${cat.id}`}
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
-                            >
-                                {cat.label}
-                            </Link>
-                        ))}
                         <Link
-                            href="/my-list"
+                            href="/discover"
                             onClick={() => setMobileMenuOpen(false)}
                             className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
                         >
-                            My List{mounted && count > 0 ? ` (${count})` : ""}
+                            What&apos;s New
+                        </Link>
+                        <Link
+                            href="/browse/mood/tired"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        >
+                            Mood Based
                         </Link>
                         <Link
                             href="/versus"
@@ -199,6 +193,13 @@ export default function Navbar() {
                             className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
                         >
                             Movie Battle
+                        </Link>
+                        <Link
+                            href="/my-list"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        >
+                            My List{mounted && count > 0 ? ` (${count})` : ""}
                         </Link>
 
                         <div className="mt-4">

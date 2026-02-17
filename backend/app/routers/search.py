@@ -226,6 +226,31 @@ async def trigger_generation(
     if movie and movie.review:
         return {"status": "already_exists", "tmdb_id": tmdb_id}
 
+    # ─── Block unreleased movies ─────────────────────────────
+    # Check TMDB for release date. Don't waste API credits on movies
+    # that haven't been released yet — there are no reviews to scrape.
+    from datetime import date
+    try:
+        if media_type == "tv":
+            tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
+            raw_date = tmdb_data.get("first_air_date") if tmdb_data else None
+        else:
+            tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
+            raw_date = tmdb_data.get("release_date") if tmdb_data else None
+
+        if raw_date and isinstance(raw_date, str) and raw_date.strip():
+            release_date = date.fromisoformat(raw_date)
+            if release_date > date.today():
+                return {
+                    "status": "unreleased",
+                    "tmdb_id": tmdb_id,
+                    "release_date": raw_date,
+                    "message": f"This title hasn't been released yet. Check back after {raw_date}.",
+                }
+    except (ValueError, TypeError):
+        pass  # If we can't parse the date, allow generation
+    # ─────────────────────────────────────────────────────────
+
     # Rate limit
     await check_rate_limit(request, is_generation=True)
 

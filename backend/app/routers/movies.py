@@ -19,61 +19,97 @@ from app.services.safety import is_safe_content
 
 router = APIRouter()
 
-# ─── Mood → Genre + Tag Mapping ───────────────────────────────────────
-# Primary: TMDB genres (every movie has these, 100% coverage)
-# Secondary: Review tags (only newer reviews have these)
-MOOD_GENRE_MAP = {
+# ─── Mood → Tag + Genre Mapping ───────────────────────────────────────
+# PRIMARY: LLM-generated review tags (most accurate for mood)
+# SECONDARY: TMDB genres with EXCLUSION rules (prevents Breaking Bad in "emotional")
+#
+# Tags are assigned by the LLM during review generation and are mood-specific.
+# Genres alone are too broad — "Drama" covers everything from The Notebook to Breaking Bad.
+# Exclusion genres prevent wrong-mood results from leaking in.
+
+MOOD_CONFIG = {
     "tired": {
-        "genres": ["Comedy", "Romance", "Animation", "Family", "Music"],
-        "tags": ["Feel-Good", "Whimsical", "Family-Friendly", "Funny"],
+        # Easy, light, comfort watches — unwind without thinking
+        "tags": ["Feel-Good", "Whimsical", "Family-Friendly", "Funny", "Light", "Comforting", "Wholesome"],
+        "include_genres": ["Comedy", "Romance", "Animation", "Family", "Music"],
+        "exclude_genres": ["Horror", "Thriller", "Crime", "War"],
     },
     "pumped": {
-        "genres": ["Action", "Thriller", "Crime", "War"],
-        "tags": ["Action-Packed", "Gritty", "Fast-Paced", "Violent"],
+        # Adrenaline, high-octane — John Wick, Mad Max, Top Gun
+        "tags": ["Action-Packed", "Gritty", "Fast-Paced", "Violent", "Intense", "Thrilling"],
+        "include_genres": ["Action", "War"],
+        "exclude_genres": ["Romance", "Family", "Animation", "Music"],
     },
     "emotional": {
-        "genres": ["Drama", "Romance", "War", "History"],
-        "tags": ["Emotional", "Heartbreaking", "Dark"],
+        # Tearjerkers, deep feelings — Green Mile, Schindler's List, Grave of the Fireflies
+        "tags": ["Emotional", "Heartbreaking", "Tearjerker", "Moving", "Touching", "Heartfelt", "Devastating"],
+        "include_genres": ["Drama", "Romance"],
+        "exclude_genres": ["Action", "Thriller", "Crime", "Horror", "Science Fiction"],
     },
     "cerebral": {
-        "genres": ["Science Fiction", "Mystery", "Thriller"],
-        "tags": ["Mind-Bending", "Cerebral", "Slow-Burn", "Dialogue-Heavy"],
+        # Mind-benders, make you think — Inception, Memento, Arrival, Interstellar
+        "tags": ["Mind-Bending", "Cerebral", "Slow-Burn", "Thought-Provoking", "Complex", "Philosophical"],
+        "include_genres": ["Science Fiction", "Mystery"],
+        "exclude_genres": ["Comedy", "Family", "Animation", "Romance"],
     },
     "fun": {
-        "genres": ["Comedy", "Animation", "Adventure", "Fantasy"],
-        "tags": ["Funny", "Feel-Good", "Whimsical"],
+        # Popcorn entertainment — Jurassic Park, Guardians, Spider-Verse
+        "tags": ["Funny", "Feel-Good", "Whimsical", "Entertaining", "Adventure", "Escapist"],
+        "include_genres": ["Comedy", "Animation", "Adventure", "Fantasy"],
+        "exclude_genres": ["Horror", "War", "Crime"],
     },
 }
 
 
 def _build_mood_filter(mood: str):
     """
-    Build SQLAlchemy filter combining genre matching (primary)
-    and tag matching (secondary boost).
+    Build SQLAlchemy filter for mood-based browsing.
     
-    Genres are stored as JSON: [{"id": 28, "name": "Action"}, ...]
-    Tags are stored as JSON: ["Action-Packed", "Gritty", ...]
+    Strategy: Tags first (most accurate), genres second (with exclusions).
     
-    We cast both to text and use ILIKE for case-insensitive matching.
-    Genre match OR tag match = mood match.
+    A movie matches a mood if:
+      - It has ANY matching tag (LLM assigned, most reliable), OR
+      - It has an included genre AND does NOT have any excluded genre
+    
+    This prevents "Breaking Bad" from showing in "Emotional" (it's Drama 
+    but also Crime+Thriller which are excluded) while keeping "The Green Mile" 
+    (Drama with no excluded genres).
     """
-    mapping = MOOD_GENRE_MAP.get(mood)
-    if not mapping:
+    config = MOOD_CONFIG.get(mood)
+    if not config:
         return None
 
     conditions = []
 
-    # Genre conditions (primary — every movie has genres)
-    for genre in mapping["genres"]:
-        conditions.append(
-            cast(Movie.genres, String).ilike(f'%{genre}%')
-        )
-
-    # Tag conditions (secondary — only reviewed movies with tags)
-    for tag in mapping["tags"]:
+    # 1. TAG MATCHING (primary — most accurate mood signal)
+    for tag in config["tags"]:
         conditions.append(
             cast(Review.tags, String).ilike(f'%{tag}%')
         )
+
+    # 2. GENRE MATCHING with exclusions (secondary — broader but filtered)
+    genre_includes = []
+    for genre in config["include_genres"]:
+        genre_includes.append(
+            cast(Movie.genres, String).ilike(f'%{genre}%')
+        )
+
+    genre_excludes = []
+    for genre in config["exclude_genres"]:
+        genre_excludes.append(
+            cast(Movie.genres, String).ilike(f'%{genre}%')
+        )
+
+    # Movie has at least one included genre AND none of the excluded genres
+    if genre_includes:
+        has_included = or_(*genre_includes)
+        if genre_excludes:
+            has_excluded = or_(*genre_excludes)
+            # Include genre match BUT NOT excluded genre
+            genre_condition = and_(has_included, ~has_excluded)
+        else:
+            genre_condition = has_included
+        conditions.append(genre_condition)
 
     return or_(*conditions)
 
@@ -89,6 +125,7 @@ async def list_movies(
     sort: Optional[str] = Query(None, pattern="^(latest|popular|verdict|release_date)$"),
     verdict: Optional[str] = Query(None, pattern="^(WORTH IT|NOT WORTH IT|MIXED BAG)$"),
     media_type: Optional[str] = Query(None, pattern="^(movie|tv)$"),
+    shuffle: bool = Query(False, description="Randomize results (for mood shuffle button)"),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Movie).options(joinedload(Movie.review))
@@ -148,33 +185,43 @@ async def list_movies(
                 )
             )
 
-        # ─── Mood Categories ──────────────────────────────────────────
+        # ─── Mood Categories (Curated Lists) ─────────────────────────
         elif category.startswith("mood-"):
+            from app.services.curated_moods import CURATED_MOODS
+            import random as _random
+
             mood = category.replace("mood-", "")
-            mood_filter = _build_mood_filter(mood)
+            curated_ids = CURATED_MOODS.get(mood, [])
 
-            if mood_filter is not None:
+            if not curated_ids:
+                # Unknown mood — fall back to all reviewed
                 query = query.join(Review).where(
-                    and_(
-                        Review.verdict == "WORTH IT",
-                        mood_filter,
-                    )
-                ).order_by(func.random())
-
+                    Review.verdict == "WORTH IT"
+                ).order_by(desc(Movie.tmdb_popularity))
                 count_query = count_query.join(Review).where(
-                    and_(
-                        Review.verdict == "WORTH IT",
-                        mood_filter,
-                    )
+                    Review.verdict == "WORTH IT"
                 )
             else:
-                # Unknown mood — fall back to all WORTH IT
-                query = query.join(Review).where(
-                    Review.verdict == "WORTH IT"
-                ).order_by(func.random())
-                count_query = count_query.join(Review).where(
-                    Review.verdict == "WORTH IT"
+                # Shuffle: randomize the curated order
+                if shuffle:
+                    curated_ids = list(curated_ids)
+                    _random.shuffle(curated_ids)
+
+                # Get movies from our DB matching curated TMDB IDs
+                # Include all — reviewed and unreviewed — with reviews loaded
+                query = query.where(
+                    Movie.tmdb_id.in_(curated_ids)
                 )
+                count_query = count_query.where(
+                    Movie.tmdb_id.in_(curated_ids)
+                )
+
+                # We need custom ordering to match the curated list order
+                # SQLAlchemy doesn't support CASE ordering easily, so we'll
+                # fetch all and sort in Python after the query executes
+                # For now, use popularity as proxy (most iconic = most popular)
+                if not shuffle:
+                    query = query.order_by(desc(Movie.tmdb_popularity))
 
     else:
         if media_type:
@@ -285,6 +332,12 @@ async def get_movie(
     if movie:
         return _format_movie_with_review(movie)
 
+    # ─── TMDB Fallback for movies not in our DB ──────────────
+    # This handles Discover clicks, Coming Soon, and any movie
+    # the user navigates to that hasn't been reviewed yet.
+    import logging
+    _logger = logging.getLogger(__name__)
+
     try:
         tmdb_data = None
         detected_type = media_type or "movie"
@@ -298,28 +351,86 @@ async def get_movie(
                 tmdb_data = await tmdb_service.get_tv_details(tmdb_id)
                 detected_type = "tv"
 
-        if tmdb_data and tmdb_data.get("id"):
-            if not is_safe_content(tmdb_data):
-                raise HTTPException(status_code=404, detail="Movie not found (blocked)")
-            tmdb_data["media_type"] = detected_type
+        if not tmdb_data or not tmdb_data.get("id"):
+            raise HTTPException(status_code=404, detail="Movie not found")
+
+        if not is_safe_content(tmdb_data):
+            raise HTTPException(status_code=404, detail="Movie not found (blocked)")
+
+        tmdb_data["media_type"] = detected_type
+
+        # Normalize — but don't let it crash us
+        try:
             normalized = tmdb_service.normalize_result(tmdb_data)
-            movie_resp = MovieResponse(
-                id=0, tmdb_id=normalized.get("tmdb_id", tmdb_id),
-                title=normalized.get("title", "Unknown"),
-                media_type=normalized.get("media_type", media_type),
-                overview=normalized.get("overview"),
-                poster_path=normalized.get("poster_path"),
-                backdrop_path=normalized.get("backdrop_path"),
-                genres=normalized.get("genres", []),
-                release_date=normalized.get("release_date"),
-                tmdb_popularity=normalized.get("tmdb_popularity"),
-                tmdb_vote_average=normalized.get("tmdb_vote_average"),
-                poster_url=tmdb_service.get_poster_url(normalized.get("poster_path")),
-                backdrop_url=tmdb_service.get_backdrop_url(normalized.get("backdrop_path")),
-            )
-            return MovieWithReview(movie=movie_resp, review=None)
-    except Exception:
-        pass
+        except Exception as norm_err:
+            _logger.error(f"normalize_result failed for {tmdb_id}: {norm_err}")
+            normalized = {}
+
+        # Parse every field safely — one bad field should NOT kill the page
+        title = normalized.get("title") or tmdb_data.get("title") or tmdb_data.get("name") or "Unknown"
+        
+        poster_path = normalized.get("poster_path") or tmdb_data.get("poster_path")
+        backdrop_path = normalized.get("backdrop_path") or tmdb_data.get("backdrop_path")
+        overview = normalized.get("overview") or tmdb_data.get("overview") or ""
+
+        # Genres: TMDB details returns [{"id": 28, "name": "Action"}]
+        # normalize_result should handle this, but fallback to raw
+        raw_genres = normalized.get("genres") or tmdb_data.get("genres") or []
+        genres = []
+        if isinstance(raw_genres, list):
+            for g in raw_genres:
+                if isinstance(g, dict):
+                    genres.append(g)
+                elif isinstance(g, (int, str)):
+                    genres.append({"id": g, "name": ""})
+
+        # Release date: handle strings, date objects, None, empty strings
+        parsed_release = None
+        raw_release = normalized.get("release_date") or tmdb_data.get("release_date") or tmdb_data.get("first_air_date")
+        if raw_release:
+            try:
+                from datetime import date as date_type
+                if isinstance(raw_release, str) and raw_release.strip():
+                    parsed_release = date_type.fromisoformat(raw_release.strip())
+                elif hasattr(raw_release, "isoformat"):
+                    parsed_release = raw_release
+            except (ValueError, TypeError):
+                parsed_release = None
+
+        # Numeric fields
+        tmdb_pop = None
+        try:
+            tmdb_pop = float(normalized.get("tmdb_popularity") or tmdb_data.get("popularity") or 0) or None
+        except (ValueError, TypeError):
+            pass
+
+        tmdb_vote = None
+        try:
+            tmdb_vote = float(normalized.get("tmdb_vote_average") or tmdb_data.get("vote_average") or 0) or None
+        except (ValueError, TypeError):
+            pass
+
+        movie_resp = MovieResponse(
+            id=0,
+            tmdb_id=tmdb_id,
+            title=title,
+            media_type=detected_type,
+            overview=overview,
+            poster_path=poster_path,
+            backdrop_path=backdrop_path,
+            genres=genres,
+            release_date=parsed_release,
+            tmdb_popularity=tmdb_pop,
+            tmdb_vote_average=tmdb_vote,
+            poster_url=tmdb_service.get_poster_url(poster_path),
+            backdrop_url=tmdb_service.get_backdrop_url(backdrop_path),
+        )
+        return MovieWithReview(movie=movie_resp, review=None)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        _logger.error(f"TMDB fallback failed for {tmdb_id}: {e}", exc_info=True)
 
     raise HTTPException(status_code=404, detail="Movie not found")
 
@@ -392,6 +503,57 @@ async def get_movie_credits(
         return {"cast": cast}
     except Exception as e:
         return {"cast": []}
+
+
+@router.get("/{tmdb_id}/recommendations")
+async def get_recommendations(
+    tmdb_id: int,
+    media_type: str = Query("movie", pattern="^(movie|tv)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get recommended movies/shows similar to this one."""
+    try:
+        if media_type == "tv":
+            endpoint = f"/tv/{tmdb_id}/recommendations"
+        else:
+            endpoint = f"/movie/{tmdb_id}/recommendations"
+
+        data = await tmdb_service._get(endpoint, params={"language": "en-US"})
+        raw = data.get("results", [])
+
+        results = []
+        tmdb_ids = []
+        for item in raw[:15]:
+            if not item.get("poster_path"):
+                continue
+            mt = item.get("media_type", media_type)
+            title = item.get("title") or item.get("name") or ""
+            poster = item.get("poster_path")
+            results.append({
+                "tmdb_id": item["id"],
+                "title": title,
+                "media_type": mt,
+                "poster_url": f"https://image.tmdb.org/t/p/w500{poster}" if poster else None,
+                "tmdb_vote_average": item.get("vote_average"),
+                "release_date": item.get("release_date") or item.get("first_air_date"),
+            })
+            tmdb_ids.append(item["id"])
+
+        # Cross-reference with our review DB for verdicts
+        if tmdb_ids:
+            reviewed = await db.execute(
+                select(Movie.tmdb_id, Review.verdict)
+                .join(Review, Review.movie_id == Movie.id)
+                .where(Movie.tmdb_id.in_(tmdb_ids))
+            )
+            verdict_map = {row.tmdb_id: row.verdict for row in reviewed.all()}
+            for r in results:
+                r["verdict"] = verdict_map.get(r["tmdb_id"])
+                r["has_review"] = r["tmdb_id"] in verdict_map
+
+        return {"results": results}
+    except Exception as e:
+        return {"results": []}
 
 
 def _format_movie_with_review(movie: Movie) -> MovieWithReview:

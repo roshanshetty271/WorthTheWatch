@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import SearchBar from "@/components/SearchBar";
 import MovieCard from "@/components/MovieCard";
-import MoodSection from "@/components/MoodSection";
+import NowPlaying from "@/components/NowPlaying";
 import VerdictBadge from "@/components/VerdictBadge";
 import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
@@ -157,7 +157,7 @@ export default async function HomePage() {
 
         {/* Bottom Left: Featured Movie Info */}
         {featured && (
-          <div className="absolute bottom-0 left-0 z-20 w-full p-4 sm:p-12 pointer-events-none">
+          <div className="absolute bottom-0 left-0 z-20 w-full p-4 sm:px-12 sm:pb-6 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
                 <div className="mb-2 flex items-center gap-3">
@@ -195,13 +195,13 @@ export default async function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          ALL SECTIONS — Inside one single container for consistent alignment
+          ALL SECTIONS
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8">
         {hasAnySections ? (
           <div className="space-y-2">
-            {/* Mood Section — FIRST, same container as everything else */}
-            <MoodSection />
+            {/* Now Playing — What's new right now */}
+            <NowPlaying />
 
             {/* Movie Sections */}
             {sectionsWithData.map((section) => (

@@ -33,6 +33,9 @@ export default function ReviewSection({
     const [percent, setPercent] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
+    // Check if movie is unreleased
+    const isUnreleased = releaseDate ? new Date(releaseDate) > new Date() : false;
+
     // Poll for generation status
     useEffect(() => {
         if (!generating) return;
@@ -69,6 +72,9 @@ export default function ReviewSection({
     }, [generating, tmdbId]);
 
     async function handleGenerate() {
+        // Block unreleased movies
+        if (isUnreleased) return;
+
         setGenerating(true);
         setError(null);
         setProgress("Starting...");
@@ -91,8 +97,12 @@ export default function ReviewSection({
 
             const data = await res.json();
             if (data.status === "already_exists") {
-                // Rare case: review was just added
                 window.location.reload();
+            } else if (data.status === "unreleased") {
+                // Backend blocked it — movie not released yet
+                setGenerating(false);
+                setError(data.message || "This title hasn't been released yet.");
+                return;
             }
             // Otherwise, polling will handle the rest
         } catch (e) {
@@ -176,24 +186,45 @@ export default function ReviewSection({
 
             {!error && (
                 <>
-                    <p className="text-4xl mb-4">🎬</p>
-                    <h3 className="font-display text-xl text-text-primary mb-2">
-                        No verdict yet for {movieTitle}
-                    </h3>
-                    <p className="text-text-secondary mb-6 max-w-md mx-auto">
-                        Want to know what the internet thinks? We&apos;ll analyze reviews from
-                        Reddit, critics, and forums in about 15 seconds.
-                    </p>
+                    {isUnreleased ? (
+                        /* ─── Unreleased Movie ─── */
+                        <>
+                            <p className="text-4xl mb-4">🗓️</p>
+                            <h3 className="font-display text-xl text-text-primary mb-2">
+                                Coming Soon
+                            </h3>
+                            <p className="text-text-secondary mb-2 max-w-md mx-auto">
+                                {movieTitle} hasn&apos;t been released yet. Check back after{" "}
+                                {new Date(releaseDate!).toLocaleDateString("en-US", {
+                                    month: "long",
+                                    day: "numeric",
+                                    year: "numeric",
+                                })}{" "}
+                                for the internet&apos;s verdict.
+                            </p>
+                        </>
+                    ) : (
+                        /* ─── Released Movie, No Review Yet ─── */
+                        <>
+                            <p className="text-4xl mb-4">🎬</p>
+                            <h3 className="font-display text-xl text-text-primary mb-2">
+                                No verdict yet for {movieTitle}
+                            </h3>
+                            <p className="text-text-secondary mb-6 max-w-md mx-auto">
+                                Want to know what the internet thinks? We&apos;ll analyze reviews from
+                                Reddit, critics, and forums in about 15 seconds.
+                            </p>
 
-                    <button
-                        onClick={handleGenerate}
-                        className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
-                    >
-                        Generate AI Review
-                    </button>
+                            <button
+                                onClick={handleGenerate}
+                                className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
+                            >
+                                Generate AI Review
+                            </button>
+                        </>
+                    )}
                 </>
             )}
         </div>
     );
 }
-// Fixed syntax error
