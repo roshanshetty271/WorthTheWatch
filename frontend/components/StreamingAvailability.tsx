@@ -65,7 +65,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
 
     return (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-            <span className="font-display text-base sm:text-lg text-accent-gold flex items-center gap-2">
+            <span className="font-display text-base sm:text-lg text-accent-gold flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
                 📺 Watch On
             </span>
             <div className="flex flex-wrap items-center gap-3">
@@ -96,7 +96,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
                         href={justwatch_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-white/50 hover:text-white/80 transition-colors ml-1"
+                        className="text-sm text-white bg-black/30 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-black/40 transition-colors ml-1"
                     >
                         More →
                     </a>

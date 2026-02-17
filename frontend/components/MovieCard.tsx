@@ -16,11 +16,13 @@ const VERDICT_STYLES: Record<string, {
   label: string;
   gradient: string;
   titleShadow: string;
+  bgColor?: string;
 }> = {
   "WORTH IT": {
     borderColor: "border-emerald-500/50",
     glowColor: "group-hover:shadow-emerald-500/20",
-    textColor: "text-emerald-300",
+    textColor: "text-emerald-200",
+    bgColor: "bg-emerald-500/30",
     label: "Worth It",
     gradient: "from-emerald-500/20 to-transparent",
     titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]"
@@ -28,7 +30,8 @@ const VERDICT_STYLES: Record<string, {
   "NOT WORTH IT": {
     borderColor: "border-rose-500/50",
     glowColor: "group-hover:shadow-rose-500/20",
-    textColor: "text-rose-300",
+    textColor: "text-rose-200",
+    bgColor: "bg-rose-500/30",
     label: "Skip",
     gradient: "from-rose-500/20 to-transparent",
     titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(251,113,133,0.6)]"
@@ -36,7 +39,8 @@ const VERDICT_STYLES: Record<string, {
   "MIXED BAG": {
     borderColor: "border-amber-500/50",
     glowColor: "group-hover:shadow-amber-500/20",
-    textColor: "text-amber-300",
+    textColor: "text-amber-200",
+    bgColor: "bg-amber-500/30",
     label: "Mixed",
     gradient: "from-amber-500/20 to-transparent",
     titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]"
@@ -100,8 +104,8 @@ export default function MovieCard({ data }: MovieCardProps) {
           {/* Verdict Badge */}
           {verdictStyle && review ? (
             <span className={`
-              inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1 
-              backdrop-blur-md transition-colors ${verdictStyle.borderColor}
+              inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1 
+              backdrop-blur-md transition-colors ${verdictStyle.borderColor} ${verdictStyle.bgColor || "bg-black/40"}
             `}>
               <span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor] ${verdictStyle.textColor.replace('text-', 'bg-')}`} />
               <span className={`text-[10px] font-bold uppercase tracking-wider ${verdictStyle.textColor}`}>

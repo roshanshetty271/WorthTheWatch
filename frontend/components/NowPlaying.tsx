@@ -17,6 +17,29 @@ interface NowPlayingItem {
 
 type Tab = "theaters" | "streaming" | "upcoming";
 
+function PosterImage({ src, alt, sizes = "200px" }: { src: string | null; alt: string; sizes?: string }) {
+    const [error, setError] = useState(false);
+    if (error || !src) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02] p-3">
+                <span className="text-3xl mb-2 opacity-40">🎬</span>
+                <span className="text-[10px] text-white/40 text-center line-clamp-2 font-medium">{alt}</span>
+            </div>
+        );
+    }
+    return (
+        <Image
+            src={src}
+            alt={alt}
+            fill
+            className="object-cover"
+            sizes={sizes}
+            unoptimized
+            onError={() => setError(true)}
+        />
+    );
+}
+
 export default function NowPlaying() {
     const [tab, setTab] = useState<Tab>("theaters");
     const [items, setItems] = useState<NowPlayingItem[]>([]);
@@ -54,7 +77,7 @@ export default function NowPlaying() {
     ];
 
     return (
-        <section className="py-8">
+        <section className="py-8" id="now-playing">
             {/* Header */}
             <div className="flex items-end justify-between mb-4 px-4 sm:px-0">
                 <div className="border-l-4 border-accent-gold pl-3 sm:pl-4">
@@ -106,29 +129,17 @@ export default function NowPlaying() {
                             className="snap-start shrink-0 w-[140px] sm:w-[170px] md:w-[200px] group"
                         >
                             <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
-                                {item.poster_url ? (
-                                    <Image
-                                        src={item.poster_url}
-                                        alt={item.title}
-                                        fill
-                                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                                        sizes="200px"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-white/20 text-3xl">
-                                        🎬
-                                    </div>
-                                )}
+                                <PosterImage src={item.poster_url} alt={item.title} />
 
                                 {/* Rating badge */}
                                 {item.tmdb_vote_average && item.tmdb_vote_average > 0 && (
-                                    <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-accent-gold">
+                                    <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-accent-gold z-10">
                                         ★ {item.tmdb_vote_average.toFixed(1)}
                                     </div>
                                 )}
 
                                 {/* Tab-specific badge */}
-                                <div className="absolute top-2 left-2">
+                                <div className="absolute top-2 left-2 z-10">
                                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm ${tab === "theaters"
                                             ? "bg-red-500/20 text-red-300 border border-red-500/30"
                                             : tab === "streaming"

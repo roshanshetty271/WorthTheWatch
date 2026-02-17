@@ -33,15 +33,15 @@ body {
 /* ─── Verdict Badges ────────────────────────────────── */
 
 .verdict-worth {
-  @apply bg-verdict-worth/15 text-verdict-worth border border-verdict-worth/30;
+  @apply bg-verdict-worth/30 text-green-200 border border-verdict-worth/60;
 }
 
 .verdict-skip {
-  @apply bg-verdict-skip/15 text-verdict-skip border border-verdict-skip/30;
+  @apply bg-verdict-skip/30 text-red-200 border border-verdict-skip/60;
 }
 
 .verdict-mixed {
-  @apply bg-verdict-mixed/15 text-verdict-mixed border border-verdict-mixed/30;
+  @apply bg-verdict-mixed/30 text-amber-200 border border-verdict-mixed/60;
 }
 
 /* ─── Card Hover ────────────────────────────────────── */

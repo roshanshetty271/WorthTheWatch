@@ -26,15 +26,14 @@ const GENRES = [
     "Thriller", "War", "Western",
 ];
 
+const YEARS = Array.from({ length: 6 }, (_, i) => 2025 - i);
+
 const DECADES = [
-    { label: "2020s", value: "2020" },
     { label: "2010s", value: "2010" },
     { label: "2000s", value: "2000" },
     { label: "90s", value: "1990" },
     { label: "80s", value: "1980" },
 ];
-
-const YEARS = Array.from({ length: 6 }, (_, i) => 2025 - i);
 
 const SORT_OPTIONS = [
     { label: "Most Popular", value: "popular" },
@@ -49,11 +48,33 @@ const RATING_FILTERS = [
     { label: "9+", value: 9 },
 ];
 
+function PosterImage({ src, alt, sizes = "200px" }: { src: string | null; alt: string; sizes?: string }) {
+    const [error, setError] = useState(false);
+    if (error || !src) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02] p-3">
+                <span className="text-3xl mb-2 opacity-40">🎬</span>
+                <span className="text-[10px] text-white/40 text-center line-clamp-2 font-medium">{alt}</span>
+            </div>
+        );
+    }
+    return (
+        <Image
+            src={src}
+            alt={alt}
+            fill
+            className="object-cover"
+            sizes={sizes}
+            unoptimized
+            onError={() => setError(true)}
+        />
+    );
+}
+
 export default function DiscoverPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // Filter state
     const [mediaType, setMediaType] = useState<"movie" | "tv">(
         (searchParams.get("type") as "movie" | "tv") || "movie"
     );
@@ -66,7 +87,6 @@ export default function DiscoverPage() {
     );
     const [sort, setSort] = useState(searchParams.get("sort") || "popular");
 
-    // Results
     const [results, setResults] = useState<DiscoverResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
@@ -102,12 +122,10 @@ export default function DiscoverPage() {
         }
     }, [mediaType, genre, year, minRating, sort]);
 
-    // Fetch on filter change
     useEffect(() => {
         fetchResults(1);
     }, [fetchResults]);
 
-    // Update URL params
     useEffect(() => {
         const params = new URLSearchParams();
         params.set("type", mediaType);
@@ -147,7 +165,6 @@ export default function DiscoverPage() {
 
                     {/* Row 1: Media Type + Sort */}
                     <div className="flex items-center gap-3 flex-wrap">
-                        {/* Movie / TV toggle */}
                         <div className="flex bg-white/5 rounded-full p-0.5">
                             <button
                                 onClick={() => setMediaType("movie")}
@@ -169,7 +186,6 @@ export default function DiscoverPage() {
                             </button>
                         </div>
 
-                        {/* Sort dropdown */}
                         <select
                             value={sort}
                             onChange={(e) => setSort(e.target.value)}
@@ -182,7 +198,6 @@ export default function DiscoverPage() {
                             ))}
                         </select>
 
-                        {/* Clear filters */}
                         {hasFilters && (
                             <button
                                 onClick={clearFilters}
@@ -211,7 +226,6 @@ export default function DiscoverPage() {
 
                     {/* Row 3: Year + Rating chips */}
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                        {/* Years */}
                         {YEARS.map((y) => (
                             <button
                                 key={y}
@@ -227,7 +241,6 @@ export default function DiscoverPage() {
 
                         <div className="w-px h-6 bg-white/10 self-center shrink-0 mx-1" />
 
-                        {/* Decades */}
                         {DECADES.map((d) => (
                             <button
                                 key={d.value}
@@ -243,7 +256,6 @@ export default function DiscoverPage() {
 
                         <div className="w-px h-6 bg-white/10 self-center shrink-0 mx-1" />
 
-                        {/* Rating filters */}
                         {RATING_FILTERS.map((r) => (
                             <button
                                 key={r.value}
@@ -281,30 +293,22 @@ export default function DiscoverPage() {
                                     className="group"
                                 >
                                     <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
-                                        {item.poster_url ? (
-                                            <Image
-                                                src={item.poster_url}
-                                                alt={item.title}
-                                                fill
-                                                className="object-cover group-hover:scale-105 transition-transform duration-300"
-                                                sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 16vw"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-white/20 text-3xl">
-                                                🎬
-                                            </div>
-                                        )}
+                                        <PosterImage
+                                            src={item.poster_url}
+                                            alt={item.title}
+                                            sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 16vw"
+                                        />
 
                                         {/* Rating */}
                                         {item.tmdb_vote_average && item.tmdb_vote_average > 0 && (
-                                            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold">
+                                            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold z-10">
                                                 ★ {item.tmdb_vote_average.toFixed(1)}
                                             </div>
                                         )}
 
                                         {/* Verdict badge */}
                                         {item.verdict && (
-                                            <div className="absolute bottom-2 left-2">
+                                            <div className="absolute bottom-2 left-2 z-10">
                                                 <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${item.verdict === "WORTH IT"
                                                         ? "text-green-400 bg-green-400/10 border-green-400/30"
                                                         : item.verdict === "NOT WORTH IT"

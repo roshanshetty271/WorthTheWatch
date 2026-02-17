@@ -30,6 +30,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const [review, setReview] = useState<Review | null>(initialReview);
     const [cast, setCast] = useState<CastMember[]>([]);
     const [castOpen, setCastOpen] = useState(true);
+    const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const router = useRouter();
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
@@ -122,7 +123,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 alt={movie.title}
                                 fill
                                 sizes="100vw"
-                                className={`object-cover ${isPosterFallback ? "object-top opacity-60" : "object-top"}`}
+                                className={`object-cover ${isPosterFallback ? "object-top opacity-60" : "object-top opacity-90"}`}
                                 priority
                                 onError={handleImageError}
                             />
@@ -206,19 +207,19 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     ) : null)}
 
                                     {year && (
-                                        <span className="flex items-center gap-1.5 opacity-80">
+                                        <span className="flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-3 py-1">
                                             <span className="text-base">📅</span> {year}
                                         </span>
                                     )}
                                     {movie.runtime && (
-                                        <span className="flex items-center gap-1.5 opacity-80">
+                                        <span className="flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-3 py-1">
                                             <span className="text-base">⏱️</span> {movie.runtime} min
                                         </span>
                                     )}
 
                                     {/* MPAA Rating Badge */}
                                     {(review as any)?.rated && (
-                                        <span className="rounded-md border border-white/30 px-2 py-0.5 text-xs font-bold text-white/90 uppercase tracking-wider">
+                                        <span className="rounded-md bg-black/40 backdrop-blur-sm border border-white/40 px-2.5 py-1 text-xs font-bold text-white uppercase tracking-wider">
                                             {(review as any).rated}
                                         </span>
                                     )}
@@ -226,12 +227,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm md:justify-start">
                                     {genres && (
-                                        <span className="rounded-full bg-white/10 backdrop-blur-sm px-3 py-1 text-white/90">
+                                        <span className="rounded-full bg-black/40 backdrop-blur-sm px-3 py-1 text-white border border-white/10">
                                             {genres}
                                         </span>
                                     )}
                                     {movie.media_type && (
-                                        <span className="rounded-full bg-white/10 backdrop-blur-sm px-3 py-1 capitalize text-white/90">
+                                        <span className="rounded-full bg-black/40 backdrop-blur-sm px-3 py-1 capitalize text-white border border-white/10">
                                             {movie.media_type}
                                         </span>
                                     )}
@@ -397,17 +398,20 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     className="flex-shrink-0 w-20 text-center"
                                 >
                                     <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border border-white/10 mx-auto relative">
-                                        {person.profile_url ? (
+                                        {person.profile_url && !failedCastImages.has(person.id) ? (
                                             <Image
                                                 src={person.profile_url}
                                                 alt={person.name}
                                                 fill
                                                 className="object-cover"
                                                 sizes="80px"
+                                                unoptimized
+                                                onError={() => setFailedCastImages(prev => new Set(prev).add(person.id))}
                                             />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl">
-                                                👤
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02]">
+                                                <span className="text-lg text-white/20">👤</span>
+                                                <span className="text-[7px] text-white/20 mt-0.5">{person.name.split(' ')[0]}</span>
                                             </div>
                                         )}
                                     </div>

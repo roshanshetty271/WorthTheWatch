@@ -63,11 +63,24 @@ export default function Navbar() {
 
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-7">
+                        <button
+                            onClick={() => {
+                                if (pathname === "/") {
+                                    document.getElementById("now-playing")?.scrollIntoView({ behavior: "smooth" });
+                                } else {
+                                    router.push("/#now-playing");
+                                }
+                            }}
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer"
+                        >
+                            What&apos;s New
+                        </button>
+
                         <Link
                             href="/discover"
                             className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
                         >
-                            What&apos;s New
+                            Discover
                         </Link>
 
                         <Link
@@ -79,9 +92,9 @@ export default function Navbar() {
 
                         <Link
                             href="/versus"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
+                            className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
                         >
-                            Movie Battle
+                            <span className="text-accent-gold">Movie Battle</span>
                         </Link>
 
                         {/* Roulette Trigger */}
@@ -173,12 +186,27 @@ export default function Navbar() {
                     `}
                 >
                     <div className="flex flex-col items-center gap-8">
+                        <button
+                            onClick={() => {
+                                setMobileMenuOpen(false);
+                                if (pathname === "/") {
+                                    setTimeout(() => {
+                                        document.getElementById("now-playing")?.scrollIntoView({ behavior: "smooth" });
+                                    }, 300);
+                                } else {
+                                    router.push("/#now-playing");
+                                }
+                            }}
+                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        >
+                            What&apos;s New
+                        </button>
                         <Link
                             href="/discover"
                             onClick={() => setMobileMenuOpen(false)}
                             className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
                         >
-                            What&apos;s New
+                            Discover
                         </Link>
                         <Link
                             href="/browse/mood/tired"

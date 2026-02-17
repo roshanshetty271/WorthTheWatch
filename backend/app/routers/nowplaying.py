@@ -153,7 +153,7 @@ async def upcoming_movies(
                 "page": page,
                 "region": region,
                 "language": "en-US",
-                "sort_by": "primary_release_date.asc",  # Soonest first
+                "sort_by": "popularity.desc",  # Most anticipated first
                 "primary_release_date.gte": tomorrow.isoformat(),
                 "primary_release_date.lte": ninety_days_out.isoformat(),
                 "with_release_type": "2|3",  # Theatrical releases only

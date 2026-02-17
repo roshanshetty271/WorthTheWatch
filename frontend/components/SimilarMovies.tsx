@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
 
 interface SimilarMovie {
     tmdb_id: number;
@@ -22,6 +21,29 @@ interface SimilarMoviesProps {
     tmdbId: number;
     mediaType: string;
     title: string;
+}
+
+function PosterImage({ src, alt, sizes = "120px" }: { src: string | null; alt: string; sizes?: string }) {
+    const [error, setError] = useState(false);
+    if (error || !src) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02] p-2">
+                <span className="text-2xl mb-1 opacity-40">🎬</span>
+                <span className="text-[9px] text-white/40 text-center line-clamp-2 font-medium">{alt}</span>
+            </div>
+        );
+    }
+    return (
+        <Image
+            src={src}
+            alt={alt}
+            fill
+            className="object-cover"
+            sizes={sizes}
+            unoptimized
+            onError={() => setError(true)}
+        />
+    );
 }
 
 export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMoviesProps) {
@@ -73,30 +95,18 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                             className="shrink-0 w-[120px] group"
                         >
                             <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
-                                {movie.poster_url ? (
-                                    <Image
-                                        src={movie.poster_url}
-                                        alt={movie.title}
-                                        fill
-                                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                                        sizes="120px"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl">
-                                        🎬
-                                    </div>
-                                )}
+                                <PosterImage src={movie.poster_url} alt={movie.title} />
 
                                 {/* Rating */}
                                 {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
-                                    <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold">
+                                    <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold z-10">
                                         ★ {movie.tmdb_vote_average.toFixed(1)}
                                     </div>
                                 )}
 
                                 {/* Verdict badge if we have a review */}
                                 {movie.verdict && (
-                                    <div className="absolute bottom-1.5 left-1.5">
+                                    <div className="absolute bottom-1.5 left-1.5 z-10">
                                         <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${movie.verdict === "WORTH IT"
                                                 ? "text-green-400 bg-green-400/10 border-green-400/30"
                                                 : movie.verdict === "NOT WORTH IT"
@@ -104,15 +114,6 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                                                     : "text-yellow-400 bg-yellow-400/10 border-yellow-400/30"
                                             }`}>
                                             {movie.verdict}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* "Instant Verdict" badge */}
-                                {movie.has_review && !movie.verdict && (
-                                    <div className="absolute bottom-1.5 left-1.5">
-                                        <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full bg-accent-gold/10 text-accent-gold border border-accent-gold/30 backdrop-blur-sm">
-                                            ⚡ REVIEWED
                                         </span>
                                     </div>
                                 )}
