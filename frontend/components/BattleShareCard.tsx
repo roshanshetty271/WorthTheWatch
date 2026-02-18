@@ -170,12 +170,16 @@ export default function BattleShareCard({
                     position: "fixed",
                     top: 0,
                     left: 0,
-                    width: "1px",
-                    height: "1px",
-                    opacity: 0,
-                    overflow: "hidden",
+                    right: 0,
+                    bottom: 0,
+                    zIndex: -50, // Behind everything
                     pointerEvents: "none",
-                    zIndex: -1,
+                    visibility: "visible", // Ensure it's painted
+                    opacity: 1, // Ensure it's painted
+                    overflow: "hidden",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }}
                 aria-hidden="true"
             >
