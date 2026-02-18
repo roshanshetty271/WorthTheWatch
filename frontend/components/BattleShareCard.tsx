@@ -118,8 +118,12 @@ export default function BattleShareCard({
                 type: "image/png",
             });
 
-            // Mobile: native share sheet
+            // Strictly check for Mobile OS to avoid triggering share sheet on Windows/Mac with touchscreens
+            const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+            // Mobile: use native share sheet if available
             if (
+                isMobile &&
                 typeof navigator !== "undefined" &&
                 navigator.share &&
                 navigator.canShare?.({ files: [file] })
@@ -130,7 +134,7 @@ export default function BattleShareCard({
                     text: `${winnerTitle} defeats ${loserTitle}! ⚔️🎬`,
                 });
             } else {
-                // Desktop: download the image
+                // Desktop (or if share not supported): download the image
                 const link = document.createElement("a");
                 link.download = `${winnerTitle.replace(/\s+/g, "-")}-vs-${loserTitle.replace(/\s+/g, "-")}.png`;
                 link.href = dataUrl;
@@ -156,21 +160,30 @@ export default function BattleShareCard({
     return (
         <>
             {/* ═══════ HIDDEN SHARE CARD ═══════ */}
+            {/* 
+                NOTE: We cannot use display:none or visibility:hidden because html-to-image needs it rendered.
+                We cannot use left:-9999px because mobile browsers may not paint off-screen content.
+                Solution: Fixed position, 0 opacity, pointer-events-none, but "on screen".
+            */}
             <div
                 style={{
                     position: "fixed",
-                    left: "-9999px",
-                    top: "-9999px",
-                    zIndex: -1,
+                    top: 0,
+                    left: 0,
+                    width: "1px",
+                    height: "1px",
+                    opacity: 0,
+                    overflow: "hidden",
                     pointerEvents: "none",
+                    zIndex: -1,
                 }}
                 aria-hidden="true"
             >
                 <div
                     ref={cardRef}
                     style={{
-                        width: "600px",
-                        height: "800px",
+                        width: "800px",
+                        height: "1000px",
                         background:
                             "linear-gradient(180deg, #111111 0%, #0a0a0a 100%)",
                         display: "flex",
@@ -203,28 +216,28 @@ export default function BattleShareCard({
                     <div
                         style={{
                             textAlign: "center",
-                            marginBottom: "30px",
+                            marginBottom: "40px",
                             position: "relative",
                         }}
                     >
                         <div
                             style={{
-                                fontSize: "11px",
+                                fontSize: "18px",
                                 fontWeight: 900,
-                                letterSpacing: "4px",
+                                letterSpacing: "6px",
                                 textTransform: "uppercase",
                                 color: "#d4a843",
-                                marginBottom: "4px",
+                                marginBottom: "8px",
                             }}
                         >
                             Movie Battle
                         </div>
                         <div
                             style={{
-                                fontSize: "10px",
-                                letterSpacing: "3px",
+                                fontSize: "14px",
+                                letterSpacing: "4px",
                                 textTransform: "uppercase",
-                                color: "rgba(255,255,255,0.25)",
+                                color: "rgba(255,255,255,0.3)",
                             }}
                         >
                             The Verdict Is In
@@ -236,21 +249,21 @@ export default function BattleShareCard({
                         style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "20px",
-                            marginBottom: "30px",
+                            gap: "40px",
+                            marginBottom: "50px",
                         }}
                     >
                         {/* Winner poster */}
                         <div style={{ textAlign: "center" }}>
                             <div
                                 style={{
-                                    width: "150px",
-                                    height: "225px",
-                                    borderRadius: "12px",
+                                    width: "240px",
+                                    height: "360px",
+                                    borderRadius: "18px",
                                     overflow: "hidden",
-                                    border: "3px solid #d4a843",
+                                    border: "5px solid #d4a843",
                                     boxShadow:
-                                        "0 0 30px rgba(212,168,67,0.2)",
+                                        "0 0 50px rgba(212,168,67,0.3)",
                                     position: "relative",
                                     background: "#1a1a1a",
                                 }}
@@ -270,16 +283,16 @@ export default function BattleShareCard({
                             </div>
                             <div
                                 style={{
-                                    marginTop: "8px",
-                                    fontSize: "9px",
+                                    marginTop: "16px",
+                                    fontSize: "13px",
                                     fontWeight: 900,
-                                    letterSpacing: "2px",
+                                    letterSpacing: "3px",
                                     textTransform: "uppercase",
                                     color: "#d4a843",
                                     background: "rgba(212,168,67,0.1)",
                                     border: "1px solid rgba(212,168,67,0.3)",
-                                    borderRadius: "20px",
-                                    padding: "4px 12px",
+                                    borderRadius: "30px",
+                                    padding: "8px 24px",
                                     display: "inline-block",
                                 }}
                             >
@@ -287,11 +300,11 @@ export default function BattleShareCard({
                             </div>
                             <div
                                 style={{
-                                    marginTop: "6px",
-                                    fontSize: "13px",
+                                    marginTop: "10px",
+                                    fontSize: "20px",
                                     fontWeight: 800,
                                     color: "#ffffff",
-                                    maxWidth: "150px",
+                                    maxWidth: "240px",
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
                                     whiteSpace: "nowrap",
@@ -301,9 +314,10 @@ export default function BattleShareCard({
                             </div>
                             <div
                                 style={{
-                                    fontSize: "9px",
+                                    fontSize: "13px",
                                     color: "#d4a843",
                                     fontWeight: 700,
+                                    marginTop: "4px",
                                 }}
                             >
                                 {winnerHeadline}
@@ -313,11 +327,11 @@ export default function BattleShareCard({
                         {/* VS badge */}
                         <div
                             style={{
-                                width: "50px",
-                                height: "50px",
+                                width: "80px",
+                                height: "80px",
                                 borderRadius: "50%",
                                 background: "rgba(212,168,67,0.1)",
-                                border: "2px solid rgba(212,168,67,0.3)",
+                                border: "3px solid rgba(212,168,67,0.3)",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -328,7 +342,7 @@ export default function BattleShareCard({
                                 style={{
                                     color: "#d4a843",
                                     fontWeight: 900,
-                                    fontSize: "14px",
+                                    fontSize: "24px",
                                 }}
                             >
                                 VS
@@ -339,11 +353,11 @@ export default function BattleShareCard({
                         <div style={{ textAlign: "center" }}>
                             <div
                                 style={{
-                                    width: "150px",
-                                    height: "225px",
-                                    borderRadius: "12px",
+                                    width: "240px",
+                                    height: "360px",
+                                    borderRadius: "18px",
                                     overflow: "hidden",
-                                    border: "2px solid rgba(255,255,255,0.1)",
+                                    border: "3px solid rgba(255,255,255,0.1)",
                                     position: "relative",
                                     background: "#1a1a1a",
                                     filter: "grayscale(70%) brightness(0.6)",
@@ -375,7 +389,7 @@ export default function BattleShareCard({
                                     <span
                                         style={{
                                             color: "rgba(239,68,68,0.5)",
-                                            fontSize: "48px",
+                                            fontSize: "80px",
                                             fontWeight: 900,
                                         }}
                                     >
@@ -385,10 +399,10 @@ export default function BattleShareCard({
                             </div>
                             <div
                                 style={{
-                                    marginTop: "8px",
-                                    fontSize: "9px",
+                                    marginTop: "16px",
+                                    fontSize: "13px",
                                     fontWeight: 700,
-                                    letterSpacing: "2px",
+                                    letterSpacing: "3px",
                                     textTransform: "uppercase",
                                     color: "rgba(255,255,255,0.25)",
                                 }}
@@ -397,11 +411,11 @@ export default function BattleShareCard({
                             </div>
                             <div
                                 style={{
-                                    marginTop: "6px",
-                                    fontSize: "13px",
+                                    marginTop: "10px",
+                                    fontSize: "20px",
                                     fontWeight: 800,
                                     color: "rgba(255,255,255,0.35)",
-                                    maxWidth: "150px",
+                                    maxWidth: "240px",
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
                                     whiteSpace: "nowrap",
@@ -411,9 +425,10 @@ export default function BattleShareCard({
                             </div>
                             <div
                                 style={{
-                                    fontSize: "9px",
+                                    fontSize: "13px",
                                     color: "rgba(255,255,255,0.2)",
                                     fontWeight: 700,
+                                    marginTop: "4px",
                                 }}
                             >
                                 {loserHeadline}
@@ -424,30 +439,30 @@ export default function BattleShareCard({
                     {/* Kill Reason */}
                     <div
                         style={{
-                            background: "rgba(212,168,67,0.06)",
-                            border: "1px solid rgba(212,168,67,0.15)",
-                            borderRadius: "16px",
-                            padding: "24px 28px",
-                            maxWidth: "500px",
+                            background: "rgba(212,168,67,0.08)",
+                            border: "1px solid rgba(212,168,67,0.2)",
+                            borderRadius: "24px",
+                            padding: "36px 48px",
+                            maxWidth: "700px",
                             textAlign: "center",
-                            marginBottom: "30px",
+                            marginBottom: "30px", // Reduced bottom margin
                         }}
                     >
                         <div
                             style={{
-                                fontSize: "9px",
+                                fontSize: "12px",
                                 fontWeight: 900,
-                                letterSpacing: "3px",
+                                letterSpacing: "4px",
                                 textTransform: "uppercase",
                                 color: "#d4a843",
-                                marginBottom: "10px",
+                                marginBottom: "14px",
                             }}
                         >
                             The Verdict
                         </div>
                         <div
                             style={{
-                                fontSize: "16px",
+                                fontSize: "26px",
                                 fontWeight: 700,
                                 fontStyle: "italic",
                                 color: "#ffffff",
@@ -462,7 +477,7 @@ export default function BattleShareCard({
                     <div
                         style={{
                             position: "absolute",
-                            bottom: "20px",
+                            bottom: "30px", // Increased bottom padding
                             left: 0,
                             right: 0,
                             textAlign: "center",
@@ -470,14 +485,15 @@ export default function BattleShareCard({
                     >
                         <div
                             style={{
-                                fontSize: "10px",
-                                fontWeight: 800,
-                                letterSpacing: "2px",
+                                fontSize: "15px", // Increased from 10px
+                                fontWeight: 900,
+                                letterSpacing: "3px", // Increased letter spacing
                                 textTransform: "uppercase",
-                                color: "rgba(255,255,255,0.15)",
+                                color: "#d4a843", // Changed from faint white to Gold
+                                textShadow: "0 2px 10px rgba(0,0,0,0.5)", // Added shadow for readability
                             }}
                         >
-                            Worth the Watch? · worth-the-watch.vercel.app
+                            worth-the-watch.vercel.app
                         </div>
                     </div>
                 </div>
@@ -488,8 +504,8 @@ export default function BattleShareCard({
                 onClick={handleShare}
                 disabled={isGenerating || !imagesLoaded}
                 className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border ${isGenerating
-                        ? "bg-accent-gold/10 text-accent-gold border-accent-gold/30 animate-pulse"
-                        : "bg-surface-elevated text-white/60 hover:text-white hover:bg-white/10 border-white/10"
+                    ? "bg-accent-gold/10 text-accent-gold border-accent-gold/30 animate-pulse"
+                    : "bg-surface-elevated text-white/60 hover:text-white hover:bg-white/10 border-white/10"
                     }`}
             >
                 {isGenerating ? "Generating..." : "📸 Share"}
