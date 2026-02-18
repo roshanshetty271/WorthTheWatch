@@ -616,18 +616,12 @@ export default function Versus() {
                                             {/* VS + Labels */}
                                             <div className="flex-1 text-center min-w-0">
                                                 <div className="flex flex-col items-center justify-center gap-1">
-                                                    <div className="flex items-center justify-center gap-1.5 w-full px-1">
-                                                        <span className="text-xs sm:text-sm font-bold text-white leading-tight truncate max-w-[45%]">
-                                                            {battle.a.title}
-                                                        </span>
-                                                        <span className="text-accent-gold font-black text-xs sm:text-sm px-0.5">
-                                                            VS
-                                                        </span>
-                                                        <span className="text-xs sm:text-sm font-bold text-white leading-tight truncate max-w-[45%]">
-                                                            {battle.b.title}
-                                                        </span>
+                                                    <div className="flex items-center justify-center gap-2 w-full px-2">
+                                                        <span className="text-sm font-bold text-white leading-tight truncate max-w-[45%]">{battle.a.title}</span>
+                                                        <span className="text-accent-gold font-black text-sm px-1 flex-shrink-0">VS</span>
+                                                        <span className="text-sm font-bold text-white leading-tight truncate max-w-[45%]">{battle.b.title}</span>
                                                     </div>
-                                                    <p className="text-[10px] text-accent-gold/60 mt-2 uppercase tracking-widest font-medium group-hover:text-accent-gold transition-colors truncate w-full">
+                                                    <p className="text-[10px] text-accent-gold/60 mt-2 uppercase tracking-widest font-medium group-hover:text-accent-gold transition-colors">
                                                         {battle.subtitle}
                                                     </p>
                                                 </div>

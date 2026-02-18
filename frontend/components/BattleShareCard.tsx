@@ -170,16 +170,12 @@ export default function BattleShareCard({
                     position: "fixed",
                     top: 0,
                     left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: -50, // Behind everything
-                    pointerEvents: "none",
-                    visibility: "visible", // Ensure it's painted
-                    opacity: 1, // Ensure it's painted
+                    width: "1px",
+                    height: "1px",
+                    opacity: 0,
                     overflow: "hidden",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    pointerEvents: "none",
+                    zIndex: -1,
                 }}
                 aria-hidden="true"
             >
@@ -507,7 +503,7 @@ export default function BattleShareCard({
             <button
                 onClick={handleShare}
                 disabled={isGenerating || !imagesLoaded}
-                className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border ${isGenerating
+                className={`hidden md:block flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border ${isGenerating
                     ? "bg-accent-gold/10 text-accent-gold border-accent-gold/30 animate-pulse"
                     : "bg-surface-elevated text-white/60 hover:text-white hover:bg-white/10 border-white/10"
                     }`}

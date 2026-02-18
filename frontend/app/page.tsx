@@ -154,7 +154,7 @@ export default async function HomePage() {
         )}
 
         {/* Center Content */}
-        <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-36 mb-4 sm:pt-32 sm:mb-32 md:mb-40">
+        <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-24 mb-4 sm:pt-32 sm:mb-32 md:mb-40">
           <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight drop-shadow-xl">
             Don&apos;t watch <br className="hidden sm:block" />
             <span className="text-accent-gold">another bad movie.</span>
@@ -169,7 +169,7 @@ export default async function HomePage() {
 
         {/* Bottom Left: Featured Movie Info */}
         {featured && (
-          <div className="absolute bottom-8 sm:bottom-0 left-0 z-20 w-full p-4 sm:px-12 sm:pb-6 pointer-events-none">
+          <div className="absolute bottom-0 sm:bottom-0 left-0 z-20 w-full p-4 sm:px-12 sm:pb-6 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
                 <div className="mb-2 flex items-center gap-3">
