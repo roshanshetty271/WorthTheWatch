@@ -126,13 +126,25 @@ export default async function HomePage() {
         {/* Background Image */}
         {featured ? (
           <div className="absolute top-0 left-0 right-0 h-[60vh] md:h-auto md:inset-0 z-0 overflow-hidden">
+            {/* Desktop Backdrop */}
             <Image
               src={featured.movie.backdrop_url!}
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="object-cover object-top transition-transform duration-[20s] hover:scale-105"
+              className="hidden md:block object-cover object-top transition-transform duration-[20s] hover:scale-105"
               priority
+              unoptimized
+            />
+            {/* Mobile Poster */}
+            <Image
+              src={featured.movie.poster_url || featured.movie.backdrop_url!}
+              alt={featured.movie.title}
+              fill
+              sizes="100vw"
+              className="block md:hidden object-cover object-center"
+              priority
+              unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-transparent" />

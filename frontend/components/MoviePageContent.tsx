@@ -118,15 +118,33 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 <div className="absolute inset-0 z-0">
                     {backdropSrc ? (
                         <>
-                            <Image
-                                src={backdropSrc}
-                                alt={movie.title}
-                                fill
-                                sizes="100vw"
-                                className={`object-cover ${isPosterFallback ? "object-top opacity-60" : "object-top opacity-90"}`}
-                                priority
-                                onError={handleImageError}
-                            />
+                            {/* Desktop Backdrop */}
+                            <div className="hidden md:block absolute inset-0">
+                                <Image
+                                    src={backdropSrc}
+                                    alt={movie.title}
+                                    fill
+                                    sizes="100vw"
+                                    className={`object-cover ${isPosterFallback ? "object-top opacity-60" : "object-top opacity-90"}`}
+                                    priority
+                                    onError={handleImageError}
+                                    unoptimized
+                                />
+                            </div>
+
+                            {/* Mobile Poster Background */}
+                            <div className="block md:hidden absolute inset-0">
+                                <Image
+                                    src={movie.poster_url || backdropSrc}
+                                    alt={movie.title}
+                                    fill
+                                    sizes="100vw"
+                                    className="object-cover object-center opacity-80"
+                                    priority
+                                    unoptimized
+                                />
+                            </div>
+
                             <div
                                 className="absolute inset-0 z-10"
                                 style={{
