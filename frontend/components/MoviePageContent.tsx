@@ -137,7 +137,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             <div
                                 className="absolute inset-0 z-10"
                                 style={{
-                                    background: "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 60%)"
+                                    background: "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 80%)"
                                 }}
                             />
                             {isPosterFallback && <div className="absolute inset-0 bg-black/40" />}
@@ -197,7 +197,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                             {/* Info */}
                             <div className="flex-1 space-y-2 text-center md:space-y-3 md:text-left">
-                                <h1 className="font-display text-xl text-white drop-shadow-lg sm:text-2xl md:text-5xl">
+                                <h1 className="font-display text-xl text-white text-shadow-hero sm:text-2xl md:text-5xl">
                                     {movie.title}
                                 </h1>
 

@@ -147,7 +147,7 @@ export default async function HomePage() {
               unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent" />
           </div>
         ) : (
           <div className="absolute inset-0 z-0 bg-gradient-to-b from-black via-surface to-surface" />
@@ -155,11 +155,11 @@ export default async function HomePage() {
 
         {/* Center Content */}
         <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-24 mb-4 sm:pt-32 sm:mb-32 md:mb-40">
-          <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight drop-shadow-xl">
+          <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight text-shadow-hero">
             Don&apos;t watch <br />
             <span className="text-accent-gold">another bad movie.</span>
           </h1>
-          <p className="mx-auto mb-8 max-w-lg text-base sm:text-xl text-white/80 font-medium drop-shadow-md">
+          <p className="mx-auto mb-8 max-w-lg text-base sm:text-xl text-white/80 font-medium text-shadow-sub">
             Search any title to get an instant, AI-powered verdict from fans and critics.
           </p>
           <div className="mx-auto max-w-xl sm:max-w-2xl mb-12">
@@ -182,12 +182,12 @@ export default async function HomePage() {
                   )}
                 </div>
                 <Link href={`/movie/${featured.movie.tmdb_id}?type=${featured.movie.media_type || "movie"}`} className="group block">
-                  <h2 className="font-display text-xl text-white drop-shadow-lg transition-colors group-hover:text-accent-gold sm:text-3xl md:text-4xl">
+                  <h2 className="font-display text-xl text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-3xl md:text-4xl">
                     {featured.movie.title}
                   </h2>
                 </Link>
                 {featured.review?.vibe && (
-                  <p className="mt-1 max-w-lg text-sm italic text-white/80 drop-shadow-md">
+                  <p className="mt-1 max-w-lg text-sm italic text-white/80 text-shadow-sub">
                     &ldquo;{featured.review.vibe}&rdquo;
                   </p>
                 )}
