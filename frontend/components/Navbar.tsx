@@ -181,7 +181,7 @@ export default function Navbar() {
                 {/* Mobile Menu Overlay */}
                 <div
                     className={`
-                        fixed inset-0 z-40 bg-surface/95 backdrop-blur-xl transition-transform duration-300 md:hidden flex items-center justify-center
+                        fixed inset-0 z-40 bg-surface backdrop-blur-xl transition-transform duration-300 md:hidden flex items-center justify-center
                         ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}
                     `}
                 >

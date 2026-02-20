@@ -156,7 +156,7 @@ export default async function HomePage() {
         {/* Center Content */}
         <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-24 mb-4 sm:pt-32 sm:mb-32 md:mb-40">
           <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight drop-shadow-xl">
-            Don&apos;t watch <br className="hidden sm:block" />
+            Don&apos;t watch <br />
             <span className="text-accent-gold">another bad movie.</span>
           </h1>
           <p className="mx-auto mb-8 max-w-lg text-base sm:text-xl text-white/80 font-medium drop-shadow-md">
