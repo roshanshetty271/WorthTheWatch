@@ -17,11 +17,13 @@ Live App: [worth-the-watch.vercel.app](https://worth-the-watch.vercel.app/)
 - **Streaming Availability** — Integrated JustWatch data showing exactly where to stream, rent, or buy across all major platforms.
 
 ## Tech Stack
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Framer Motion
-- **Backend**: FastAPI, Python, SQLAlchemy (Async), Pydantic
+- **Frontend**: Next.js 16, TypeScript, Tailwind CSS, Framer Motion
+- **Backend**: FastAPI, Python 3.11, SQLAlchemy (Async), Pydantic
 - **Database**: Neon PostgreSQL (Serverless)
 - **AI/LLM**: OpenAI GPT-4o-mini / DeepSeek-V3 (with automatic failover)
+- **Auth**: NextAuth.js v5 (Google OAuth, Neon adapter)
 - **APIs**: TMDB, Guardian, NYT, Serper, OMDB, KinoCheck, Jina Reader
+- **Testing**: Playwright (E2E, accessibility via axe-core)
 - **Hosting**: Vercel (Frontend), Koyeb (Backend), Neon (Database)
 - *All infrastructure is running on optimized free-tier configurations.*
 
