@@ -142,7 +142,7 @@ export default async function HomePage() {
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="block md:hidden object-cover object-center"
+              className="block md:hidden object-cover object-top"
               priority
               unoptimized
             />
@@ -169,7 +169,7 @@ export default async function HomePage() {
 
         {/* Bottom Left: Featured Movie Info */}
         {featured && (
-          <div className="absolute bottom-0 sm:bottom-0 left-0 z-20 w-full p-4 sm:px-12 sm:pb-6 pointer-events-none">
+          <div className="relative sm:absolute sm:bottom-0 left-0 z-20 w-full p-4 sm:px-12 sm:pb-6 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
                 <div className="mb-2 flex items-center gap-3">
