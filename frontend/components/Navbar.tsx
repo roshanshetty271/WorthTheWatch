@@ -178,64 +178,65 @@ export default function Navbar() {
                     </div>
                 </div>
 
-                {/* Mobile Menu Overlay */}
-                <div
-                    className={`
-                        fixed inset-0 z-40 bg-surface backdrop-blur-xl transition-transform duration-300 md:hidden flex items-center justify-center
-                        ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}
-                    `}
-                >
-                    <div className="flex flex-col items-center gap-8">
-                        <button
-                            onClick={() => {
-                                setMobileMenuOpen(false);
-                                if (pathname === "/") {
-                                    setTimeout(() => {
-                                        document.getElementById("now-playing")?.scrollIntoView({ behavior: "smooth" });
-                                    }, 300);
-                                } else {
-                                    router.push("/#now-playing");
-                                }
-                            }}
-                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
-                        >
-                            What&apos;s New
-                        </button>
-                        <Link
-                            href="/discover"
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
-                        >
-                            Discover
-                        </Link>
-                        <Link
-                            href="/browse/mood/tired"
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
-                        >
-                            Mood Based
-                        </Link>
-                        <Link
-                            href="/versus"
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
-                        >
-                            Movie Battle
-                        </Link>
-                        <Link
-                            href="/my-list"
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
-                        >
-                            My List{mounted && count > 0 ? ` (${count})` : ""}
-                        </Link>
+            </nav>
 
-                        <div className="mt-4">
-                            <AuthButton />
-                        </div>
+            {/* Mobile Menu Overlay — outside nav to avoid fixed-inside-fixed positioning bugs on mobile */}
+            <div
+                className={`
+                    fixed inset-0 z-[45] bg-surface transition-transform duration-300 md:hidden flex items-center justify-center
+                    ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}
+                `}
+            >
+                <div className="flex flex-col items-center gap-8">
+                    <button
+                        onClick={() => {
+                            setMobileMenuOpen(false);
+                            if (pathname === "/") {
+                                setTimeout(() => {
+                                    document.getElementById("now-playing")?.scrollIntoView({ behavior: "smooth" });
+                                }, 300);
+                            } else {
+                                router.push("/#now-playing");
+                            }
+                        }}
+                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                    >
+                        What&apos;s New
+                    </button>
+                    <Link
+                        href="/discover"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                    >
+                        Discover
+                    </Link>
+                    <Link
+                        href="/browse/mood/tired"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                    >
+                        Mood Based
+                    </Link>
+                    <Link
+                        href="/versus"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                    >
+                        Movie Battle
+                    </Link>
+                    <Link
+                        href="/my-list"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                    >
+                        My List{mounted && count > 0 ? ` (${count})` : ""}
+                    </Link>
+
+                    <div className="mt-4">
+                        <AuthButton />
                     </div>
                 </div>
-            </nav>
+            </div>
 
             <CinemaRoulette
                 isOpen={rouletteOpen}

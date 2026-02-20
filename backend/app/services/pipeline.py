@@ -420,7 +420,6 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         search_results = await asyncio.gather(
             serper_service.search_reviews(search_query, year, movie.media_type or "movie", director_context),
             serper_service.search_reddit(search_query, year, movie.media_type or "movie", director_context),
-            serper_service.search_forums(search_query, year, movie.media_type or "movie", director_context),
             guardian_service.search_film_reviews(search_query, year),
             nyt_service.search_reviews(search_query),
             omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
@@ -431,11 +430,10 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         # Unpack results
         serper_critics = search_results[0] if not isinstance(search_results[0], Exception) else []
         serper_reddit = search_results[1] if not isinstance(search_results[1], Exception) else []
-        serper_forums = search_results[2] if not isinstance(search_results[2], Exception) else []
-        guardian_results = search_results[3] if not isinstance(search_results[3], Exception) else []
-        nyt_results = search_results[4] if not isinstance(search_results[4], Exception) else []
-        omdb_data = search_results[5] if not isinstance(search_results[5], Exception) else None
-        trailer_url = search_results[6] if not isinstance(search_results[6], Exception) else None
+        guardian_results = search_results[2] if not isinstance(search_results[2], Exception) else []
+        nyt_results = search_results[3] if not isinstance(search_results[3], Exception) else []
+        omdb_data = search_results[4] if not isinstance(search_results[4], Exception) else None
+        trailer_url = search_results[5] if not isinstance(search_results[5], Exception) else None
         
         # Vote Count Sanity Check
         # Avoid matching a popular movie (TMDB) with an obscure one (IMDb) just by title/year
@@ -465,12 +463,11 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         # Log failures
         if isinstance(search_results[0], Exception): logger.error(f"Critic search failed: {search_results[0]}")
         if isinstance(search_results[1], Exception): logger.error(f"Reddit search failed: {search_results[1]}")
-        if isinstance(search_results[2], Exception): logger.error(f"Forum search failed: {search_results[2]}")
-        if isinstance(search_results[3], Exception): logger.warning(f"Guardian search failed: {search_results[3]}")
-        if isinstance(search_results[4], Exception): logger.warning(f"NYT search failed: {search_results[4]}")
+        if isinstance(search_results[2], Exception): logger.warning(f"Guardian search failed: {search_results[2]}")
+        if isinstance(search_results[3], Exception): logger.warning(f"NYT search failed: {search_results[3]}")
 
         # Combine all results
-        all_results = serper_critics + serper_reddit + serper_forums
+        all_results = serper_critics + serper_reddit
         
         # Add critic URLs to results
         for article in guardian_results:
@@ -536,8 +533,8 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # ─── STEP: Read articles ───
     articles, failed_urls = await jina_service.read_urls(selected_urls, max_concurrent=5)
     
-    # ─── STEP: Smart backfill — only if we're short on data ───
-    if len(articles) >= 5:
+    # ─── STEP: Smart backfill — only if we're genuinely short on data ───
+    if len(articles) >= 4:
         logger.info(f"📚 {len(articles)} articles sufficient — skipping backfill")
     elif backfill_urls:
         backfill_count = min(3, len(backfill_urls))

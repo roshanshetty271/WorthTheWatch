@@ -69,7 +69,7 @@ class ArticleReader:
 
     # ─── Main Entry Points ────────────────────────────────
 
-    async def read_url(self, url: str, timeout: float = 8.0) -> Optional[str]:
+    async def read_url(self, url: str, timeout: float = 5.0) -> Optional[str]:
         """Read a single URL and return clean text content."""
         url_lower = url.lower()
 
@@ -82,7 +82,7 @@ class ArticleReader:
         else:
             return await self._read_with_selectolax(url, timeout)
 
-    async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0) -> tuple[list[str], list[str]]:
+    async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 5.0) -> tuple[list[str], list[str]]:
         """
         Race to 5: Fire all non-Reddit URLs immediately.
         Return as soon as 5 quality articles are collected.
@@ -314,7 +314,7 @@ class ArticleReader:
 
     # ─── Core Fetch Methods ───────────────────────────────
 
-    async def _fetch_and_parse(self, url: str, timeout: float = 8.0) -> Optional[str]:
+    async def _fetch_and_parse(self, url: str, timeout: float = 5.0) -> Optional[str]:
         """Single fetch + parse attempt. No retries. Returns clean text or None."""
         t_start = time.time()
         
@@ -390,7 +390,7 @@ class ArticleReader:
             logger.debug(f"Fetch error for {url[:60]}: {e}")
             return None
 
-    async def _fetch_google_cache(self, url: str, timeout: float = 8.0) -> Optional[str]:
+    async def _fetch_google_cache(self, url: str, timeout: float = 5.0) -> Optional[str]:
         """Fetch Reddit content via Google's web cache."""
         # Normalize to www.reddit.com for cache lookup
         original = url.replace("old.reddit.com", "www.reddit.com")
