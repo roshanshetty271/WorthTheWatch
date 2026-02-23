@@ -233,12 +233,12 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
 
       {/* Praise & Criticism Grid */}
       <div className="grid gap-6 sm:grid-cols-2 pt-4">
-        {review.praise_points && review.praise_points.length > 0 && (
-          <div className="rounded-xl bg-verdict-worth/5 border border-verdict-worth/10 p-5 transition-colors hover:bg-verdict-worth/10">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-verdict-worth">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-verdict-worth/20 text-xs">✓</span>
-              The Good
-            </h3>
+        <div className="rounded-xl bg-verdict-worth/5 border border-verdict-worth/10 p-5 transition-colors hover:bg-verdict-worth/10">
+          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-verdict-worth">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-verdict-worth/20 text-xs">✓</span>
+            The Good
+          </h3>
+          {review.praise_points && review.praise_points.length > 0 ? (
             <ul className="space-y-3">
               {review.praise_points.map((point, i) => (
                 <li key={i} className="text-base leading-snug text-text-secondary/90">
@@ -246,8 +246,12 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
                 </li>
               ))}
             </ul>
-          </div>
-        )}
+          ) : (
+            <p className="text-base italic text-text-secondary/50">
+              Nothing noteworthy
+            </p>
+          )}
+        </div>
 
         {review.criticism_points && review.criticism_points.length > 0 && (
           <div className="rounded-xl bg-verdict-skip/5 border border-verdict-skip/10 p-5 transition-colors hover:bg-verdict-skip/10">

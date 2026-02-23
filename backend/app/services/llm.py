@@ -168,7 +168,7 @@ OUTPUT FORMAT (strict JSON, no markdown fences):
   "review_text": "The full review (150-250 words)",
   "verdict": "WORTH IT" | "NOT WORTH IT" | "MIXED BAG",
   "hook": "One punchy sentence, max 20 words, captures the most interesting thing",
-  "praise_points": ["Specific praise point 1", "Specific praise point 2"],
+  "praise_points": ["Specific praise point 1", "Specific praise point 2"],  // NEVER leave empty — see rules below
   "criticism_points": ["Specific criticism point 1", "Specific criticism point 2"],
   "vibe": "one-line vibe description",
   "confidence": "HIGH" | "MEDIUM" | "LOW",
@@ -296,6 +296,7 @@ MANDATORY INSTRUCTIONS:
 5. REMEMBER: If your verdict is WORTH IT, the last sentence MUST be enthusiastic and positive. No caveats. No "skip if" warnings. Sell the movie.
 6. REMEMBER: If your verdict is NOT WORTH IT, be funny about it. Roast with humor, not cruelty.
 7. CRITICAL SPEED RULE: Keep 'review_text' under 180 words. Be punchy and direct.
+8. PRAISE POINTS RULE: praise_points must NEVER be an empty array. If the movie is genuinely terrible and you cannot find real praise, include ONE witty, self-aware line that humorously acknowledges there is nothing good. Make it specific to the movie, not generic. Examples: "At least it is only 89 minutes long", "The poster looked cool", "It made every other superhero movie look like a masterpiece by comparison". Be creative and funny.
 """
 
     content = None
