@@ -11,15 +11,19 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
 
+  /* Clean out old test results before each run */
+  outputDir: './test-results',
+
   reporter: process.env.CI
     ? [['list'], ['html', { open: 'never' }]]
-    : [['html', { open: 'on-failure' }]],
+    : [['list'], ['html', { open: 'on-failure' }]],
 
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    /* Only record video in CI (saves disk/memory locally) */
+    video: process.env.CI ? 'retain-on-failure' : 'off',
   },
 
   projects: [

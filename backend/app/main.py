@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 
 from app.config import get_settings
 from app.database import init_db, get_db
@@ -90,6 +90,23 @@ app.include_router(search.router, prefix="/api", tags=["search"])
 app.include_router(versus.router, prefix="/api/versus", tags=["versus"])
 app.include_router(nowplaying.router, prefix="/api/nowplaying", tags=["nowplaying"])
 app.include_router(discover.router, prefix="/api/discover", tags=["discover"])
+
+
+# ─── Sitemap (SEO) ────────────────────────────────────────
+
+@app.get("/api/sitemap")
+async def get_sitemap_data(db: AsyncSession = Depends(get_db)):
+    """Returns all reviewed movie IDs for sitemap generation."""
+    result = await db.execute(
+        select(Movie.tmdb_id, Movie.title, Review.generated_at)
+        .join(Review)
+        .order_by(desc(Review.generated_at))
+    )
+    rows = result.all()
+    return [
+        {"tmdb_id": r.tmdb_id, "title": r.title, "updated_at": r.generated_at.isoformat()}
+        for r in rows
+    ]
 
 
 # ─── Health Check ─────────────────────────────────────────

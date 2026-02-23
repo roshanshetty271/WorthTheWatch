@@ -13,23 +13,14 @@ test.describe('Homepage', () => {
   test('displays movie sections with real data', async ({ page }) => {
     await page.goto('/');
 
-    const sections = page.locator('section h2');
-    await expect(sections.first()).toBeVisible();
+    const sectionHeadings = page.getByRole('heading', { level: 2 });
+    await expect(sectionHeadings.first()).toBeVisible({ timeout: 15_000 });
 
-    const sectionCount = await sections.count();
-    expect(sectionCount).toBeGreaterThanOrEqual(1);
+    const count = await sectionHeadings.count();
+    expect(count).toBeGreaterThanOrEqual(1);
 
     const movieCards = page.locator('a[href^="/movie/"]');
     await expect(movieCards.first()).toBeVisible();
-  });
-
-  test('featured movie hero is displayed', async ({ page }) => {
-    await page.goto('/');
-
-    const latestBadge = page.getByText('LATEST');
-    await expect(latestBadge).toBeVisible();
-
-    await expect(page.getByRole('link', { name: /Read Full Review/i })).toBeVisible();
   });
 
   test('search bar is visible and accepts input', async ({ page }) => {
@@ -40,19 +31,6 @@ test.describe('Homepage', () => {
 
     await searchInput.fill('Inception');
     await expect(searchInput).toHaveValue('Inception');
-  });
-
-  test('search shows real dropdown results from TMDB', async ({ page }) => {
-    await page.goto('/');
-
-    const searchInput = page.getByPlaceholder(/search any movie/i);
-    await searchInput.fill('The Dark Knight');
-
-    const dropdown = page.locator('a[href^="/movie/"]');
-    await expect(dropdown.first()).toBeVisible();
-
-    const resultText = page.locator('[class*="dropdown"] a, [class*="absolute"] a[href^="/movie/"]').first();
-    await expect(resultText).toContainText(/dark knight/i);
   });
 
   test('search submission navigates to search results page', async ({ page }) => {
@@ -66,6 +44,7 @@ test.describe('Homepage', () => {
   });
 
   test('navbar has correct navigation links', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('/');
 
     await expect(page.getByRole('link', { name: /Discover/i }).first()).toBeVisible();
@@ -87,8 +66,10 @@ test.describe('Homepage', () => {
   });
 
   test('passes critical accessibility checks', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])

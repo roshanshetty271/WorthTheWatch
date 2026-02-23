@@ -194,7 +194,7 @@ export default function SearchBar({
 
       {/* Dropdown Results */}
       {showDropdown && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden max-h-[60vh] flex flex-col">
+        <div data-testid="search-dropdown" className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden max-h-[60vh] flex flex-col">
 
           {/* Correction Banner */}
           {suggestion && (

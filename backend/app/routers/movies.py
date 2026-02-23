@@ -306,6 +306,7 @@ async def get_random_movie_with_review(
     return _format_movie_with_review(movie)
 
 
+
 @router.get("/{tmdb_id}", response_model=MovieWithReview)
 async def get_movie(
     tmdb_id: int,
@@ -458,13 +459,6 @@ async def get_streaming_availability(
     rent = [format_provider(p) for p in providers.get("rent", [])]
     buy = [format_provider(p) for p in providers.get("buy", [])]
     free = [format_provider(p) for p in (providers.get("free", []) + providers.get("ads", []))]
-
-    return {
-        "available": bool(flatrate or rent or buy or free),
-        "flatrate": flatrate, "rent": rent, "buy": buy, "free": free,
-        "justwatch_link": providers.get("link", ""),
-    }
-
 
     return {
         "available": bool(flatrate or rent or buy or free),
