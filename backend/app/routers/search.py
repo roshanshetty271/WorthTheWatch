@@ -1,12 +1,18 @@
 """
 Worth the Watch? — Search Router
 Search for movies and trigger on-demand review generation.
+Includes SSE streaming for real-time progress updates.
 """
 
 import hashlib
 import os
+import json
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, Query, Request, BackgroundTasks
-from sqlalchemy import select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -20,6 +26,8 @@ from app.services.pipeline import (
     job_progress,
 )
 from app.middleware.rate_limit import check_rate_limit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
@@ -40,25 +48,20 @@ async def quick_search(
 
     # 1. Exact/Partial Search Results found?
     if not tmdb_results:
-        # 2. Try Advanced Fuzzy Search (Prioritize "The Martian" over random substrings)
+        # 2. Try Advanced Fuzzy Search
         fuzzy_match = await tmdb_service.fuzzy_search(q)
         if fuzzy_match:
             tmdb_results = fuzzy_match["results"][:3]
             suggestion = fuzzy_match["suggestion"]
             is_fuzzy = True
         
-        # 3. If Fuzzy fails, try Recursive Trimming (for simple suffix typos)
+        # 3. If Fuzzy fails, try Recursive Trimming
         if not tmdb_results:
             trimmed_q = q
             while len(trimmed_q) > 3 and not tmdb_results:
                 trimmed_q = trimmed_q[:-1]
                 tmdb_results = await tmdb_service.search(trimmed_q)
                 if tmdb_results:
-                    # Don't set is_fuzzy=True for simple substring matches if 
-                    # we want to avoid the "Did you mean..." being weird.
-                    # But the user might want to know why they are seeing "Demetri Martin" for "martia"
-                    # Actually, if it's a substring match, the results might just be valid partial matches.
-                    # Let's set fuzzy=True but maybe suppress the generic banner if suggestion is None?
                     is_fuzzy = True
                     tmdb_results = tmdb_results[:3]
                     break
@@ -66,8 +69,6 @@ async def quick_search(
     if not tmdb_results:
         return {"results": [], "did_you_mean": False, "suggestion": None}
     
-    # Fetch existing movies from DB to check for reviews AND custom posters (Serper fallback)
-    # Limit: Normal=8, Fuzzy=3
     limit = 3 if is_fuzzy else 8
     tmdb_ids = [r["id"] for r in tmdb_results[:limit]]
     
@@ -81,22 +82,13 @@ async def quick_search(
     for item in tmdb_results[:limit]:
         normalized = tmdb_service.normalize_result(item)
         tmdb_id = item["id"]
-        
-        # Check DB for overrides
         db_movie = db_movies.get(tmdb_id)
         has_review = False
         poster_url = normalized.get("poster_url")
-
         if db_movie:
-            # Check if review exists (we need to load it or check the relationship)
-            # Since we didn't eager load 'review', we can't just check db_movie.review easily 
-            # without an async load or modifying the query. 
-            # But wait, we can just check if review is not None if we eager load or join.
-            # Let's simple fix: The previous query used a join to filter. 
-            # We want to know if it HAS a review, and also get the poster.
             pass
 
-    # improving the query to get both pieces of info efficiently
+    # Improved query with eager loading
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
@@ -109,18 +101,13 @@ async def quick_search(
         normalized = tmdb_service.normalize_result(item)
         tmdb_id = item["id"]
         
-        # Default to TMDB data
         final_poster_url = normalized.get("poster_url")
         has_review = False
         
-        # Override with DB data if available
         if tmdb_id in db_movies_map:
             db_m = db_movies_map[tmdb_id]
             if db_m.review:
                 has_review = True
-            
-            # If DB has a poster and TMDB doesn't (or we trust DB more), use DB
-            # Especially for Serper fallbacks which are full URLs in poster_path
             if db_m.poster_path:
                 final_poster_url = tmdb_service.get_poster_url(db_m.poster_path)
 
@@ -140,16 +127,11 @@ async def search_movies(
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Search for a movie/show. If found in DB with review, returns immediately.
-    If not in DB, searches TMDB and triggers background review generation.
-    """
-    # Log search event (salted hash for privacy)
+    """Search for a movie/show."""
     raw_ip = request.client.host if request.client else "unknown"
     ip_hash = hashlib.sha256(f"{IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
     db.add(SearchEvent(query=q, ip_hash=ip_hash))
 
-    # Check if already in our DB (case-insensitive search)
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
@@ -158,7 +140,6 @@ async def search_movies(
     )
     db_movies = result.unique().scalars().all()
 
-    # Check if we have any reviewed movies in DB
     reviewed = [m for m in db_movies if m.review]
     db_match = None
     if reviewed:
@@ -181,10 +162,8 @@ async def search_movies(
         review_resp = ReviewResponse.model_validate(movie.review)
         db_match = MovieWithReview(movie=movie_resp, review=review_resp)
 
-    # ALWAYS search TMDB for disambiguation options
     tmdb_results = await tmdb_service.search(q)
 
-    # Fuzzy Fallback for full search page too
     if not tmdb_results and len(q) > 3:
         tmdb_results = await tmdb_service.search(q[:-1])
 
@@ -194,13 +173,12 @@ async def search_movies(
             tmdb_results=[],
         )
 
-    # Return both DB match (if any) AND TMDB results for disambiguation
     return SearchResult(
         found_in_db=db_match is not None,
-        movie=db_match,  # Include DB match if we have one
+        movie=db_match,
         tmdb_results=[
             MovieBase(**tmdb_service.normalize_result(r))
-            for r in tmdb_results[:8]  # Show more options for disambiguation
+            for r in tmdb_results[:8]
         ],
         generation_status=None,
     )
@@ -215,7 +193,6 @@ async def trigger_generation(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually trigger review generation for a specific TMDB ID."""
-    # Check if review already exists
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
@@ -226,9 +203,7 @@ async def trigger_generation(
     if movie and movie.review:
         return {"status": "already_exists", "tmdb_id": tmdb_id}
 
-    # ─── Block unreleased movies ─────────────────────────────
-    # Check TMDB for release date. Don't waste API credits on movies
-    # that haven't been released yet — there are no reviews to scrape.
+    # Block unreleased movies
     from datetime import date
     try:
         if media_type == "tv":
@@ -248,13 +223,10 @@ async def trigger_generation(
                     "message": f"This title hasn't been released yet. Check back after {raw_date}.",
                 }
     except (ValueError, TypeError):
-        pass  # If we can't parse the date, allow generation
-    # ─────────────────────────────────────────────────────────
+        pass
 
-    # Rate limit
     await check_rate_limit(request, is_generation=True)
 
-    # Trigger background generation
     background_tasks.add_task(
         _generate_review_background,
         tmdb_id=tmdb_id,
@@ -264,12 +236,117 @@ async def trigger_generation(
     return {"status": "generating", "tmdb_id": tmdb_id}
 
 
+# ─── REGENERATE ENDPOINT ────────────────────────────────────
+@router.post("/regenerate/{tmdb_id}")
+async def regenerate_review(
+    tmdb_id: int,
+    media_type: str = Query("movie", pattern="^(movie|tv)$"),
+    request: Request = None,
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete existing review and regenerate with fresh data."""
+    # Rate limit (counts as a generation)
+    await check_rate_limit(request, is_generation=True)
+
+    # Find the movie
+    result = await db.execute(
+        select(Movie)
+        .options(joinedload(Movie.review))
+        .where(Movie.tmdb_id == tmdb_id)
+    )
+    movie = result.unique().scalar_one_or_none()
+
+    # Delete existing review if it exists
+    if movie and movie.review:
+        await db.execute(
+            delete(Review).where(Review.movie_id == movie.id)
+        )
+        await db.commit()
+        logger.info(f"🗑️ Deleted old review for {movie.title} (tmdb_id={tmdb_id})")
+
+    # Trigger fresh generation
+    background_tasks.add_task(
+        _generate_review_background,
+        tmdb_id=tmdb_id,
+        media_type=media_type,
+    )
+
+    return {"status": "regenerating", "tmdb_id": tmdb_id}
+
+
+# ─── SSE STREAM ENDPOINT ────────────────────────────────────
+@router.get("/stream/{tmdb_id}")
+async def stream_generation_status(
+    tmdb_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Server-Sent Events stream for real-time generation progress.
+    Frontend connects via EventSource. Falls back to polling if SSE fails.
+    """
+    async def event_generator():
+        last_progress = ""
+        max_wait = 120  # 2 minute timeout
+        elapsed = 0
+        logger.info(f"📡 SSE stream opened for tmdb_id={tmdb_id}")
+
+        while elapsed < max_wait:
+            # Check if review is completed
+            async with async_session() as check_db:
+                result = await check_db.execute(
+                    select(Movie)
+                    .options(joinedload(Movie.review))
+                    .where(Movie.tmdb_id == tmdb_id)
+                )
+                movie = result.unique().scalar_one_or_none()
+
+                if movie and movie.review:
+                    review_resp = ReviewResponse.model_validate(movie.review)
+                    logger.info(f"📡 SSE: Sending completed event for tmdb_id={tmdb_id}")
+                    yield f"data: {json.dumps({'type': 'completed', 'review': review_resp.model_dump(mode='json')})}\n\n"
+                    return
+
+            # Check progress
+            progress_data = job_progress.get(tmdb_id)
+            if progress_data:
+                if isinstance(progress_data, dict):
+                    msg = progress_data.get("message", "Processing...")
+                    pct = progress_data.get("percent", 0)
+                else:
+                    msg = str(progress_data)
+                    pct = 0
+
+                # Only send if progress changed
+                if msg != last_progress:
+                    last_progress = msg
+                    logger.info(f"📡 SSE: {msg} ({pct}%) for tmdb_id={tmdb_id}")
+                    yield f"data: {json.dumps({'type': 'progress', 'message': msg, 'percent': pct})}\n\n"
+
+            await asyncio.sleep(1)
+            elapsed += 1
+
+        # Timeout
+        logger.warning(f"📡 SSE: Timeout for tmdb_id={tmdb_id}")
+        yield f"data: {json.dumps({'type': 'error', 'message': 'Generation timed out. Please try again.'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
 @router.get("/status/{tmdb_id}")
 async def check_generation_status(
     tmdb_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Poll for review generation status."""
+    """Poll for review generation status (fallback for SSE)."""
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
@@ -278,8 +355,6 @@ async def check_generation_status(
     movie = result.unique().scalar_one_or_none()
 
     if not movie:
-        # Check if it's currently processing but not yet in DB (unlikely with our flow)
-        # or just started
         progress_data = job_progress.get(tmdb_id)
         if progress_data:
              if isinstance(progress_data, dict):
@@ -309,7 +384,6 @@ async def check_generation_status(
             "movie": MovieWithReview(movie=movie_resp, review=review_resp),
         }
 
-    # Movie exists but no review yet -> likely generating
     progress_data = job_progress.get(tmdb_id, {"message": "Preparing...", "percent": 0})
     if isinstance(progress_data, dict):
         return {"status": "generating", "progress": progress_data.get("message", "Processing..."), "percent": progress_data.get("percent", 0)}
@@ -318,9 +392,6 @@ async def check_generation_status(
 
 async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
     """Background task: generate a review for a movie."""
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
         async with async_session() as db:
             try:
@@ -330,5 +401,8 @@ async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
             except Exception as e:
                 await db.rollback()
                 logger.error(f"Background generation failed for {tmdb_id}: {e}")
+                # Store error in job_progress so SSE/polling can report it
+                job_progress[tmdb_id] = {"message": f"Failed: {str(e)[:100]}", "percent": 0}
     except Exception as e:
         logger.critical(f"🚨 Background generation task crashed for {tmdb_id}: {e}")
+        job_progress[tmdb_id] = {"message": "Generation crashed. Please try again.", "percent": 0}
