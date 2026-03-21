@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/next";
@@ -67,10 +68,22 @@ export default function RootLayout({
           <Analytics />
 
           {/* Footer */}
-          <footer className="border-t border-surface-elevated/50 py-8 text-center">
-            <p className="text-sm text-text-secondary">
-              Worth the Watch?
-            </p>
+          <footer className="border-t border-surface-elevated/50 mt-12">
+            <div className="mx-auto max-w-6xl px-6 py-10 sm:py-12">
+              <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-display text-lg text-white">Worth the Watch?</p>
+                  <p className="mt-1 text-sm text-text-secondary/60">Don&apos;t watch another bad movie.</p>
+                </div>
+
+                <nav className="flex gap-x-10 gap-y-2 flex-wrap text-sm" aria-label="Footer">
+                  <Link href="/discover" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Discover</Link>
+                  <Link href="/browse/mood/tired" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Mood Based</Link>
+                  <Link href="/versus" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Movie Battle</Link>
+                  <Link href="/my-list" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">My List</Link>
+                </nav>
+              </div>
+            </div>
           </footer>
         </AuthProvider>
       </body>
