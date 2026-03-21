@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import TriviaLoader from "./TriviaLoader";
 import ReviewContent from "./ReviewContent";
 import ErrorState from "./ErrorState";
+import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import type { Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -27,11 +29,13 @@ export default function ReviewSection({
     releaseDate,
 }: ReviewSectionProps) {
     const router = useRouter();
+    const { canGenerate, incrementGeneration, isSignedIn } = useSignInPrompt();
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState("Preparing...");
     const [percent, setPercent] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    const [rateLimitInfo, setRateLimitInfo] = useState<{ type: string; message: string; retryAfter: number; limitType: string } | null>(null);
     const [regenerating, setRegenerating] = useState(false);
     const eventSourceRef = useRef<EventSource | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
@@ -132,8 +136,19 @@ export default function ReviewSection({
     async function handleGenerate() {
         if (isUnreleased) return;
 
+        if (!canGenerate) {
+            setRateLimitInfo({
+                type: "soft_limit",
+                message: "You've used your free verdicts for today. Sign in to unlock more!",
+                retryAfter: 0,
+                limitType: "generation",
+            });
+            return;
+        }
+
         setGenerating(true);
         setError(null);
+        setRateLimitInfo(null);
         setProgress("Starting...");
         setPercent(5);
 
@@ -146,7 +161,22 @@ export default function ReviewSection({
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
                 if (res.status === 429) {
-                    setError("Rate limit reached. Please wait a moment before trying again.");
+                    const detail = data.detail;
+                    if (detail && typeof detail === "object" && detail.type) {
+                        setRateLimitInfo({
+                            type: detail.type,
+                            message: detail.message || "Rate limit reached.",
+                            retryAfter: detail.retry_after_seconds || 0,
+                            limitType: detail.limit_type || "generation",
+                        });
+                    } else {
+                        setRateLimitInfo({
+                            type: "ip_daily_limit",
+                            message: typeof detail === "string" ? detail : "Rate limit reached. Try again later.",
+                            retryAfter: 0,
+                            limitType: "generation",
+                        });
+                    }
                     setGenerating(false);
                     return;
                 }
@@ -162,6 +192,8 @@ export default function ReviewSection({
                 setError(data.message || "This title hasn't been released yet.");
                 return;
             }
+
+            incrementGeneration();
 
             // Try SSE, fall back to polling
             try {
@@ -180,10 +212,21 @@ export default function ReviewSection({
     async function handleRegenerate() {
         if (isUnreleased) return;
 
+        if (!canGenerate) {
+            setRateLimitInfo({
+                type: "soft_limit",
+                message: "You've used your free verdicts for today. Sign in to unlock more!",
+                retryAfter: 0,
+                limitType: "generation",
+            });
+            return;
+        }
+
         setRegenerating(true);
         setGenerating(true);
         setReview(null);
         setError(null);
+        setRateLimitInfo(null);
         setProgress("Refreshing verdict with latest data...");
         setPercent(5);
 
@@ -196,13 +239,30 @@ export default function ReviewSection({
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
                 if (res.status === 429) {
-                    setError("Rate limit reached. Please wait a moment before trying again.");
+                    const detail = data.detail;
+                    if (detail && typeof detail === "object" && detail.type) {
+                        setRateLimitInfo({
+                            type: detail.type,
+                            message: detail.message || "Rate limit reached.",
+                            retryAfter: detail.retry_after_seconds || 0,
+                            limitType: detail.limit_type || "generation",
+                        });
+                    } else {
+                        setRateLimitInfo({
+                            type: "ip_daily_limit",
+                            message: typeof detail === "string" ? detail : "Rate limit reached.",
+                            retryAfter: 0,
+                            limitType: "generation",
+                        });
+                    }
                     setGenerating(false);
                     setRegenerating(false);
                     return;
                 }
                 throw new Error(data.detail || "Failed to regenerate");
             }
+
+            incrementGeneration();
 
             try {
                 startSSEStream();
@@ -307,7 +367,31 @@ export default function ReviewSection({
     // ─── STATE 3: No review ────────────────────────────────
     return (
         <div className="mt-8 text-center">
-            {error && (
+            {rateLimitInfo && (
+                <div className="mb-6 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6 text-center">
+                    <p className="text-lg mb-2" aria-hidden="true">
+                        {rateLimitInfo.type === "global_hourly_limit" ? "🔥" : "⏳"}
+                    </p>
+                    <p className="text-sm text-text-secondary mb-4">
+                        {rateLimitInfo.message}
+                    </p>
+                    {rateLimitInfo.retryAfter > 0 && (
+                        <p className="text-xs text-text-muted mb-4">
+                            Try again in {Math.ceil(rateLimitInfo.retryAfter / 60)} minute{rateLimitInfo.retryAfter > 60 ? "s" : ""}
+                        </p>
+                    )}
+                    {!isSignedIn && (
+                        <button
+                            onClick={() => signIn("google")}
+                            className="px-5 py-2.5 bg-accent-gold text-black font-bold rounded-xl text-sm hover:bg-accent-goldLight transition-colors"
+                        >
+                            Sign in for more verdicts
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {error && !rateLimitInfo && (
                 <div className="mb-6">
                     <ErrorState
                         title="Generation Failed"
@@ -318,7 +402,7 @@ export default function ReviewSection({
                 </div>
             )}
 
-            {!error && (
+            {!error && !rateLimitInfo && (
                 <>
                     {isUnreleased ? (
                         <>

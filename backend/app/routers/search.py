@@ -203,6 +203,9 @@ async def trigger_generation(
     if movie and movie.review:
         return {"status": "already_exists", "tmdb_id": tmdb_id}
 
+    if tmdb_id in job_progress:
+        return {"status": "generating", "message": "Review generation already in progress"}
+
     # Block unreleased movies
     from datetime import date
     try:
@@ -225,7 +228,7 @@ async def trigger_generation(
     except (ValueError, TypeError):
         pass
 
-    await check_rate_limit(request, is_generation=True)
+    await check_rate_limit(request, limit_type="generation")
 
     background_tasks.add_task(
         _generate_review_background,
@@ -246,8 +249,7 @@ async def regenerate_review(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete existing review and regenerate with fresh data."""
-    # Rate limit (counts as a generation)
-    await check_rate_limit(request, is_generation=True)
+    await check_rate_limit(request, limit_type="generation")
 
     # Find the movie
     result = await db.execute(

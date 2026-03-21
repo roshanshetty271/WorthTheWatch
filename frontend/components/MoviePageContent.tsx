@@ -9,6 +9,9 @@ import VerdictBadge from "@/components/VerdictBadge";
 import StreamingAvailability from "@/components/StreamingAvailability";
 import BookmarkButton from "@/components/BookmarkButton";
 import SimilarMovies from "@/components/SimilarMovies";
+import SignInDialog from "@/components/SignInDialog";
+import CinemaRoulette from "@/components/CinemaRoulette";
+import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import type { MovieWithReview, Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -32,7 +35,13 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const [castOpen, setCastOpen] = useState(true);
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
+    const [rouletteOpen, setRouletteOpen] = useState(false);
     const router = useRouter();
+    const { shouldShowDialog, incrementPageView, markDialogShown } = useSignInPrompt();
+
+    useEffect(() => {
+        incrementPageView();
+    }, [incrementPageView]);
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
     const [isPosterFallback, setIsPosterFallback] = useState<boolean>(!movie.backdrop_url && !!movie.poster_url);
@@ -511,6 +520,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                         </svg>
                         Go back
                     </button>
+                    <button
+                        onClick={() => setRouletteOpen(true)}
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
+                    >
+                        Can&apos;t Decide?
+                    </button>
                     <Link
                         href="/search"
                         className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
@@ -532,7 +547,10 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                         </svg>
                     </Link>
                 </div>
+                <CinemaRoulette isOpen={rouletteOpen} onClose={() => setRouletteOpen(false)} />
             </div>
+
+            <SignInDialog open={shouldShowDialog} onClose={markDialogShown} />
         </div>
     );
 }

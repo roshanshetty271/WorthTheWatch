@@ -209,15 +209,9 @@ async def battle(
     if movie_a_id == movie_b_id and movie_a_type == movie_b_type:
         raise HTTPException(status_code=400, detail="Cannot battle a movie against itself")
     
-    # Rate limit (same as review generation)
-    await check_rate_limit(request, is_generation=True)
-    
     logger.info(f"⚔️ Versus battle: {movie_a_id} ({movie_a_type}) vs {movie_b_id} ({movie_b_type})")
     
-    # ── Check cache first ──
-    # Include media types in cache key to differentiate TV vs movie with same ID
-    cache_key_a = f"{min(movie_a_id, movie_b_id)}"
-    cache_key_b = f"{max(movie_a_id, movie_b_id)}"
+    # ── Check cache BEFORE rate limit (cached battles cost nothing) ──
     cache_a = min(movie_a_id, movie_b_id)
     cache_b = max(movie_a_id, movie_b_id)
     
@@ -232,6 +226,9 @@ async def battle(
     if cached_battle and cached_battle.result_json:
         logger.info(f"⚡ Cache hit for battle: {movie_a_id} vs {movie_b_id}")
         return cached_battle.result_json
+    
+    # Rate limit only for uncached battles (these cost API credits)
+    await check_rate_limit(request, limit_type="battle")
     
     # ── Fetch both movies' data with correct media types ──
     movie_a_data, review_a = await _get_movie_data(db, movie_a_id, movie_a_type)

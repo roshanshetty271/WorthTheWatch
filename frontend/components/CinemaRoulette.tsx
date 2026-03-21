@@ -2,7 +2,9 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
+import { signIn } from "next-auth/react";
 import BookmarkButton from "./BookmarkButton";
+import { useSignInPrompt } from "@/lib/useSignInPrompt";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
@@ -50,12 +52,14 @@ interface CinemaRouletteProps {
 export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const { canRoulette, incrementRoulette, isSignedIn } = useSignInPrompt();
     const [phase, setPhase] = useState<"prompt" | "fadeout" | "spinning" | "expanding" | "reveal">("prompt");
     const [movie, setMovie] = useState<RandomMovie | null>(null);
     const [posterStrip, setPosterStrip] = useState<string[]>([]);
     const [spinKey, setSpinKey] = useState(0);
     const [winnerPoster, setWinnerPoster] = useState<string>("");
     const [navigating, setNavigating] = useState(false);
+    const [rouletteError, setRouletteError] = useState<string | null>(null);
     const lastExcludeRef = useRef<number | null>(null);
     const initialPathRef = useRef(pathname);
     const abortRef = useRef<AbortController | null>(null);
@@ -135,51 +139,61 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
     // 4. Strip is already built, animation starts immediately
     // Result: no jerk, no static frame, no poster swap visible to user
     const startSpin = useCallback(async () => {
-        // Cancel any in-flight request
+        setRouletteError(null);
+
+        if (!canRoulette) {
+            setRouletteError("sign_in_prompt");
+            return;
+        }
+
         if (abortRef.current) abortRef.current.abort();
         const controller = new AbortController();
         abortRef.current = controller;
 
-        // Step 1: Fade out current content
         setPhase("fadeout");
 
         try {
-            // Step 2: Fetch + build strip IN PARALLEL with the fade
             const excludeId = lastExcludeRef.current;
             const url = excludeId
                 ? `${API_BASE}/api/movies/random?exclude=${excludeId}`
                 : `${API_BASE}/api/movies/random`;
 
-            const [data] = await Promise.all([
-                fetch(url, { signal: controller.signal }).then((r) => {
-                    if (!r.ok) throw new Error("Failed");
-                    return r.json();
-                }),
-                // Minimum fade time — wait at least 350ms for the fade to complete
+            const [res] = await Promise.all([
+                fetch(url, { signal: controller.signal }),
                 new Promise((r) => setTimeout(r, 350)),
             ]);
 
-            // If user closed modal during fetch, abort
             if (controller.signal.aborted) return;
+
+            if (!res.ok) {
+                if (res.status === 429) {
+                    setRouletteError("rate_limit");
+                    setPhase("prompt");
+                    return;
+                }
+                throw new Error("Failed");
+            }
+
+            const data = await res.json();
+
+            incrementRoulette();
 
             const poster = formatPoster(data as RandomMovie);
             setWinnerPoster(poster);
             setMovie(data as RandomMovie);
             lastExcludeRef.current = (data as RandomMovie).movie.tmdb_id;
 
-            // Build strip with winner already placed
             const strip = buildStrip(poster);
             setPosterStrip(strip);
             setSpinKey((k) => k + 1);
 
-            // Step 3: NOW show spinning. Strip is ready. No jerk.
             setPhase("spinning");
         } catch (e) {
             if (controller.signal.aborted) return;
             console.error("Roulette fetch failed:", e);
             setPhase("prompt");
         }
-    }, []);
+    }, [canRoulette, incrementRoulette]);
 
     const handleSpinComplete = useCallback(() => {
         setTimeout(() => setPhase("expanding"), 300);
@@ -288,12 +302,33 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                     Can&apos;t decide<br />
                                     <span className="text-accent-gold">what to watch?</span>
                                 </h2>
-                                <button
-                                    onClick={startSpin}
-                                    className="mt-6 px-14 py-5 bg-accent-gold text-black font-black uppercase tracking-[0.25em] text-[10px] rounded-full hover:scale-105 active:scale-95 transition-all"
-                                >
-                                    Surprise Me
-                                </button>
+
+                                {rouletteError && (
+                                    <div className="rounded-xl border border-accent-gold/20 bg-accent-gold/5 px-5 py-4 text-center max-w-xs">
+                                        <p className="text-xs text-text-secondary mb-3">
+                                            {rouletteError === "sign_in_prompt"
+                                                ? "You've had 2 free spins today. Sign in for unlimited Can't Decide!"
+                                                : "Spin limit reached. Try again later."}
+                                        </p>
+                                        {!isSignedIn && (
+                                            <button
+                                                onClick={() => signIn("google")}
+                                                className="px-4 py-2 bg-accent-gold text-black font-bold rounded-lg text-xs hover:bg-accent-goldLight transition-colors"
+                                            >
+                                                Sign in for unlimited spins
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {!rouletteError && (
+                                    <button
+                                        onClick={startSpin}
+                                        className="mt-6 px-14 py-5 bg-accent-gold text-black font-black uppercase tracking-[0.25em] text-[10px] rounded-full hover:scale-105 active:scale-95 transition-all"
+                                    >
+                                        Surprise Me
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     )}

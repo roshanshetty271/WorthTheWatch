@@ -11,8 +11,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useWatchlist } from "@/lib/useWatchlist";
+import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import dynamic from "next/dynamic";
 const BattleShareCard = dynamic(() => import("@/components/BattleShareCard"), {
     ssr: false,
@@ -139,7 +140,9 @@ export default function Versus() {
     const router = useRouter();
     const { data: session } = useSession();
     const { addItem, removeItem, isInWatchlist } = useWatchlist();
+    const { canBattle, incrementBattle, isSignedIn } = useSignInPrompt();
     const [phase, setPhase] = useState<Phase>("landing");
+    const [battleError, setBattleError] = useState<string | null>(null);
 
     // Movie selection
     const [slotA, setSlotA] = useState<VersusMovie | null>(null);
@@ -252,9 +255,16 @@ export default function Versus() {
 
     const startBattle = useCallback(
         async (movieAId: number, movieBId: number, movieAType: string = "movie", movieBType: string = "movie") => {
+            setBattleError(null);
+
+            if (!canBattle) {
+                setBattleError("sign_in_prompt");
+                setPhase("landing");
+                return;
+            }
+
             setPhase("loading");
 
-            // Rotate loading messages
             let msgIdx = 0;
             loadingInterval.current = setInterval(() => {
                 msgIdx = (msgIdx + 1) % LOADING_MESSAGES.length;
@@ -262,7 +272,6 @@ export default function Versus() {
             }, 1500);
 
             try {
-                // Minimum loading time for suspense (3s)
                 const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 3000));
 
                 const [res] = await Promise.all([
@@ -275,9 +284,16 @@ export default function Versus() {
 
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
+                    if (res.status === 429) {
+                        setBattleError("rate_limit");
+                        setPhase("landing");
+                        if (loadingInterval.current) clearInterval(loadingInterval.current);
+                        return;
+                    }
                     throw new Error(err.detail || "Battle failed");
                 }
 
+                incrementBattle();
                 const result: BattleResult = await res.json();
                 setBattleResult(result);
 
@@ -447,6 +463,25 @@ export default function Versus() {
                         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-accent-gold/[0.02] rounded-full blur-3xl" />
                     </div>
                     <div className="max-w-6xl mx-auto px-4 md:px-8 pb-16 relative z-10">
+
+                        {/* ── Battle Rate Limit Banner ── */}
+                        {battleError && (
+                            <div className="mb-8 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6 text-center max-w-lg mx-auto">
+                                <p className="text-sm text-text-secondary mb-4">
+                                    {battleError === "sign_in_prompt"
+                                        ? "You've used your 2 free battles today. Sign in for more!"
+                                        : "Battle limit reached. Try again later."}
+                                </p>
+                                {!isSignedIn && (
+                                    <button
+                                        onClick={() => signIn("google")}
+                                        className="px-5 py-2.5 bg-accent-gold text-black font-bold rounded-xl text-sm hover:bg-accent-goldLight transition-colors"
+                                    >
+                                        Sign in for more battles
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {/* ── Custom Battle Builder ── */}
                         <div className="mb-12">

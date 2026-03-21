@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import SearchBar from "@/components/SearchBar";
 import ErrorState from "@/components/ErrorState";
+import CinemaRoulette from "@/components/CinemaRoulette";
 import { searchMovies, type SearchResult } from "@/lib/api";
 
 // Wrap in Suspense because useSearchParams requires it in Next.js 14+
@@ -33,6 +34,7 @@ function SearchContent() {
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rouletteOpen, setRouletteOpen] = useState(false);
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -155,13 +157,28 @@ function SearchContent() {
 
       {/* No results */}
       {!loading && !error && query && result?.tmdb_results?.length === 0 && (
-        <ErrorState
-          title="No matches found"
-          message={`We couldn't find any movies or shows matching "${query}".`}
-          icon="🔍"
-          suggestion="Check for typos or try a different title."
-        />
+        <div className="space-y-6">
+          <ErrorState
+            title="No matches found"
+            message={`We couldn't find any movies or shows matching "${query}".`}
+            icon="🔍"
+            suggestion="Check for typos or try a different title."
+          />
+          <div className="text-center">
+            <button
+              onClick={() => setRouletteOpen(true)}
+              className="rounded-xl bg-accent-gold px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-goldLight active:scale-95"
+            >
+              🎲 Let us pick for you
+            </button>
+            <p className="mt-2 text-xs text-text-muted">
+              We&apos;ll spin the roulette and find something worth watching
+            </p>
+          </div>
+        </div>
       )}
+
+      <CinemaRoulette isOpen={rouletteOpen} onClose={() => setRouletteOpen(false)} />
     </div>
   );
 }

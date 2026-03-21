@@ -4,6 +4,7 @@ import SearchBar from "@/components/SearchBar";
 import MovieCard from "@/components/MovieCard";
 import NowPlaying from "@/components/NowPlaying";
 import VerdictBadge from "@/components/VerdictBadge";
+import CantDecideCTA from "@/components/CantDecideCTA";
 import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -214,6 +215,9 @@ export default async function HomePage() {
           <div className="space-y-2">
             {/* Now Playing — What's new right now */}
             <NowPlaying />
+
+            {/* Can't Decide CTA */}
+            <CantDecideCTA />
 
             {/* Movie Sections */}
             {sectionsWithData.map((section) => (

@@ -24,9 +24,10 @@ class Settings(BaseSettings):
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
     TMDB_IMAGE_BASE: str = "https://image.tmdb.org/t/p"
 
-    # Serper (Google Search) — primary + fallback
+    # Serper (Google Search) — primary + fallbacks
     SERPER_API_KEY: str = ""
     SERPER_API_KEY_FALLBACK: str = ""
+    SERPER_API_KEY_FALLBACK_2: str = ""
 
     # Jina Reader
     JINA_API_KEY: str = ""
@@ -38,9 +39,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
 
     # Rate Limiting
-    DAILY_GENERATION_LIMIT: int = 200
-    ON_DEMAND_PER_IP_PER_HOUR: int = 10
-    ON_DEMAND_PER_IP_PER_DAY: int = 30
+    DAILY_GENERATION_LIMIT: int = 500
+    HOURLY_GLOBAL_LIMIT: int = 100
+    ON_DEMAND_PER_IP_PER_HOUR: int = 5
+    ON_DEMAND_PER_IP_PER_DAY: int = 5
+    BATTLE_PER_IP_PER_DAY: int = 10
+    ROULETTE_PER_IP_PER_DAY: int = 10
 
     # Phase 2 APIs
     OMDB_API_KEY: str = ""

@@ -1,6 +1,7 @@
 """
 Worth the Watch? — Rate Limiting Middleware
 Simple in-memory rate limiter. Fine for single-instance Koyeb deployment.
+Supports per-type limits (generation, battle, roulette) and global hourly cap.
 """
 
 import time
@@ -10,23 +11,34 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# In-memory store: {ip: [(timestamp, count)]}
 _rate_store: dict[str, list[float]] = defaultdict(list)
+_global_hourly_store: list[float] = []
 _daily_generation_count = 0
 _daily_reset_time = time.time()
+
+_LIMIT_MAP = {
+    "generation": {
+        "per_ip_per_hour": settings.ON_DEMAND_PER_IP_PER_HOUR,
+        "per_ip_per_day": settings.ON_DEMAND_PER_IP_PER_DAY,
+        "counts_toward_daily_global": True,
+    },
+    "battle": {
+        "per_ip_per_hour": settings.BATTLE_PER_IP_PER_DAY,
+        "per_ip_per_day": settings.BATTLE_PER_IP_PER_DAY,
+        "counts_toward_daily_global": True,
+    },
+    "roulette": {
+        "per_ip_per_hour": settings.ROULETTE_PER_IP_PER_DAY,
+        "per_ip_per_day": settings.ROULETTE_PER_IP_PER_DAY,
+        "counts_toward_daily_global": False,
+    },
+}
 
 
 def _get_client_ip(request: Request) -> str:
     """
     Get client IP address.
-    SECURITY FIX: Uses LEFTMOST IP from X-Forwarded-For.
-    
-    X-Forwarded-For header format: "client, proxy1, proxy2"
-    - Leftmost (ips[0]) = actual client IP
-    - Rightmost (ips[-1]) = last proxy/load balancer (often Koyeb itself)
-    
-    Using ips[-1] would rate-limit Koyeb's internal IP,
-    effectively banning ALL users at once.
+    Uses LEFTMOST IP from X-Forwarded-For (actual client, not proxy).
     """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
@@ -40,47 +52,89 @@ def _cleanup_old_entries(entries: list[float], window_seconds: int) -> list[floa
     return [t for t in entries if t > cutoff]
 
 
-async def check_rate_limit(request: Request, is_generation: bool = False):
-    """Check rate limits. Raises 429 if exceeded."""
-    global _daily_generation_count, _daily_reset_time
+def _seconds_until_window_reset(entries: list[float], window_seconds: int) -> int:
+    if not entries:
+        return 0
+    oldest_in_window = min(entries)
+    reset_at = oldest_in_window + window_seconds
+    return max(1, int(reset_at - time.time()))
 
-    # Reset daily counter
-    if time.time() - _daily_reset_time > 86400:
+
+async def check_rate_limit(request: Request, limit_type: str = "generation"):
+    """Check rate limits by type. Raises 429 with structured JSON if exceeded."""
+    global _daily_generation_count, _daily_reset_time, _global_hourly_store
+
+    now = time.time()
+    config = _LIMIT_MAP.get(limit_type, _LIMIT_MAP["generation"])
+
+    # Reset daily generation counter
+    if now - _daily_reset_time > 86400:
         _daily_generation_count = 0
-        _daily_reset_time = time.time()
+        _daily_reset_time = now
 
-    # Global daily generation limit
-    if is_generation:
+    # Global daily generation limit (only for generation type)
+    if config["counts_toward_daily_global"]:
         if _daily_generation_count >= settings.DAILY_GENERATION_LIMIT:
             raise HTTPException(
                 status_code=429,
-                detail="Daily generation limit reached. Try again tomorrow."
+                detail={
+                    "type": "global_daily_limit",
+                    "message": "Our servers are at capacity for today. Try again tomorrow.",
+                    "retry_after_seconds": _seconds_until_window_reset([_daily_reset_time], 86400),
+                    "limit_type": limit_type,
+                },
             )
 
+    # Global hourly cap
+    _global_hourly_store = _cleanup_old_entries(_global_hourly_store, 3600)
+    if len(_global_hourly_store) >= settings.HOURLY_GLOBAL_LIMIT:
+        retry_after = _seconds_until_window_reset(_global_hourly_store, 3600)
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "type": "global_hourly_limit",
+                "message": "Worth the Watch is buzzing right now! Check back shortly.",
+                "retry_after_seconds": retry_after,
+                "limit_type": limit_type,
+            },
+        )
+
     ip = _get_client_ip(request)
-    key_hour = f"{ip}:hour"
-    key_day = f"{ip}:day"
+    key_hour = f"{ip}:{limit_type}:hour"
+    key_day = f"{ip}:{limit_type}:day"
 
     # Per-IP hourly limit
     _rate_store[key_hour] = _cleanup_old_entries(_rate_store[key_hour], 3600)
-    if len(_rate_store[key_hour]) >= settings.ON_DEMAND_PER_IP_PER_HOUR:
+    if len(_rate_store[key_hour]) >= config["per_ip_per_hour"]:
+        retry_after = _seconds_until_window_reset(_rate_store[key_hour], 3600)
         raise HTTPException(
             status_code=429,
-            detail="Rate limit exceeded. Max 10 requests per hour."
+            detail={
+                "type": "ip_hourly_limit",
+                "message": f"Hourly limit reached. Try again in {retry_after // 60} minutes.",
+                "retry_after_seconds": retry_after,
+                "limit_type": limit_type,
+            },
         )
 
     # Per-IP daily limit
     _rate_store[key_day] = _cleanup_old_entries(_rate_store[key_day], 86400)
-    if len(_rate_store[key_day]) >= settings.ON_DEMAND_PER_IP_PER_DAY:
+    if len(_rate_store[key_day]) >= config["per_ip_per_day"]:
+        retry_after = _seconds_until_window_reset(_rate_store[key_day], 86400)
         raise HTTPException(
             status_code=429,
-            detail="Daily rate limit exceeded. Max 30 requests per day."
+            detail={
+                "type": "ip_daily_limit",
+                "message": "Daily limit reached. Try again tomorrow.",
+                "retry_after_seconds": retry_after,
+                "limit_type": limit_type,
+            },
         )
 
     # Record this request
-    now = time.time()
     _rate_store[key_hour].append(now)
     _rate_store[key_day].append(now)
+    _global_hourly_store.append(now)
 
-    if is_generation:
+    if config["counts_toward_daily_global"]:
         _daily_generation_count += 1

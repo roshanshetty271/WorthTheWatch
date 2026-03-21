@@ -5,7 +5,7 @@ Endpoints for listing and retrieving movies with reviews.
 
 import math
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, desc, and_, or_, cast, String
 
 from typing import Optional, List
@@ -16,6 +16,7 @@ from app.models import Movie, Review
 from app.schemas import MovieResponse, ReviewResponse, MovieWithReview, PaginatedMovies
 from app.services.tmdb import tmdb_service
 from app.services.safety import is_safe_content
+from app.middleware.rate_limit import check_rate_limit
 
 router = APIRouter()
 
@@ -264,9 +265,11 @@ async def list_movies(
 @router.get("/random", response_model=MovieWithReview)
 async def get_random_movie_with_review(
     exclude: Optional[int] = Query(None),
+    request: Request = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Prefers hidden gems, falls back to any WORTH IT movie."""
+    await check_rate_limit(request, limit_type="roulette")
     # First: hidden gems
     query = select(Movie).options(joinedload(Movie.review)).join(Review).where(
         and_(

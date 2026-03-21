@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/next";
 import AuthProvider from "@/components/AuthProvider";
+import CantDecideFooterLink from "@/components/CantDecideFooterLink";
 import { DM_Sans, DM_Serif_Display, Lora } from "next/font/google";
 
 const dmSans = DM_Sans({
@@ -81,6 +82,7 @@ export default function RootLayout({
                   <Link href="/browse/mood/tired" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Mood Based</Link>
                   <Link href="/versus" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Movie Battle</Link>
                   <Link href="/my-list" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">My List</Link>
+                  <CantDecideFooterLink />
                 </nav>
               </div>
             </div>

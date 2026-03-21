@@ -34,37 +34,27 @@ class SerperService:
         self.url = "https://google.serper.dev/search"
         self.image_url = "https://google.serper.dev/images"
         
-        # Primary key
-        self._primary_key = settings.SERPER_API_KEY
-        # Fallback key (from second account)
-        self._fallback_key = getattr(settings, "SERPER_API_KEY_FALLBACK", "")
-        # Active key starts as primary
-        self._active_key = self._primary_key
-        # Track if we already switched
-        self._switched_to_fallback = False
+        self._keys = [k for k in [
+            settings.SERPER_API_KEY,
+            getattr(settings, "SERPER_API_KEY_FALLBACK", ""),
+            getattr(settings, "SERPER_API_KEY_FALLBACK_2", ""),
+        ] if k]
+        self._current_key_index = 0
 
     def _get_headers(self) -> dict:
         return {
-            "X-API-KEY": self._active_key,
+            "X-API-KEY": self._keys[self._current_key_index] if self._keys else "",
             "Content-Type": "application/json",
         }
 
-    def _switch_to_fallback(self) -> bool:
-        """
-        Switch to fallback key. Returns True if switch was successful,
-        False if no fallback available or already switched.
-        """
-        if self._switched_to_fallback:
-            logger.error("⛔ Both Serper keys exhausted. No more search credits.")
+    def _switch_to_next_key(self) -> bool:
+        """Try the next API key in the list. Returns False if all keys exhausted."""
+        if self._current_key_index >= len(self._keys) - 1:
+            logger.error(f"⛔ All {len(self._keys)} Serper key(s) exhausted. No more search credits.")
             return False
         
-        if not self._fallback_key:
-            logger.error("⛔ Primary Serper key exhausted and no SERPER_API_KEY_FALLBACK set.")
-            return False
-        
-        self._active_key = self._fallback_key
-        self._switched_to_fallback = True
-        logger.warning("🔄 Switched to fallback Serper API key.")
+        self._current_key_index += 1
+        logger.warning(f"🔄 Switched to Serper API key #{self._current_key_index + 1} of {len(self._keys)}.")
         return True
 
     async def search_images(self, query: str, num_results: int = 3) -> list[dict]:
@@ -78,8 +68,7 @@ class SerperService:
                 )
 
                 if resp.status_code in (402, 429):
-                    if self._switch_to_fallback():
-                        # Retry with fallback key
+                    if self._switch_to_next_key():
                         resp = await client.post(
                             self.image_url,
                             headers=self._get_headers(),
@@ -109,18 +98,17 @@ class SerperService:
                     json={"q": query, "num": num_results},
                 )
 
-                # Key exhausted — try fallback
+                # Key exhausted — try next key
                 if resp.status_code in (402, 429):
-                    logger.warning(f"⚠️ Serper key exhausted (HTTP {resp.status_code})")
-                    if self._switch_to_fallback():
-                        # Retry immediately with fallback key
+                    logger.warning(f"⚠️ Serper key #{self._current_key_index + 1} exhausted (HTTP {resp.status_code})")
+                    if self._switch_to_next_key():
                         resp = await client.post(
                             self.url,
                             headers=self._get_headers(),
                             json={"q": query, "num": num_results},
                         )
                         if resp.status_code in (402, 429):
-                            logger.error("⛔ Fallback Serper key also exhausted.")
+                            logger.error("⛔ Next Serper key also exhausted.")
                             return []
                     else:
                         return []
