@@ -153,7 +153,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     <div className="mx-auto max-w-7xl">
                         <button
                             onClick={() => router.back()}
-                            className="group inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-all hover:bg-black/60 hover:text-white hover:scale-110"
+                            className="group inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-colors duration-200 hover:bg-black/60 hover:text-white hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
                             aria-label="Go back"
                         >
                             <svg
@@ -161,6 +161,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
+                                aria-hidden="true"
                             >
                                 <path
                                     strokeLinecap="round"
@@ -246,84 +247,84 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     )}
                                 </div>
 
-                                {/* Verdict Badge + Save Button */}
-                                {review && (
-                                    <div className="pt-2 flex items-center justify-center gap-3 md:justify-start">
-                                        <VerdictBadge verdict={review.verdict} size="lg" />
-                                        <BookmarkButton
-                                            tmdb_id={movie.tmdb_id}
-                                            title={movie.title}
-                                            poster_path={movie.poster_path || null}
-                                            verdict={review.verdict}
-                                            variant="page"
-                                        />
-                                        <button
-                                            onClick={async () => {
-                                                const url = window.location.href;
-                                                const shareData = {
-                                                    title: `${movie.title} — ${review.verdict}`,
-                                                    text: `Is ${movie.title} worth watching? Check the verdict!`,
-                                                    url,
-                                                };
-                                                try {
-                                                    if (navigator.share) {
-                                                        await navigator.share(shareData);
-                                                    } else {
+                                {/* Verdict Badge + Save Button — always rendered to reserve space */}
+                                <div className={`pt-2 flex items-center justify-center gap-3 md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ minHeight: "2.75rem" }}>
+                                    {review && (
+                                        <>
+                                            <VerdictBadge verdict={review.verdict} size="lg" />
+                                            <BookmarkButton
+                                                tmdb_id={movie.tmdb_id}
+                                                title={movie.title}
+                                                poster_path={movie.poster_path || null}
+                                                verdict={review.verdict}
+                                                variant="page"
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    const url = window.location.href;
+                                                    const shareData = {
+                                                        title: `${movie.title} — ${review.verdict}`,
+                                                        text: `Is ${movie.title} worth watching? Check the verdict!`,
+                                                        url,
+                                                    };
+                                                    try {
+                                                        if (navigator.share) {
+                                                            await navigator.share(shareData);
+                                                        } else {
+                                                            await navigator.clipboard.writeText(url);
+                                                            setCopied(true);
+                                                            setTimeout(() => setCopied(false), 2000);
+                                                        }
+                                                    } catch {
                                                         await navigator.clipboard.writeText(url);
                                                         setCopied(true);
                                                         setTimeout(() => setCopied(false), 2000);
                                                     }
-                                                } catch {
-                                                    await navigator.clipboard.writeText(url);
-                                                    setCopied(true);
-                                                    setTimeout(() => setCopied(false), 2000);
-                                                }
-                                            }}
-                                            className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 hover:text-white transition-all active:scale-95"
-                                            aria-label="Share this movie"
-                                            title="Share"
-                                        >
-                                            {copied ? (
-                                                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                        {copied && (
-                                            <span className="text-xs text-green-400 animate-fade-in font-medium">
-                                                Link copied!
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {review && (
-                                    <div className="pt-3 animate-fade-in flex flex-wrap items-center gap-4 justify-center md:justify-start">
-                                        {/* Trailer jump link */}
-                                        {review.trailer_url && (
-                                            <button
-                                                onClick={() => {
-                                                    document.getElementById("trailer-section")?.scrollIntoView({
-                                                        behavior: "smooth",
-                                                        block: "center"
-                                                    });
                                                 }}
-                                                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-all shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 group"
+                                            className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 hover:text-white transition-colors duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
+                                            aria-label="Share this movie"
+                                                title="Share"
                                             >
-                                                <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                                    <path d="M8 5v14l11-7z" />
-                                                </svg>
-                                                Watch Trailer
+                                                {copied ? (
+                                                    <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                                    </svg>
+                                                )}
                                             </button>
-                                        )}
+                                            {copied && (
+                                                <span className="text-xs text-green-400 animate-fade-in font-medium">
+                                                    Link copied!
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
 
-                                        <StreamingAvailability tmdbId={movie.tmdb_id} />
-                                    </div>
-                                )}
+                                {/* Trailer + Streaming — always rendered to reserve space */}
+                                <div className={`pt-3 flex flex-wrap items-center gap-4 justify-center md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ minHeight: "2.75rem" }}>
+                                    {review?.trailer_url && (
+                                        <button
+                                            onClick={() => {
+                                                document.getElementById("trailer-section")?.scrollIntoView({
+                                                    behavior: "smooth",
+                                                    block: "center"
+                                                });
+                                            }}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-all shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 group"
+                                        >
+                                            <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                                <path d="M8 5v14l11-7z" />
+                                            </svg>
+                                            Watch Trailer
+                                        </button>
+                                    )}
+
+                                    <StreamingAvailability tmdbId={movie.tmdb_id} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -501,10 +502,11 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 <div className="mt-8 flex items-center justify-between border-t border-surface-elevated pt-8">
                     <button
                         onClick={() => router.back()}
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors hover:text-accent-gold"
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
                     >
                         <svg
                             className="h-4 w-4"
+                            aria-hidden="true"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -520,11 +522,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     </button>
                     <Link
                         href="/search"
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors hover:text-accent-gold"
+                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
                     >
                         Search another title
                         <svg
                             className="h-4 w-4"
+                            aria-hidden="true"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"

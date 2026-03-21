@@ -27,15 +27,21 @@ class OMDBScores:
         awards: Optional[str] = None,
         box_office: Optional[str] = None,
         rated: Optional[str] = None,
+        omdb_title: Optional[str] = None,
+        omdb_year: Optional[str] = None,
+        omdb_imdb_id: Optional[str] = None,
     ):
         self.imdb_score = imdb_score
         self.imdb_votes = imdb_votes
         self.rt_critic_score = rt_critic_score
         self.rt_audience_score = rt_audience_score
         self.metascore = metascore
-        self.awards = awards          # e.g. "Won 3 Oscars. 11 nominations total."
-        self.box_office = box_office    # e.g. "$858,373,000"
-        self.rated = rated              # e.g. "PG-13", "R", "TV-MA"
+        self.awards = awards
+        self.box_office = box_office
+        self.rated = rated
+        self.omdb_title = omdb_title
+        self.omdb_year = omdb_year
+        self.omdb_imdb_id = omdb_imdb_id
 
     def to_dict(self) -> dict:
         return {
@@ -102,11 +108,14 @@ class OMDBService:
             imdb_score=self._parse_imdb_rating(data.get("imdbRating", "")),
             imdb_votes=self._parse_imdb_votes(data.get("imdbVotes", "")),
             rt_critic_score=self._parse_rt_score(data.get("Ratings", [])),
-            rt_audience_score=None,  # OMDB doesn't provide RT audience scores
+            rt_audience_score=None,
             metascore=self._parse_metascore(data.get("Metascore", "")),
             awards=self._parse_string_field(data.get("Awards", "")),
             box_office=self._parse_string_field(data.get("BoxOffice", "")),
             rated=self._parse_string_field(data.get("Rated", "")),
+            omdb_title=data.get("Title"),
+            omdb_year=data.get("Year"),
+            omdb_imdb_id=data.get("imdbID"),
         )
 
     @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
@@ -144,6 +153,14 @@ class OMDBService:
 
             if data.get("Response") == "False":
                 return OMDBScores()
+
+            omdb_title = data.get("Title", "")
+            omdb_year = data.get("Year", "")
+            omdb_imdb_id_resp = data.get("imdbID", "")
+            logger.info(
+                f"📋 OMDB (by ID {imdb_id}): Title='{omdb_title}', "
+                f"Year='{omdb_year}', imdbID='{omdb_imdb_id_resp}'"
+            )
 
             return self._build_scores(data)
         except httpx.TimeoutException:
@@ -201,6 +218,28 @@ class OMDBService:
 
             if data.get("Response") == "False":
                 return OMDBScores()
+
+            omdb_title = data.get("Title", "")
+            omdb_year = data.get("Year", "")
+            omdb_imdb_id = data.get("imdbID", "")
+            logger.info(
+                f"📋 OMDB response: Title='{omdb_title}', "
+                f"Year='{omdb_year}', imdbID='{omdb_imdb_id}'"
+            )
+
+            if year:
+                try:
+                    requested_year = int(year)
+                    # OMDB Year can be "2024" or "2020–2024" for series
+                    response_year = int(omdb_year.split("–")[0].split("-")[0])
+                    if abs(requested_year - response_year) > 1:
+                        logger.warning(
+                            f"⚠️ OMDB year mismatch: requested {year}, "
+                            f"got '{omdb_year}' for '{omdb_title}' — rejecting"
+                        )
+                        return OMDBScores()
+                except (ValueError, TypeError):
+                    pass
 
             return self._build_scores(data)
         except httpx.TimeoutException:

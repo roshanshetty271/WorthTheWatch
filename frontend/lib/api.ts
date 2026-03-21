@@ -46,6 +46,7 @@ export interface Review {
   confidence: string | null;
   sources_count: number | null;
   generated_at: string | null;
+  last_refreshed_at: string | null;
   imdb_score: number | null;
   rt_critic_score: number | null;
   rt_audience_score: number | null;

@@ -346,9 +346,13 @@ Remember: The kill_reason needs to be ONE sentence so clever and funny that peop
         
         # ── Save to cache ──
         try:
+            cache_a_type = movie_a_type if movie_a_id <= movie_b_id else movie_b_type
+            cache_b_type = movie_b_type if movie_a_id <= movie_b_id else movie_a_type
             new_cache = BattleCache(
                 movie_a_id=cache_a,
                 movie_b_id=cache_b,
+                movie_a_type=cache_a_type,
+                movie_b_type=cache_b_type,
                 winner_id=winner_id,
                 loser_id=loser_id,
                 winner_title=result["winner_title"],

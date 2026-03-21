@@ -90,7 +90,7 @@ export default function MovieCard({ data }: MovieCardProps) {
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-surface-elevated">
-              <span className="text-4xl text-text-muted">🎬</span>
+              <span className="text-4xl text-text-muted" aria-hidden="true">🎬</span>
             </div>
           )}
         </div>
@@ -113,7 +113,7 @@ export default function MovieCard({ data }: MovieCardProps) {
               </span>
             </span>
           ) : (
-            <span className="opacity-0" />
+            <span className="invisible" aria-hidden="true" />
           )}
 
           {/* Bookmark — always visible */}
@@ -147,7 +147,7 @@ export default function MovieCard({ data }: MovieCardProps) {
               <>
                 <span className="h-1 w-1 rounded-full bg-white/40" aria-hidden="true" />
                 <span className="flex items-center gap-1 text-yellow-500">
-                  <span className="text-[10px]">⭐</span>
+                  <span className="text-[10px]" aria-hidden="true">⭐</span>
                   <span className="font-bold">{rating.value}</span>
                 </span>
               </>

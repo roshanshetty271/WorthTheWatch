@@ -292,19 +292,33 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # TV titles are already unique enough — no one confuses "Fear the Walking Dead"
     # with another show. Movies like "The Call" or "The Host" need disambiguation.
     director_name = ""
+    imdb_id = None
     if movie.media_type != "tv":
         try:
             details_with_credits = await tmdb_service._get(
                 f"/movie/{movie.tmdb_id}", {"append_to_response": "credits"}
             )
-            if details_with_credits and "credits" in details_with_credits:
-                crew = details_with_credits["credits"].get("crew", [])
-                directors = [c["name"] for c in crew if c.get("job") == "Director"]
-                if directors:
-                    director_name = directors[0]
-                    logger.info(f"🎬 Director: {director_name}")
+            if details_with_credits:
+                imdb_id = details_with_credits.get("imdb_id")
+                if imdb_id:
+                    logger.info(f"🎬 IMDb ID from TMDB: {imdb_id}")
+                if "credits" in details_with_credits:
+                    crew = details_with_credits["credits"].get("crew", [])
+                    directors = [c["name"] for c in crew if c.get("job") == "Director"]
+                    if directors:
+                        director_name = directors[0]
+                        logger.info(f"🎬 Director: {director_name}")
         except Exception as e:
             logger.debug(f"Could not fetch director for '{title}': {e}")
+    else:
+        try:
+            ext_ids = await tmdb_service.get_external_ids(movie.tmdb_id, "tv")
+            if ext_ids:
+                imdb_id = ext_ids.get("imdb_id")
+                if imdb_id:
+                    logger.info(f"🎬 IMDb ID from TMDB (TV): {imdb_id}")
+        except Exception as e:
+            logger.debug(f"Could not fetch external IDs for TV '{title}': {e}")
         
     # ─── LangGraph Agent Route ────────────────────────────────
     # Uses adaptive search with conditional broadening.
@@ -417,12 +431,17 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         # e.g. "The Call" 2020 "Lee Chung-hyun" → prefers Korean film over American remake
         director_context = director_name if director_name else ""
         logger.info(f"🚀 Step 1/4: Launching parallel searches for '{title}'...")
+        omdb_coro = (
+            omdb_service.get_scores_by_imdb_id(imdb_id)
+            if imdb_id
+            else omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie")
+        )
         search_results = await asyncio.gather(
             serper_service.search_reviews(search_query, year, movie.media_type or "movie", director_context),
             serper_service.search_reddit(search_query, year, movie.media_type or "movie", director_context),
             guardian_service.search_film_reviews(search_query, year),
             nyt_service.search_reviews(search_query),
-            omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie"),
+            omdb_coro,
             _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
             return_exceptions=True,
         )
@@ -435,21 +454,53 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         omdb_data = search_results[4] if not isinstance(search_results[4], Exception) else None
         trailer_url = search_results[5] if not isinstance(search_results[5], Exception) else None
         
+        # Year Validation — catches wrong IMDb IDs linked by TMDB
+        if omdb_data and omdb_data.omdb_year and year:
+            try:
+                requested_year = int(year)
+                response_year = int(omdb_data.omdb_year.split("–")[0].split("-")[0])
+                if abs(requested_year - response_year) > 1:
+                    logger.warning(
+                        f"⚠️ REJECTING OMDB data: year mismatch! "
+                        f"Expected ~{year}, OMDB returned '{omdb_data.omdb_year}' "
+                        f"for '{omdb_data.omdb_title}' (imdbID={omdb_data.omdb_imdb_id})"
+                    )
+                    omdb_data = None
+            except (ValueError, TypeError):
+                pass
+
         # Vote Count Sanity Check
-        # Avoid matching a popular movie (TMDB) with an obscure one (IMDb) just by title/year
         if omdb_data and omdb_data.imdb_votes and movie.tmdb_vote_count:
             tmdb_votes = movie.tmdb_vote_count
             imdb_votes = omdb_data.imdb_votes
             
-            # Heuristic: If TMDB has > 1000 votes but IMDb has < 1000, it's likely a bad match
-            # (IMDb usually has MORE votes than TMDB for popular movies)
             if tmdb_votes > 1000 and imdb_votes < 1000:
                 logger.warning(
                     f"⚠️ REJECTING IMDb Match: Suspiciously low votes. "
                     f"TMDB: {tmdb_votes} vs IMDb: {imdb_votes}. "
                     f"Likely matched a short film or obscure duplicate."
                 )
-                omdb_data = None  # Discard bad data
+                omdb_data = None
+
+        # OMDB Staleness Detection — OMDB caches aggressively and may
+        # return outdated scores (e.g. inflated early ratings with few votes
+        # while the real IMDb page has 1M+ votes at a lower score).
+        if omdb_data and omdb_data.imdb_score and omdb_data.imdb_votes:
+            tmdb_avg = movie.tmdb_vote_average or 0
+            imdb_votes = omdb_data.imdb_votes
+            imdb_score = omdb_data.imdb_score
+            days_old = (date.today() - movie.release_date).days if movie.release_date else 0
+
+            score_gap = abs(imdb_score - tmdb_avg) if tmdb_avg > 0 else 0
+
+            if score_gap > 1.5 and imdb_votes < 1000 and days_old > 14:
+                logger.warning(
+                    f"⚠️ OMDB data looks STALE: IMDb {imdb_score}/10 "
+                    f"({imdb_votes} votes) vs TMDB {tmdb_avg}/10, "
+                    f"gap={score_gap:.1f}, movie is {days_old} days old. "
+                    f"Discarding OMDB scores."
+                )
+                omdb_data = None
         
         # Extract IMDb score early for verdict overrides
         imdb_score = None
@@ -751,9 +802,20 @@ CRITIC REVIEWS (Professional):
             # High Score Privilege — crowd has spoken
             logger.info(f"📊 Using {score_source} score for overrides: {override_score}/10 ({override_votes} votes)")
 
+            min_votes = 500
+            if movie.release_date:
+                days_old = (date.today() - movie.release_date).days
+                if days_old <= 14:
+                    min_votes = 100
+                elif days_old <= 30:
+                    min_votes = 150
+                elif days_old <= 90:
+                    min_votes = 250
+                logger.info(f"📊 Release-aware vote threshold: {min_votes} (movie is {days_old} days old)")
+
             if (
                 override_score and override_score > 7.5
-                and override_votes and override_votes > 500
+                and override_votes and override_votes > min_votes
                 and llm_output.verdict != "WORTH IT"
             ):
                 # Sanity check: Don't override if LLM had strong negative signals

@@ -5,7 +5,7 @@ Worth the Watch? — SQLAlchemy Models
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Float, Boolean, DateTime, Date,
-    ForeignKey, JSON, Index
+    ForeignKey, JSON, Index, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -115,6 +115,8 @@ class BattleCache(Base):
     # Always store the smaller tmdb_id as movie_a_id for consistent lookups
     movie_a_id = Column(Integer, nullable=False)
     movie_b_id = Column(Integer, nullable=False)
+    movie_a_type = Column(String(10), nullable=False, default="movie")
+    movie_b_type = Column(String(10), nullable=False, default="movie")
     winner_id = Column(Integer, nullable=False)
     loser_id = Column(Integer, nullable=False)
     winner_title = Column(String(500))
@@ -129,5 +131,21 @@ class BattleCache(Base):
 
     __table_args__ = (
         Index("idx_battle_cache_pair", "movie_a_id", "movie_b_id", unique=True),
+    )
+
+
+class ReviewFeedback(Base):
+    """Anonymous user feedback on review verdicts (thumbs up/down)."""
+    __tablename__ = "review_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    review_id = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False)
+    is_helpful = Column(Boolean, nullable=False)
+    ip_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_feedback_review", "review_id"),
+        UniqueConstraint("review_id", "ip_hash", name="uq_feedback_review_ip"),
     )
 

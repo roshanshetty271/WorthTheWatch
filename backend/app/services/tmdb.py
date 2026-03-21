@@ -150,6 +150,11 @@ class TMDBService:
         """Full TV show details."""
         return await self._get(f"/tv/{tmdb_id}")
 
+    async def get_external_ids(self, tmdb_id: int, media_type: str = "tv") -> dict:
+        """Get external IDs (IMDb, TVDB, etc.). Needed for TV shows since
+        /tv/{id} doesn't return imdb_id by default (movies do)."""
+        return await self._get(f"/{media_type}/{tmdb_id}/external_ids")
+
     async def get_movie_credits(self, movie_id: int) -> dict:
         """Get credits (cast + crew) for a movie."""
         try:

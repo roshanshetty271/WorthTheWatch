@@ -63,9 +63,11 @@ export default function ReviewSection({
                     setGenerating(false);
                     setRegenerating(false);
                     onReviewUpdate?.(data.review);
-                    fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
-                    router.refresh();
                     es.close();
+                    setTimeout(() => {
+                        fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
+                        router.refresh();
+                    }, 1500);
                 } else if (data.type === "error") {
                     setError(data.message || "Generation failed");
                     setGenerating(false);
@@ -99,9 +101,11 @@ export default function ReviewSection({
                         setGenerating(false);
                         setRegenerating(false);
                         onReviewUpdate?.(data.movie.review);
-                        fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
-                        router.refresh();
                         if (pollRef.current) clearInterval(pollRef.current);
+                        setTimeout(() => {
+                            fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
+                            router.refresh();
+                        }, 1500);
                     } else if (data.status === "generating") {
                         setProgress(data.progress || "Analyzing...");
                         setPercent(data.percent || 10);
@@ -221,7 +225,7 @@ export default function ReviewSection({
                 <div className="flex justify-end mb-3">
                     <button
                         onClick={handleRegenerate}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/50 hover:text-accent-gold hover:bg-accent-gold/10 uppercase tracking-widest transition-all duration-200 group"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/50 hover:text-accent-gold hover:bg-accent-gold/10 uppercase tracking-widest transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none group"
                     >
                         <svg
                             className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500"
@@ -236,7 +240,7 @@ export default function ReviewSection({
                     </button>
                 </div>
 
-                <ReviewContent review={review} releaseDate={releaseDate} />
+                <ReviewContent review={review} releaseDate={releaseDate} tmdbId={tmdbId} />
             </div>
         );
     }
@@ -291,7 +295,7 @@ export default function ReviewSection({
                     </div>
                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-accent-gold rounded-full transition-all duration-1000 ease-out"
+                            className="h-full bg-accent-gold rounded-full transition-[width] duration-1000 ease-out"
                             style={{ width: `${pct}%` }}
                         />
                     </div>

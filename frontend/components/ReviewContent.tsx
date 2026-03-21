@@ -4,10 +4,12 @@ import type { Review } from "@/lib/api";
 import VerdictBadge from "./VerdictBadge";
 import SentimentBar from "./SentimentBar";
 import TrailerEmbed from "./TrailerEmbed";
+import ReviewFeedback from "./ReviewFeedback";
 
 interface ReviewContentProps {
   review: Review;
   releaseDate?: string | null;
+  tmdbId?: number;
 }
 
 // Known allowed tags for splitting concatenated strings
@@ -127,22 +129,33 @@ const formatReviewText = (text: string) => {
   return finalParas;
 };
 
-export default function ReviewContent({ review, releaseDate }: ReviewContentProps) {
+export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewContentProps) {
   const paragraphs = formatReviewText(review.review_text);
   const tags = fixTags(review.tags);
 
-  // Early Verdict: show banner when confidence is LOW and title released within 60 days
-  const isEarlyVerdict = (() => {
-    if (review.confidence !== "LOW") return false;
-    if (!releaseDate) return false;
+  const daysSinceRelease = (() => {
+    if (!releaseDate) return null;
     try {
       const release = new Date(releaseDate);
       const now = new Date();
-      const daysSinceRelease = Math.floor((now.getTime() - release.getTime()) / (1000 * 60 * 60 * 24));
-      return daysSinceRelease <= 60;
+      return Math.floor((now.getTime() - release.getTime()) / (1000 * 60 * 60 * 24));
     } catch {
-      return false;
+      return null;
     }
+  })();
+
+  const isEarlyVerdict = (() => {
+    if (daysSinceRelease === null) return false;
+    if (daysSinceRelease <= 14) return true;
+    if (review.confidence === "LOW" && daysSinceRelease <= 60) return true;
+    return false;
+  })();
+
+  const earlyVerdictMessage = (() => {
+    if (daysSinceRelease !== null && daysSinceRelease <= 14) {
+      return "This title just dropped \u2014 this is an early verdict based on initial reviews. It may change as more reviews come in.";
+    }
+    return "This title does not have many reviews online yet. Our AI is working with limited data, so check back later for a more informed take.";
   })();
 
   return (
@@ -150,11 +163,11 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
       {/* Early Verdict Banner */}
       {isEarlyVerdict && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 flex items-start gap-3">
-          <span className="text-xl mt-0.5">🎬</span>
+          <span className="text-xl mt-0.5" aria-hidden="true">🎬</span>
           <div>
             <p className="text-sm font-bold text-amber-400">Early Verdict</p>
             <p className="text-xs text-amber-200/70 mt-0.5 leading-relaxed">
-              This title just dropped and does not have many reviews online yet. Our AI is working with limited data, so check back later for a more informed take.
+              {earlyVerdictMessage}
             </p>
           </div>
         </div>
@@ -270,6 +283,9 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
         )}
       </div>
 
+      {/* Feedback */}
+      {tmdbId && <ReviewFeedback tmdbId={tmdbId} />}
+
       {/* Trailer Embed */}
       {review.trailer_url && (
         <div id="trailer-section" className="overflow-hidden rounded-xl border border-white/10 shadow-lg mt-4">
@@ -280,21 +296,32 @@ export default function ReviewContent({ review, releaseDate }: ReviewContentProp
       {/* Sources & Meta */}
       <div className="flex flex-wrap items-center justify-center gap-6 border-t border-white/5 pt-8 text-xs font-medium uppercase tracking-wider text-text-secondary">
         {review.imdb_score && (
-          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors">
-            <span className="text-lg">⭐</span> IMDb {review.imdb_score}
+          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors duration-200">
+            <span className="text-lg" aria-hidden="true">⭐</span> IMDb {review.imdb_score}
           </span>
         )}
         {review.rt_critic_score && (
-          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors">
-            <span className="text-lg">🍅</span> Critics {review.rt_critic_score}%
+          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors duration-200">
+            <span className="text-lg" aria-hidden="true">🍅</span> Critics {review.rt_critic_score}%
           </span>
         )}
         {review.rt_audience_score && (
-          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors">
-            <span className="text-lg">🍿</span> Audience {review.rt_audience_score}%
+          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors duration-200">
+            <span className="text-lg" aria-hidden="true">🍿</span> Audience {review.rt_audience_score}%
           </span>
         )}
       </div>
+      {/* Generated / Last Updated timestamp */}
+      {(review.last_refreshed_at || review.generated_at) && (
+        <p className="text-center text-[10px] text-text-secondary/40 tracking-wide">
+          Verdict generated{" "}
+          {new Date(review.last_refreshed_at || review.generated_at!).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </p>
+      )}
     </div>
   );
 }

@@ -59,6 +59,7 @@ class ReviewResponse(BaseModel):
     confidence: Optional[str] = None
     sources_count: Optional[int] = None
     generated_at: Optional[datetime] = None
+    last_refreshed_at: Optional[datetime] = None
     imdb_score: Optional[float] = None
     rt_critic_score: Optional[int] = None
     rt_audience_score: Optional[int] = None

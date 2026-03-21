@@ -22,7 +22,7 @@ function PosterImage({ src, alt, sizes = "200px" }: { src: string | null; alt: s
     if (error || !src) {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02] p-3">
-                <span className="text-3xl mb-2 opacity-40">🎬</span>
+                <span className="text-3xl mb-2 opacity-40" aria-hidden="true">🎬</span>
                 <span className="text-[10px] text-white/40 text-center line-clamp-2 font-medium">{alt}</span>
             </div>
         );
@@ -93,7 +93,7 @@ export default function NowPlaying() {
                     <button
                         key={t.key}
                         onClick={() => setTab(t.key)}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${tab === t.key
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none ${tab === t.key
                                 ? "bg-accent-gold text-black"
                                 : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"
                             }`}

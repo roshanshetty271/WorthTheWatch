@@ -24,7 +24,7 @@ export default function VerdictBadge({ verdict, size = "md" }: VerdictBadgeProps
     <span
       className={`inline-flex flex-wrap items-center gap-1.5 rounded-full font-semibold tracking-wide ${config.className} ${SIZE_CLASSES[size]}`}
     >
-      <span>{config.emoji}</span>
+      <span aria-hidden="true">{config.emoji}</span>
       <span>{config.label}</span>
     </span>
   );

@@ -27,7 +27,7 @@ interface SearchBarProps {
 export default function SearchBar({
   initialQuery = "",
   size = "lg",
-  placeholder = "Search any movie or TV show...",
+  placeholder = "Search any movie or TV show\u2026",
   disableDropdown = false,
 }: SearchBarProps & { disableDropdown?: boolean }) {
   const [query, setQuery] = useState(initialQuery);
@@ -123,20 +123,25 @@ export default function SearchBar({
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <form onSubmit={handleSubmit} className="relative w-full">
+      <form onSubmit={handleSubmit} className="relative w-full" role="search">
+        <label htmlFor="search-input" className="sr-only">Search movies and TV shows</label>
         {/* Search Icon */}
         <div
-          className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${focused ? "text-accent-gold" : "text-text-secondary"
+          className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 pointer-events-none ${focused ? "text-accent-gold" : "text-text-secondary"
             }`}
+          aria-hidden="true"
         >
           {loading ? (
-            <div className={`${isLarge ? "h-5 w-5" : "h-4 w-4"} animate-spin rounded-full border-2 border-accent-gold border-t-transparent`} />
+            <div className={`${isLarge ? "h-5 w-5" : "h-4 w-4"} animate-spin rounded-full border-2 border-accent-gold border-t-transparent`} role="status">
+              <span className="sr-only">Searching\u2026</span>
+            </div>
           ) : (
             <svg
               className={isLarge ? "h-5 w-5" : "h-4 w-4"}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -150,7 +155,10 @@ export default function SearchBar({
 
         {/* Input */}
         <input
+          id="search-input"
           type="text"
+          autoComplete="off"
+          spellCheck={false}
           style={{ textAlign: "left" }}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -160,19 +168,20 @@ export default function SearchBar({
           }}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className={`w-full border !text-left bg-black/40 backdrop-blur-2xl text-text-primary placeholder:text-white/50 transition-all duration-300 ${focused
+          className={`w-full border !text-left bg-black/40 backdrop-blur-2xl text-text-primary placeholder:text-white/50 transition-colors duration-200 ${focused
             ? "border-accent-gold/50 shadow-sm shadow-black/40"
             : "border-white/10 hover:border-white/20 hover:bg-black/50"
             } ${isLarge
               ? "rounded-2xl py-4 pl-10 pr-12 sm:pr-32 text-base sm:text-lg placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
               : "rounded-xl py-2.5 pl-9 pr-20 text-sm placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
-            } focus:outline-none`}
+            } focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold`}
         />
 
         {/* Submit Button */}
         <button
           type="submit"
-          className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 rounded-xl bg-accent-gold font-medium text-surface transition-all hover:bg-accent-goldLight active:scale-95 ${isLarge ? "px-3 py-2.5 sm:px-5" : "px-3 py-1.5 text-sm"
+          aria-label="Search"
+          className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 rounded-xl bg-accent-gold font-medium text-surface transition-colors duration-200 hover:bg-accent-goldLight active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${isLarge ? "px-3 py-2.5 sm:px-5" : "px-3 py-1.5 text-sm"
             }`}
         >
           <span className="hidden sm:inline">Search</span>
@@ -181,6 +190,7 @@ export default function SearchBar({
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
