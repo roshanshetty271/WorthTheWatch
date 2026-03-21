@@ -69,9 +69,8 @@ export default function RootLayout({
           {/* Footer */}
           <footer className="border-t border-surface-elevated/50 py-8 text-center">
             <p className="text-sm text-text-secondary">
-              Worth the Watch? — Should I stream this? The internet decides.
+              Worth the Watch?
             </p>
-
           </footer>
         </AuthProvider>
       </body>

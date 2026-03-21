@@ -260,14 +260,14 @@ export default function ReviewSection({
 
         const getProgressLabel = () => {
             const p = progress.toLowerCase();
-            if (p.includes("refresh")) return "Refreshing with latest data...";
-            if (p.includes("start")) return "Starting search engines...";
-            if (p.includes("search")) return "Scouring the internet for opinions...";
-            if (p.includes("read") || p.includes("gather")) return "Reading critic reviews & Reddit...";
-            if (p.includes("filter") || p.includes("analy")) return "Filtering the noise...";
-            if (p.includes("generat") || p.includes("writ")) return "Writing your verdict...";
-            if (p.includes("sav")) return "Almost done...";
-            return "Warming up the AI...";
+            if (p.includes("refresh")) return "Refreshing with the latest data\u2026";
+            if (p.includes("start")) return "Scouring critic reviews and audience reactions\u2026";
+            if (p.includes("search")) return "Separating the hype from the truth\u2026";
+            if (p.includes("read") || p.includes("gather")) return "Reading between the star ratings\u2026";
+            if (p.includes("filter") || p.includes("analy")) return "Collecting verdicts from across the internet\u2026";
+            if (p.includes("generat") || p.includes("writ")) return "Synthesizing the final verdict\u2026";
+            if (p.includes("sav")) return "Almost there\u2026";
+            return "Warming up\u2026";
         };
 
         const pct = getProgressPercent();

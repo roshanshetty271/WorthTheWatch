@@ -111,6 +111,7 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
           onClick={() => submitVote(true)}
           disabled={submitting}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none ${
+            submitting ? "opacity-50 cursor-not-allowed" :
             voted === true
               ? "border-verdict-worth/40 bg-verdict-worth/10 text-verdict-worth"
               : "border-white/10 bg-white/5 text-text-secondary/70 hover:border-verdict-worth/30 hover:text-verdict-worth"
@@ -125,6 +126,7 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
           onClick={() => submitVote(false)}
           disabled={submitting}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none ${
+            submitting ? "opacity-50 cursor-not-allowed" :
             voted === false
               ? "border-verdict-skip/40 bg-verdict-skip/10 text-verdict-skip"
               : "border-white/10 bg-white/5 text-text-secondary/70 hover:border-verdict-skip/30 hover:text-verdict-skip"

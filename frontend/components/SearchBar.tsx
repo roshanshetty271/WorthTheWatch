@@ -37,6 +37,7 @@ export default function SearchBar({
   const [showDropdown, setShowDropdown] = useState(false);
   const [didYouMean, setDidYouMean] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState(false);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -45,12 +46,13 @@ export default function SearchBar({
     if (query.length < 2) {
       setResults([]);
       setShowDropdown(false);
+      setSearchError(false);
       return;
     }
 
-    // Don't clear results immediately to prevent flickering
     const timer = setTimeout(async () => {
       setLoading(true);
+      setSearchError(false);
       try {
         const res = await fetch(`${API_BASE}/api/search/quick?q=${encodeURIComponent(query)}`);
         if (res.ok) {
@@ -58,11 +60,14 @@ export default function SearchBar({
           setResults(data.results || []);
           setDidYouMean(data.did_you_mean || false);
           setSuggestion(data.suggestion || null);
-          // Only show dropdown if NOT disabled
           setShowDropdown(!disableDropdown && (data.results?.length > 0 || data.did_you_mean));
+        } else {
+          setSearchError(true);
+          setShowDropdown(!disableDropdown);
         }
-      } catch (e) {
-        console.error("Search failed:", e);
+      } catch {
+        setSearchError(true);
+        setShowDropdown(!disableDropdown);
       } finally {
         setLoading(false);
       }
@@ -201,6 +206,13 @@ export default function SearchBar({
           </svg>
         </button>
       </form>
+
+      {/* Dropdown Error */}
+      {showDropdown && searchError && results.length === 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-surface-card border border-surface-elevated rounded-xl shadow-2xl overflow-hidden px-4 py-5 text-center">
+          <p className="text-sm text-text-secondary">Something went wrong. Try again or press Enter to search.</p>
+        </div>
+      )}
 
       {/* Dropdown Results */}
       {showDropdown && results.length > 0 && (

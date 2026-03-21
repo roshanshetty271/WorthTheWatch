@@ -203,26 +203,16 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     {movie.title}
                                 </h1>
 
-                                {/* Rating + Year + Runtime + MPAA */}
+                                {/* Year + Runtime + MPAA */}
                                 <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-white/90 sm:gap-4 md:justify-start">
-                                    {(review?.imdb_score ? (
-                                        <span className="flex items-center gap-1.5 rounded-full bg-yellow-400/20 md:bg-black/40 md:backdrop-blur-md px-3 py-1 text-yellow-300 ring-1 ring-yellow-400/50">
-                                            <span className="text-lg">⭐</span> <span className="font-bold text-white">{review.imdb_score}</span> <span className="text-xs opacity-70">IMDb</span>
-                                        </span>
-                                    ) : (movie.tmdb_vote_average && movie.tmdb_vote_average > 0) ? (
-                                        <span className="flex items-center gap-1.5 rounded-full bg-accent-gold/20 md:bg-black/40 md:backdrop-blur-md px-3 py-1 text-accent-gold ring-1 ring-accent-gold/50">
-                                            <span className="text-lg">★</span> <span>{movie.tmdb_vote_average.toFixed(1)}</span> <span className="text-xs opacity-70">TMDB</span>
-                                        </span>
-                                    ) : null)}
-
                                     {year && (
                                         <span className="flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-3 py-1">
-                                            <span className="text-base">📅</span> {year}
+                                            <span className="text-base" aria-hidden="true">📅</span> {year}
                                         </span>
                                     )}
                                     {movie.runtime && (
                                         <span className="flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-3 py-1">
-                                            <span className="text-base">⏱️</span> {movie.runtime} min
+                                            <span className="text-base" aria-hidden="true">⏱️</span> {movie.runtime} min
                                         </span>
                                     )}
 
@@ -314,7 +304,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                                     block: "center"
                                                 });
                                             }}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-all shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 group"
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group"
                                         >
                                             <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                                                 <path d="M8 5v14l11-7z" />
@@ -377,8 +367,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                     {review?.metascore ? (
                         <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 backdrop-blur-sm">
-                            <div className="flex h-6 w-6 items-center justify-center rounded bg-purple-500 font-bold text-white text-xs">
-                                {review.metascore}
+                            <div className="flex h-6 w-6 items-center justify-center rounded bg-purple-500 font-bold text-white text-xs" aria-hidden="true">
+                                M
                             </div>
                             <div className="flex flex-col leading-none">
                                 <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Metascore</span>
@@ -417,7 +407,6 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 )}
             </div>
 
-
             {/* ═══════════════════════════════════════════════════════════════════
             CAST LIST — Collapsible
             ═══════════════════════════════════════════════════════════════════ */}
@@ -426,16 +415,18 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     <button
                         onClick={() => setCastOpen(!castOpen)}
                         className="flex items-center gap-2 mb-4 group cursor-pointer"
+                        aria-expanded={castOpen}
                     >
                         <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 group-hover:text-white/60 transition-colors">
                             Cast
                         </h3>
                         <svg
-                            className={`w-3.5 h-3.5 text-white/30 group-hover:text-white/50 transition-all ${castOpen ? "rotate-180" : ""}`}
+                            className={`w-3.5 h-3.5 text-white/30 group-hover:text-white/50 transition-transform ${castOpen ? "rotate-180" : ""}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
                             strokeWidth={2}
+                            aria-hidden="true"
                         >
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
@@ -460,7 +451,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                             />
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02]">
-                                                <span className="text-lg text-white/20">👤</span>
+                                                <span className="text-lg text-white/20" aria-hidden="true">👤</span>
                                                 <span className="text-[7px] text-white/20 mt-0.5">{person.name.split(' ')[0]}</span>
                                             </div>
                                         )}
@@ -479,7 +470,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════
-            VERDICT — Always after cast
+            VERDICT — After overview and cast
             ═══════════════════════════════════════════════════════════════════ */}
             {verdictBlock}
 

@@ -44,30 +44,37 @@ export default function NowPlaying() {
     const [tab, setTab] = useState<Tab>("theaters");
     const [items, setItems] = useState<NowPlayingItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    const fetchData = async (selectedTab: Tab) => {
+        setLoading(true);
+        setError(false);
+        try {
+            const endpoint =
+                selectedTab === "theaters"
+                    ? "/api/nowplaying/theaters"
+                    : selectedTab === "streaming"
+                        ? "/api/nowplaying/streaming"
+                        : "/api/nowplaying/upcoming";
+
+            const res = await fetch(`${API_BASE}${endpoint}`);
+            if (res.ok) {
+                const data = await res.json();
+                setItems(data.results || []);
+            } else {
+                setError(true);
+                setItems([]);
+            }
+        } catch {
+            setError(true);
+            setItems([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        async function fetchData() {
-            setLoading(true);
-            try {
-                const endpoint =
-                    tab === "theaters"
-                        ? "/api/nowplaying/theaters"
-                        : tab === "streaming"
-                            ? "/api/nowplaying/streaming"
-                            : "/api/nowplaying/upcoming";
-
-                const res = await fetch(`${API_BASE}${endpoint}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setItems(data.results || []);
-                }
-            } catch {
-                setItems([]);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchData();
+        fetchData(tab);
     }, [tab]);
 
     const tabs: { key: Tab; label: string; icon: string }[] = [
@@ -98,7 +105,7 @@ export default function NowPlaying() {
                                 : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"
                             }`}
                     >
-                        <span>{t.icon}</span>
+                        <span aria-hidden="true">{t.icon}</span>
                         <span className="hidden sm:inline">{t.label}</span>
                         <span className="sm:hidden">
                             {t.key === "theaters" ? "Theaters" : t.key === "streaming" ? "Streaming" : "Soon"}
@@ -108,6 +115,7 @@ export default function NowPlaying() {
             </div>
 
             {/* Content */}
+            <div key={tab} className="animate-fade-in">
             {loading ? (
                 <div className="flex gap-4 sm:gap-6 overflow-hidden px-4 sm:px-0">
                     {[...Array(6)].map((_, i) => (
@@ -140,7 +148,7 @@ export default function NowPlaying() {
 
                                 {/* Tab-specific badge */}
                                 <div className="absolute top-2 left-2 z-10">
-                                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm ${tab === "theaters"
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm ${tab === "theaters"
                                             ? "bg-red-500/20 text-red-300 border border-red-500/30"
                                             : tab === "streaming"
                                                 ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
@@ -166,11 +174,22 @@ export default function NowPlaying() {
                         </Link>
                     ))}
                 </div>
+            ) : error ? (
+                <div className="text-center py-8">
+                    <p className="text-sm text-white/40">Couldn&apos;t load what&apos;s playing right now.</p>
+                    <button
+                        onClick={() => fetchData(tab)}
+                        className="mt-2 text-xs font-medium text-accent-gold hover:text-accent-goldLight transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:rounded"
+                    >
+                        Tap to retry
+                    </button>
+                </div>
             ) : (
                 <p className="text-sm text-white/30 text-center py-8">
-                    No results found.
+                    Nothing playing right now. Check back later or search for a title above.
                 </p>
             )}
+            </div>
         </section>
     );
 }

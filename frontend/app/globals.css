@@ -47,7 +47,7 @@ body {
 /* ─── Card Hover ────────────────────────────────────── */
 
 .movie-card {
-  @apply transition-all duration-300 ease-out;
+  @apply transition-transform duration-300 ease-out;
 }
 
 .movie-card:hover {

@@ -201,7 +201,7 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:border-accent-gold/30 transition-all cursor-default"
+                className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/60"
               >
                 {tag.replace(/-/g, " ")}
               </span>
@@ -261,7 +261,7 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
             </ul>
           ) : (
             <p className="text-base italic text-text-secondary/50">
-              Nothing noteworthy
+              No standout positives noted
             </p>
           )}
         </div>
@@ -293,27 +293,9 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
         </div>
       )}
 
-      {/* Sources & Meta */}
-      <div className="flex flex-wrap items-center justify-center gap-6 border-t border-white/5 pt-8 text-xs font-medium uppercase tracking-wider text-text-secondary">
-        {review.imdb_score && (
-          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors duration-200">
-            <span className="text-lg" aria-hidden="true">⭐</span> IMDb {review.imdb_score}
-          </span>
-        )}
-        {review.rt_critic_score && (
-          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors duration-200">
-            <span className="text-lg" aria-hidden="true">🍅</span> Critics {review.rt_critic_score}%
-          </span>
-        )}
-        {review.rt_audience_score && (
-          <span className="flex items-center gap-1.5 hover:text-accent-gold transition-colors duration-200">
-            <span className="text-lg" aria-hidden="true">🍿</span> Audience {review.rt_audience_score}%
-          </span>
-        )}
-      </div>
       {/* Generated / Last Updated timestamp */}
       {(review.last_refreshed_at || review.generated_at) && (
-        <p className="text-center text-[10px] text-text-secondary/40 tracking-wide">
+        <p className="text-center text-[10px] text-text-secondary/40 tracking-wide border-t border-white/5 pt-6">
           Verdict generated{" "}
           {new Date(review.last_refreshed_at || review.generated_at!).toLocaleDateString("en-US", {
             month: "short",

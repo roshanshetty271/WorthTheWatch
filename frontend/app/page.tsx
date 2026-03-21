@@ -72,13 +72,13 @@ function HorizontalSection({
         </div>
         <Link
           href={`/browse/${id}`}
-          className="group flex items-center gap-2 mb-1"
+          className="group flex items-center gap-2 mb-1 py-1 px-1 -mr-1 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none focus-visible:rounded"
         >
-          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-white/50 group-hover:text-accent-gold transition-colors">
+          <span className="text-xs font-semibold uppercase tracking-widest text-white/50 group-hover:text-accent-gold transition-colors duration-200">
             View All
           </span>
-          <div className="flex bg-white/5 p-1.5 rounded-full group-hover:bg-accent-gold/20 transition-colors">
-            <svg className="h-3 w-3 text-white/50 group-hover:text-accent-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <div className="flex bg-white/5 p-1.5 rounded-full group-hover:bg-accent-gold/20 transition-colors duration-200">
+            <svg className="h-3 w-3 text-white/50 group-hover:text-accent-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </div>
@@ -227,12 +227,12 @@ export default async function HomePage() {
           </div>
         ) : (
           <section className="mx-4 rounded-2xl border border-surface-elevated bg-surface-card p-12 text-center">
-            <p className="text-5xl">🎬</p>
+            <p className="text-5xl" aria-hidden="true">🎬</p>
             <h2 className="mt-4 font-display text-2xl text-text-primary">
               No reviews yet
             </h2>
             <p className="mx-auto mt-2 max-w-md text-text-secondary">
-              Search for any movie or TV show to generate an AI-powered review!
+              Search for a movie above to see what the internet thinks.
             </p>
           </section>
         )}
