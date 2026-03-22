@@ -119,7 +119,7 @@ SPOILER POLICY (STRICTLY ENFORCED):
 - When in doubt, leave it out. The user has not seen the movie yet.
 
 STRUCTURE (follow this exactly):
-1. HOOK (1 sentence): The most interesting or controversial thing about this movie's reception. Not a generic intro. This should make someone want to keep reading.
+1. HOOK (1 sentence): The most interesting or controversial thing about this movie's reception. Not a generic intro. This should make someone want to keep reading. The hook tone MUST match the verdict — never use negative words like "forgettable" or "mediocre" in a WORTH IT hook.
 
 2. CRITIC TAKE (2-3 sentences): What professional reviewers said. Name specific publications when possible. Include their specific praise or criticism.
 

@@ -971,6 +971,30 @@ CRITIC REVIEWS (Professional):
         # Override confidence with our calculated value (not LLM's guess)
         llm_output.confidence = confidence_stats["confidence_tier"]
 
+        # Hook-verdict consistency repair: if the hook contradicts the verdict, swap it
+        _NEGATIVE_HOOK_WORDS = {
+            "forgettable", "predictable", "disappointing", "mediocre", "bland",
+            "underwhelming", "lackluster", "struggles", "fails", "flat",
+            "generic", "uninspired", "boring", "dull", "skip",
+        }
+        _POSITIVE_HOOK_WORDS = {
+            "masterpiece", "must-see", "must see", "brilliant", "stunning",
+            "flawless", "perfect", "phenomenal", "extraordinary",
+        }
+        if llm_output.hook:
+            hook_lower = llm_output.hook.lower()
+            contradicts = False
+            if llm_output.verdict == "WORTH IT" and any(w in hook_lower for w in _NEGATIVE_HOOK_WORDS):
+                contradicts = True
+            elif llm_output.verdict == "NOT WORTH IT" and any(w in hook_lower for w in _POSITIVE_HOOK_WORDS):
+                contradicts = True
+
+            if contradicts:
+                fallback = llm_output.vibe or (llm_output.praise_points[0] if llm_output.praise_points else None)
+                if fallback:
+                    logger.info(f"🔄 Hook repair: \"{llm_output.hook}\" → \"{fallback}\" (contradicted {llm_output.verdict})")
+                    llm_output.hook = fallback
+
         logger.info(f"✅ LLM RESPONSE RECEIVED:")
         logger.info(f"   → Verdict: {llm_output.verdict}")
         logger.info(f"   → Praise Points: {len(llm_output.praise_points or [])} items")
