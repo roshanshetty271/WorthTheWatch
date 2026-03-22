@@ -11,9 +11,11 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useWatchlist } from "@/lib/useWatchlist";
+import SignInDialog from "./SignInDialog";
 import { useSignInPrompt } from "@/lib/useSignInPrompt";
+import { logActivity } from "@/lib/logActivity";
 import dynamic from "next/dynamic";
 const BattleShareCard = dynamic(() => import("@/components/BattleShareCard"), {
     ssr: false,
@@ -143,6 +145,7 @@ export default function Versus() {
     const { canBattle, incrementBattle, isSignedIn } = useSignInPrompt();
     const [phase, setPhase] = useState<Phase>("landing");
     const [battleError, setBattleError] = useState<string | null>(null);
+    const [showSignIn, setShowSignIn] = useState(false);
 
     // Movie selection
     const [slotA, setSlotA] = useState<VersusMovie | null>(null);
@@ -258,7 +261,7 @@ export default function Versus() {
             setBattleError(null);
 
             if (!canBattle) {
-                setBattleError("sign_in_prompt");
+                setShowSignIn(true);
                 setPhase("landing");
                 return;
             }
@@ -295,6 +298,12 @@ export default function Versus() {
 
                 incrementBattle();
                 const result: BattleResult = await res.json();
+                logActivity({
+                    activity_type: "battle",
+                    tmdb_id: movieAId,
+                    media_type: movieAType,
+                    title: result.winner_title,
+                });
                 setBattleResult(result);
 
                 // Update slots with data from result (preserving correct media_type)
@@ -330,7 +339,7 @@ export default function Versus() {
                 if (loadingInterval.current) clearInterval(loadingInterval.current);
             }
         },
-        []
+        [canBattle, incrementBattle, isSignedIn]
     );
 
     const handleTrendingBattle = useCallback(
@@ -467,19 +476,9 @@ export default function Versus() {
                         {/* ── Battle Rate Limit Banner ── */}
                         {battleError && (
                             <div className="mb-8 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6 text-center max-w-lg mx-auto">
-                                <p className="text-sm text-text-secondary mb-4">
-                                    {battleError === "sign_in_prompt"
-                                        ? "You've used your 2 free battles today. Sign in for more!"
-                                        : "Battle limit reached. Try again later."}
+                                <p className="text-sm text-text-secondary">
+                                    Battle limit reached. Try again later.
                                 </p>
-                                {!isSignedIn && (
-                                    <button
-                                        onClick={() => signIn("google")}
-                                        className="px-5 py-2.5 bg-accent-gold text-black font-bold rounded-xl text-sm hover:bg-accent-goldLight transition-colors"
-                                    >
-                                        Sign in for more battles
-                                    </button>
-                                )}
                             </div>
                         )}
 
@@ -994,6 +993,12 @@ export default function Versus() {
                     </motion.div>
                 </motion.div>
             )}
+
+            <SignInDialog
+                open={showSignIn}
+                onClose={() => setShowSignIn(false)}
+                context="Your free battle is used up for today."
+            />
         </div>
     );
 }

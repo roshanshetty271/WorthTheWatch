@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -17,6 +18,8 @@ interface ReviewFeedbackProps {
 }
 
 export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
+  const { data: session } = useSession();
+  const userId = session?.user?.id || null;
   const [data, setData] = useState<FeedbackData | null>(null);
   const [voted, setVoted] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -27,7 +30,10 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
 
   const fetchFeedback = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/reviews/${tmdbId}/feedback`);
+      const url = userId
+        ? `${API_BASE}/api/reviews/${tmdbId}/feedback?user_id=${encodeURIComponent(userId)}`
+        : `${API_BASE}/api/reviews/${tmdbId}/feedback`;
+      const res = await fetch(url);
       if (res.ok) {
         const json: FeedbackData = await res.json();
         setData(json);
@@ -38,7 +44,7 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
     } catch {
       // Silently fail — feedback is non-critical
     }
-  }, [tmdbId]);
+  }, [tmdbId, userId]);
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
@@ -56,7 +62,7 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
       const res = await fetch(`${API_BASE}/api/reviews/${tmdbId}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ helpful }),
+        body: JSON.stringify({ helpful, user_id: userId }),
       });
 
       if (res.ok) {

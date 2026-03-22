@@ -293,17 +293,6 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
         </div>
       )}
 
-      {/* Generated / Last Updated timestamp */}
-      {(review.last_refreshed_at || review.generated_at) && (
-        <p className="text-center text-[10px] text-text-secondary/40 tracking-wide border-t border-white/5 pt-6">
-          Verdict generated{" "}
-          {new Date(review.last_refreshed_at || review.generated_at!).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
-        </p>
-      )}
     </div>
   );
 }

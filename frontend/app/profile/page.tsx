@@ -1,0 +1,233 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+
+interface TasteProfile {
+    topGenres: { name: string; count: number }[];
+    topDecades: { name: string; count: number }[];
+    stats: {
+        views: number;
+        generations: number;
+        battles: number;
+        rouletteSpins: number;
+        totalActivity: number;
+        savedMovies: number;
+        moviesVsTv: { movies: number; tv: number };
+    };
+    userName: string;
+    userImage: string | null;
+}
+
+export default function ProfilePage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
+    const [profile, setProfile] = useState<TasteProfile | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (status === "loading") return;
+        if (!session?.user) {
+            router.push("/");
+            return;
+        }
+
+        fetch("/api/profile")
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (data) setProfile(data);
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [session, status, router]);
+
+    if (status === "loading" || loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-accent-gold/30 border-t-accent-gold rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (!session?.user || !profile) return null;
+
+    const maxGenreCount = profile.topGenres[0]?.count || 1;
+    const hasEnoughData = profile.stats.totalActivity >= 3;
+
+    return (
+        <div className="min-h-screen pt-24 md:pt-28 pb-16">
+            <div className="mx-auto max-w-3xl px-4">
+                {/* Header */}
+                <div className="flex items-center gap-4 mb-8">
+                    {profile.userImage && (
+                        <Image
+                            src={profile.userImage}
+                            alt={profile.userName}
+                            width={56}
+                            height={56}
+                            className="rounded-full ring-2 ring-accent-gold/30"
+                        />
+                    )}
+                    <div>
+                        <h1 className="font-display text-2xl md:text-3xl text-white">
+                            {profile.userName}
+                        </h1>
+                        <p className="text-sm text-text-secondary">Your taste profile</p>
+                    </div>
+                </div>
+
+                {/* Activity Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                    {[
+                        { label: "Movies Explored", value: profile.stats.views, icon: "👁" },
+                        { label: "Verdicts Generated", value: profile.stats.generations, icon: "⚡" },
+                        { label: "Battles Won", value: profile.stats.battles, icon: "⚔️" },
+                        { label: "Roulette Spins", value: profile.stats.rouletteSpins, icon: "🎰" },
+                    ].map((stat) => (
+                        <div
+                            key={stat.label}
+                            className="rounded-xl border border-white/10 bg-surface-card p-4 text-center"
+                        >
+                            <p className="text-2xl mb-1">{stat.icon}</p>
+                            <p className="text-2xl font-bold text-white">{stat.value}</p>
+                            <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">
+                                {stat.label}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+
+                {!hasEnoughData ? (
+                    <div className="rounded-2xl border border-white/10 bg-surface-card p-12 text-center">
+                        <p className="text-4xl mb-4">🎬</p>
+                        <h2 className="font-display text-xl text-text-primary mb-2">
+                            Keep exploring!
+                        </h2>
+                        <p className="text-sm text-text-secondary mb-6 max-w-sm mx-auto">
+                            View a few more movies to build your taste profile. We need at least 3 interactions to detect patterns.
+                        </p>
+                        <Link
+                            href="/"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent-gold text-black font-bold rounded-xl text-sm hover:bg-accent-goldLight transition-colors"
+                        >
+                            Discover movies
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {/* Top Genres */}
+                        {profile.topGenres.length > 0 && (
+                            <div className="rounded-2xl border border-white/10 bg-surface-card p-6">
+                                <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-4">
+                                    Your Top Genres
+                                </h2>
+                                <div className="space-y-3">
+                                    {profile.topGenres.map((genre) => (
+                                        <div key={genre.name} className="flex items-center gap-3">
+                                            <span className="text-sm text-white w-24 truncate font-medium">
+                                                {genre.name}
+                                            </span>
+                                            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-accent-gold rounded-full transition-all duration-500"
+                                                    style={{
+                                                        width: `${(genre.count / maxGenreCount) * 100}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="text-xs text-text-muted w-8 text-right">
+                                                {genre.count}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Favorite Decades */}
+                        {profile.topDecades.length > 0 && (
+                            <div className="rounded-2xl border border-white/10 bg-surface-card p-6">
+                                <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-4">
+                                    Favorite Eras
+                                </h2>
+                                <div className="flex flex-wrap gap-2">
+                                    {profile.topDecades.map((decade, i) => (
+                                        <span
+                                            key={decade.name}
+                                            className={`px-4 py-2 rounded-full text-sm font-medium border ${
+                                                i === 0
+                                                    ? "bg-accent-gold/10 text-accent-gold border-accent-gold/30"
+                                                    : "bg-white/5 text-text-secondary border-white/10"
+                                            }`}
+                                        >
+                                            {decade.name}
+                                            <span className="text-xs ml-1.5 opacity-60">({decade.count})</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Movies vs TV */}
+                        {(profile.stats.moviesVsTv.movies > 0 || profile.stats.moviesVsTv.tv > 0) && (
+                            <div className="rounded-2xl border border-white/10 bg-surface-card p-6">
+                                <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-4">
+                                    Movies vs TV Shows
+                                </h2>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-1">
+                                        <div className="flex h-3 rounded-full overflow-hidden bg-white/5">
+                                            {profile.stats.moviesVsTv.movies > 0 && (
+                                                <div
+                                                    className="bg-accent-gold h-full"
+                                                    style={{
+                                                        width: `${(profile.stats.moviesVsTv.movies / (profile.stats.moviesVsTv.movies + profile.stats.moviesVsTv.tv)) * 100}%`,
+                                                    }}
+                                                />
+                                            )}
+                                            {profile.stats.moviesVsTv.tv > 0 && (
+                                                <div
+                                                    className="bg-purple-500 h-full"
+                                                    style={{
+                                                        width: `${(profile.stats.moviesVsTv.tv / (profile.stats.moviesVsTv.movies + profile.stats.moviesVsTv.tv)) * 100}%`,
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between mt-2 text-xs">
+                                    <span className="text-accent-gold font-medium">
+                                        Movies ({profile.stats.moviesVsTv.movies})
+                                    </span>
+                                    <span className="text-purple-400 font-medium">
+                                        TV ({profile.stats.moviesVsTv.tv})
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Links */}
+                        <div className="flex gap-3 pt-2">
+                            <Link
+                                href="/history"
+                                className="flex-1 text-center py-3 rounded-xl border border-white/10 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                                View History
+                            </Link>
+                            <Link
+                                href="/my-list"
+                                className="flex-1 text-center py-3 rounded-xl border border-white/10 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                                My List ({profile.stats.savedMovies})
+                            </Link>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

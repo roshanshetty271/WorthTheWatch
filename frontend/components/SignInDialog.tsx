@@ -1,14 +1,30 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { signIn } from "next-auth/react";
 
 interface SignInDialogProps {
   open: boolean;
   onClose: () => void;
+  context?: string;
 }
 
-export default function SignInDialog({ open, onClose }: SignInDialogProps) {
+const INCENTIVES = [
+  "Unlimited verdicts, battles, and spins",
+  "Save movies and sync across devices",
+  "Mark movies as watched or skipped",
+  "Your personal review history",
+  "Vote on whether verdicts are helpful",
+];
+
+export default function SignInDialog({ open, onClose, context }: SignInDialogProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -19,19 +35,17 @@ export default function SignInDialog({ open, onClose }: SignInDialogProps) {
   useEffect(() => {
     if (open) {
       document.addEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "hidden";
     }
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
     };
   }, [open, handleKeyDown]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70"
       onClick={onClose}
     >
       <div
@@ -48,16 +62,32 @@ export default function SignInDialog({ open, onClose }: SignInDialogProps) {
           </svg>
         </button>
 
-        <h2 className="font-display text-xl text-white">Enjoying the verdicts?</h2>
+        <h2 className="font-display text-xl text-white">Unlock the full experience</h2>
 
-        <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-          Sign in to save movies, unlock more daily verdicts, and unlimited
-          Can&apos;t Decide spins.
-        </p>
+        {context && (
+          <p className="mt-2 text-sm text-accent-gold/80">{context}</p>
+        )}
+
+        <ul className="mt-5 space-y-3">
+          {INCENTIVES.map((item) => (
+            <li key={item} className="flex items-start gap-3">
+              <svg
+                className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-gold"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-sm leading-snug text-text-secondary">{item}</span>
+            </li>
+          ))}
+        </ul>
 
         <button
           onClick={() => signIn("google")}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-accent-gold px-6 py-3 font-bold text-black transition-colors hover:bg-accent-goldLight"
+          className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-accent-gold px-6 py-3 font-bold text-black transition-colors hover:bg-accent-goldLight"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -87,6 +117,7 @@ export default function SignInDialog({ open, onClose }: SignInDialogProps) {
           Maybe later
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

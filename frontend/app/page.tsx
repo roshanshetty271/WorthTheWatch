@@ -5,6 +5,7 @@ import MovieCard from "@/components/MovieCard";
 import NowPlaying from "@/components/NowPlaying";
 import VerdictBadge from "@/components/VerdictBadge";
 import CantDecideCTA from "@/components/CantDecideCTA";
+import ForYouSection from "@/components/ForYouSection";
 import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -133,7 +134,7 @@ export default async function HomePage() {
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="hidden md:block object-cover object-top transition-transform duration-[20s] hover:scale-105"
+              className="hidden md:block object-cover object-top transition-transform duration-[20s] hover:scale-105 opacity-90"
               priority
               unoptimized
             />
@@ -143,7 +144,7 @@ export default async function HomePage() {
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="block md:hidden object-cover object-top"
+              className="block md:hidden object-cover object-top opacity-90"
               priority
               unoptimized
             />
@@ -155,15 +156,15 @@ export default async function HomePage() {
         )}
 
         {/* Center Content */}
-        <div className="relative z-30 w-full max-w-4xl px-4 text-center pt-24 mb-4 sm:pt-32 sm:mb-32 md:mb-40">
-          <h1 className="mb-4 font-bold text-2xl text-white sm:text-4xl md:text-6xl tracking-tight text-shadow-hero">
+        <div className="relative z-30 w-full max-w-5xl px-4 text-center pt-20 mb-4 sm:pt-28 sm:mb-24 md:mb-28">
+          <h1 className="mb-4 font-bold text-xl text-white sm:text-3xl md:text-5xl tracking-tight text-shadow-hero">
             Don&apos;t watch <br />
             <span className="text-accent-gold">another bad movie.</span>
           </h1>
-          <p className="mx-auto mb-8 max-w-lg text-base sm:text-xl text-white/80 font-medium text-shadow-sub">
+          <p className="mx-auto mb-5 max-w-lg text-base sm:text-xl text-white/80 font-medium text-shadow-sub">
             Search any title to get an instant, AI-powered verdict from fans and critics.
           </p>
-          <div className="mx-auto max-w-xl sm:max-w-2xl mb-12">
+          <div className="mx-auto max-w-2xl sm:max-w-3xl mb-12">
             <SearchBar placeholder="Search any movie or TV show..." size="lg" />
           </div>
         </div>
@@ -173,17 +174,17 @@ export default async function HomePage() {
           <div className="relative sm:absolute sm:bottom-0 left-0 z-20 w-full p-4 sm:px-12 sm:pb-6 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
-                <div className="mb-2 flex items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-gold"></span>
+                <div className="mb-2 flex items-center gap-2.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md">
+                    <span className="h-1 w-1 animate-pulse rounded-full bg-accent-gold"></span>
                     LATEST
                   </span>
                   {featured.review && (
-                    <VerdictBadge verdict={featured.review.verdict} size="sm" />
+                    <VerdictBadge verdict={featured.review.verdict} size="xs" />
                   )}
                 </div>
                 <Link href={`/movie/${featured.movie.tmdb_id}?type=${featured.movie.media_type || "movie"}`} className="group block">
-                  <h2 className="font-display text-xl text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-3xl md:text-4xl">
+                  <h2 className="font-display text-base text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-xl md:text-2xl">
                     {featured.movie.title}
                   </h2>
                 </Link>
@@ -213,6 +214,9 @@ export default async function HomePage() {
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8">
         {hasAnySections ? (
           <div className="space-y-2">
+            {/* Personalized Recommendations (signed-in only) */}
+            <ForYouSection />
+
             {/* Now Playing — What's new right now */}
             <NowPlaying />
 

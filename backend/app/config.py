@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     ON_DEMAND_PER_IP_PER_DAY: int = 5
     BATTLE_PER_IP_PER_DAY: int = 10
     ROULETTE_PER_IP_PER_DAY: int = 10
+    RATE_LIMIT_WHITELIST: str = ""
 
     # Phase 2 APIs
     OMDB_API_KEY: str = ""

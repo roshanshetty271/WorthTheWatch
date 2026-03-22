@@ -42,8 +42,12 @@ export async function GET() {
 
     try {
         const sql = getSQL();
+        await sql`
+            ALTER TABLE watchlist_items ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'want_to_watch'
+        `;
+
         const items = await sql`
-            SELECT tmdb_id, title, poster_path, media_type, verdict, added_at 
+            SELECT tmdb_id, title, poster_path, media_type, verdict, status, added_at 
             FROM watchlist_items 
             WHERE user_id = ${session.user.id} 
             ORDER BY added_at DESC
@@ -53,6 +57,40 @@ export async function GET() {
     } catch (error) {
         console.error("Watchlist GET error:", error);
         return NextResponse.json({ items: [] }, { status: 500 });
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+        const body = await req.json();
+        const { tmdb_id, status } = body;
+
+        const tmdbIdNum = parseInt(String(tmdb_id), 10);
+        if (isNaN(tmdbIdNum) || tmdbIdNum <= 0) {
+            return NextResponse.json({ error: "Invalid tmdb_id" }, { status: 400 });
+        }
+
+        const validStatuses = ["want_to_watch", "watched", "skipped"];
+        if (!validStatuses.includes(status)) {
+            return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+        }
+
+        const sql = getSQL();
+        await sql`
+            UPDATE watchlist_items 
+            SET status = ${status}
+            WHERE user_id = ${session.user.id} AND tmdb_id = ${tmdbIdNum}
+        `;
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("Watchlist PATCH error:", error);
+        return NextResponse.json({ error: "Failed to update" }, { status: 500 });
     }
 }
 

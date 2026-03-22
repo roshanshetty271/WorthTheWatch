@@ -2,9 +2,10 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
-import { signIn } from "next-auth/react";
 import BookmarkButton from "./BookmarkButton";
+import SignInDialog from "./SignInDialog";
 import { useSignInPrompt } from "@/lib/useSignInPrompt";
+import { logActivity } from "@/lib/logActivity";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
@@ -60,6 +61,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
     const [winnerPoster, setWinnerPoster] = useState<string>("");
     const [navigating, setNavigating] = useState(false);
     const [rouletteError, setRouletteError] = useState<string | null>(null);
+    const [showSignIn, setShowSignIn] = useState(false);
     const lastExcludeRef = useRef<number | null>(null);
     const initialPathRef = useRef(pathname);
     const abortRef = useRef<AbortController | null>(null);
@@ -142,7 +144,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
         setRouletteError(null);
 
         if (!canRoulette) {
-            setRouletteError("sign_in_prompt");
+            setShowSignIn(true);
             return;
         }
 
@@ -177,6 +179,13 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
             const data = await res.json();
 
             incrementRoulette();
+            logActivity({
+                activity_type: "roulette",
+                tmdb_id: (data as RandomMovie).movie.tmdb_id,
+                media_type: (data as RandomMovie).movie.media_type || "movie",
+                title: (data as RandomMovie).movie.title,
+                poster_path: (data as RandomMovie).movie.poster_path,
+            });
 
             const poster = formatPoster(data as RandomMovie);
             setWinnerPoster(poster);
@@ -305,19 +314,9 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
 
                                 {rouletteError && (
                                     <div className="rounded-xl border border-accent-gold/20 bg-accent-gold/5 px-5 py-4 text-center max-w-xs">
-                                        <p className="text-xs text-text-secondary mb-3">
-                                            {rouletteError === "sign_in_prompt"
-                                                ? "You've had 2 free spins today. Sign in for unlimited Can't Decide!"
-                                                : "Spin limit reached. Try again later."}
+                                        <p className="text-xs text-text-secondary">
+                                            Spin limit reached. Try again later.
                                         </p>
-                                        {!isSignedIn && (
-                                            <button
-                                                onClick={() => signIn("google")}
-                                                className="px-4 py-2 bg-accent-gold text-black font-bold rounded-lg text-xs hover:bg-accent-goldLight transition-colors"
-                                            >
-                                                Sign in for unlimited spins
-                                            </button>
-                                        )}
                                     </div>
                                 )}
 
@@ -521,6 +520,12 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
 
                 </motion.div>
             </motion.div>
+
+            <SignInDialog
+                open={showSignIn}
+                onClose={() => setShowSignIn(false)}
+                context="Your free spin is used up for today."
+            />
         </AnimatePresence>
     );
 }

@@ -10,6 +10,7 @@ const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
 });
 import { useWatchlist } from "@/lib/useWatchlist";
 import AuthButton from "./AuthButton";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
     const [rouletteOpen, setRouletteOpen] = useState(false);
@@ -56,7 +57,7 @@ export default function Navbar() {
                 <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8">
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-2 group relative z-50">
-                        <span className="font-display text-2xl md:text-3xl text-white tracking-tight group-hover:text-accent-gold transition-colors duration-300">
+                        <span className="font-display text-xl md:text-2xl text-white tracking-tight group-hover:text-accent-gold transition-colors duration-300">
                             Worth the <span className="text-accent-gold">Watch</span>?
                         </span>
                     </Link>
@@ -144,6 +145,8 @@ export default function Navbar() {
                                 </span>
                             )}
                         </Link>
+
+                        <NotificationBell />
 
                         <button
                             onClick={handleSearchClick}

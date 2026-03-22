@@ -2,6 +2,7 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 
 export default function AuthButton() {
@@ -77,6 +78,22 @@ export default function AuthButton() {
                             {session.user?.email}
                         </p>
                     </div>
+
+                    {/* Menu links */}
+                    <Link
+                        href="/profile"
+                        onClick={() => setShowMenu(false)}
+                        className="block w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                        Profile
+                    </Link>
+                    <Link
+                        href="/history"
+                        onClick={() => setShowMenu(false)}
+                        className="block w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                        History
+                    </Link>
 
                     {/* Sign out */}
                     {!confirmSignOut ? (

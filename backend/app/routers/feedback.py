@@ -33,6 +33,7 @@ def _hash_ip(request: Request) -> str:
 
 class FeedbackRequest(BaseModel):
     helpful: bool
+    user_id: str | None = None
 
 
 class FeedbackResponse(BaseModel):
@@ -51,6 +52,7 @@ async def submit_feedback(
 ):
     """Submit or update feedback on a review verdict."""
     ip_hash = _hash_ip(request)
+    user_id = body.user_id
 
     result = await db.execute(
         select(Review.id)
@@ -63,33 +65,50 @@ async def submit_feedback(
 
     review_id = review_row
 
-    existing = await db.execute(
-        select(ReviewFeedback).where(
-            ReviewFeedback.review_id == review_id,
-            ReviewFeedback.ip_hash == ip_hash,
+    # If signed in, look up by user_id first; fall back to ip_hash
+    feedback = None
+    if user_id:
+        existing = await db.execute(
+            select(ReviewFeedback).where(
+                ReviewFeedback.review_id == review_id,
+                ReviewFeedback.user_id == user_id,
+            )
         )
-    )
-    feedback = existing.scalar_one_or_none()
+        feedback = existing.scalar_one_or_none()
+
+    if not feedback:
+        existing = await db.execute(
+            select(ReviewFeedback).where(
+                ReviewFeedback.review_id == review_id,
+                ReviewFeedback.ip_hash == ip_hash,
+            )
+        )
+        feedback = existing.scalar_one_or_none()
 
     if feedback:
         feedback.is_helpful = body.helpful
+        if user_id and not feedback.user_id:
+            feedback.user_id = user_id
     else:
         feedback = ReviewFeedback(
             review_id=review_id,
             is_helpful=body.helpful,
             ip_hash=ip_hash,
+            user_id=user_id,
         )
         db.add(feedback)
 
     await db.commit()
 
-    return await _get_aggregate(db, review_id, ip_hash)
+    lookup_id = user_id or ip_hash
+    return await _get_aggregate(db, review_id, lookup_id)
 
 
 @router.get("/{tmdb_id}/feedback", response_model=FeedbackResponse)
 async def get_feedback(
     tmdb_id: int,
     request: Request,
+    user_id: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Get aggregate feedback for a review."""
@@ -104,10 +123,11 @@ async def get_feedback(
     if not review_row:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    return await _get_aggregate(db, review_row, ip_hash)
+    lookup_id = user_id or ip_hash
+    return await _get_aggregate(db, review_row, lookup_id)
 
 
-async def _get_aggregate(db: AsyncSession, review_id: int, ip_hash: str) -> FeedbackResponse:
+async def _get_aggregate(db: AsyncSession, review_id: int, lookup_id: str) -> FeedbackResponse:
     """Build aggregate feedback response."""
     counts = await db.execute(
         select(
@@ -119,10 +139,14 @@ async def _get_aggregate(db: AsyncSession, review_id: int, ip_hash: str) -> Feed
     helpful_count = row.helpful or 0
     not_helpful_count = row.not_helpful or 0
 
+    from sqlalchemy import or_
     user_result = await db.execute(
         select(ReviewFeedback.is_helpful).where(
             ReviewFeedback.review_id == review_id,
-            ReviewFeedback.ip_hash == ip_hash,
+            or_(
+                ReviewFeedback.ip_hash == lookup_id,
+                ReviewFeedback.user_id == lookup_id,
+            ),
         )
     )
     user_row = user_result.scalar_one_or_none()

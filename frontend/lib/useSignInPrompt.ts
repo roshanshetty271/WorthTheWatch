@@ -12,8 +12,13 @@ const KEYS = {
   lastReset: "wtw_last_reset",
 } as const;
 
-const SOFT_LIMITS = { generation: 2, battle: 2, roulette: 2 };
+const SOFT_LIMITS = { generation: 2, battle: 1, roulette: 1 };
 const DIALOG_PAGE_THRESHOLD = 2;
+
+const WHITELIST = (process.env.NEXT_PUBLIC_RATE_LIMIT_WHITELIST || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 function getTodayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -48,17 +53,28 @@ export function useSignInPrompt() {
   const [genCount, setGenCount] = useState(0);
   const [battleCount, setBattleCount] = useState(0);
   const [rouletteCount, setRouletteCount] = useState(0);
+  const [whitelisted, setWhitelisted] = useState(false);
 
   useEffect(() => {
     resetIfNewDay();
     setGenCount(getCount(KEYS.genCount));
     setBattleCount(getCount(KEYS.battleCount));
     setRouletteCount(getCount(KEYS.rouletteCount));
+
+    if (WHITELIST.length > 0) {
+      fetch("https://api.ipify.org?format=json")
+        .then((r) => r.json())
+        .then((data) => {
+          if (WHITELIST.includes(data.ip)) setWhitelisted(true);
+        })
+        .catch(() => {});
+    }
   }, []);
 
-  const canGenerate = isSignedIn || genCount < SOFT_LIMITS.generation;
-  const canBattle = isSignedIn || battleCount < SOFT_LIMITS.battle;
-  const canRoulette = isSignedIn || rouletteCount < SOFT_LIMITS.roulette;
+  const bypass = isSignedIn || whitelisted;
+  const canGenerate = bypass || genCount < SOFT_LIMITS.generation;
+  const canBattle = bypass || battleCount < SOFT_LIMITS.battle;
+  const canRoulette = bypass || rouletteCount < SOFT_LIMITS.roulette;
 
   const incrementGeneration = useCallback(() => {
     resetIfNewDay();
@@ -79,14 +95,14 @@ export function useSignInPrompt() {
   }, []);
 
   const incrementPageView = useCallback(() => {
-    if (isSignedIn) return;
+    if (bypass) return;
     resetIfNewDay();
     const views = increment(KEYS.pagesViewed);
     const alreadyShown = localStorage.getItem(KEYS.signupShown) === "true";
     if (views >= DIALOG_PAGE_THRESHOLD && !alreadyShown) {
       setShouldShowDialog(true);
     }
-  }, [isSignedIn]);
+  }, [bypass]);
 
   const markDialogShown = useCallback(() => {
     localStorage.setItem(KEYS.signupShown, "true");

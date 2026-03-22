@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useWatchlist } from "@/lib/useWatchlist";
+import SignInDialog from "./SignInDialog";
 
 interface BookmarkButtonProps {
     tmdb_id: number;
@@ -20,10 +22,12 @@ export default function BookmarkButton({
     variant = "card",
     className = "",
 }: BookmarkButtonProps) {
+    const { data: session } = useSession();
     const { isSaved, toggle, mounted: watchlistMounted } = useWatchlist();
     const [saved, setSaved] = useState(false);
     const [pop, setPop] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [showSignIn, setShowSignIn] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -38,6 +42,12 @@ export default function BookmarkButton({
     const handleClick = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+
+        if (!session?.user) {
+            setShowSignIn(true);
+            return;
+        }
+
         const nowSaved = await toggle({ tmdb_id, title, poster_path, verdict });
         setSaved(nowSaved);
         setPop(true);
@@ -62,9 +72,10 @@ export default function BookmarkButton({
 
     if (variant === "card") {
         return (
-            <button
-                onClick={handleClick}
-                className={`
+            <>
+                <button
+                    onClick={handleClick}
+                    className={`
           absolute top-2 right-2 z-10 p-1.5 rounded-full
           transition-all duration-200
           ${saved ? "bg-accent-gold/90 text-black" : "bg-black/50 text-white/70 hover:text-white hover:bg-black/70"}
@@ -72,27 +83,40 @@ export default function BookmarkButton({
           backdrop-blur-sm
           ${className}
         `}
-                aria-label={saved ? "Remove from watchlist" : "Add to watchlist"}
-            >
-                {icon}
-            </button>
+                    aria-label={saved ? "Remove from watchlist" : "Add to watchlist"}
+                >
+                    {icon}
+                </button>
+                <SignInDialog
+                    open={showSignIn}
+                    onClose={() => setShowSignIn(false)}
+                    context="Sign in to save movies to your list."
+                />
+            </>
         );
     }
 
     return (
-        <button
-            onClick={handleClick}
-            className={`
+        <>
+            <button
+                onClick={handleClick}
+                className={`
         inline-flex items-center gap-2 px-5 py-2 rounded-xl
         text-base font-semibold transition-all duration-200
         ${saved ? "bg-accent-gold/10 text-accent-gold border border-accent-gold/30" : "bg-black/30 backdrop-blur-sm text-white border border-white/10 hover:border-white/20"}
         ${pop ? "scale-105" : "scale-100"}
         ${className}
       `}
-            aria-label={saved ? "Remove from watchlist" : "Add to watchlist"}
-        >
-            {icon}
-            {saved ? "Saved" : "Save"}
-        </button>
+                aria-label={saved ? "Remove from watchlist" : "Add to watchlist"}
+            >
+                {icon}
+                {saved ? "Saved" : "Save"}
+            </button>
+            <SignInDialog
+                open={showSignIn}
+                onClose={() => setShowSignIn(false)}
+                context="Sign in to save movies to your list."
+            />
+        </>
     );
 }

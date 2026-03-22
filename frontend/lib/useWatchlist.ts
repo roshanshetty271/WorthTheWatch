@@ -9,6 +9,7 @@ export interface WatchlistItem {
     poster_path?: string | null;
     media_type?: string;
     verdict?: string | null;
+    status?: string;
     added_at?: string;
 }
 
@@ -259,6 +260,28 @@ export function useWatchlist() {
         return `${base}/list?ids=${ids}`;
     }, [items, mounted]);
 
+    const updateStatus = useCallback(
+        async (tmdbId: number, status: "want_to_watch" | "watched" | "skipped") => {
+            if (!isSignedIn) return;
+            try {
+                setSyncing(true);
+                await fetch("/api/watchlist", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tmdb_id: tmdbId, status }),
+                });
+                setItems((prev) =>
+                    prev.map((i) => (i.tmdb_id === tmdbId ? { ...i, status } : i))
+                );
+            } catch (error) {
+                console.error("Failed to update status:", error);
+            } finally {
+                setSyncing(false);
+            }
+        },
+        [isSignedIn]
+    );
+
     const toggle = useCallback(
         async (item: WatchlistItem) => {
             if (isInWatchlist(item.tmdb_id)) {
@@ -280,6 +303,7 @@ export function useWatchlist() {
         isInWatchlist,
         isSaved: isInWatchlist, // Alias for backward compatibility
         toggle,
+        updateStatus,
         clearAll,
         clear: clearAll, // Alias for backward compatibility
         getShareUrl,

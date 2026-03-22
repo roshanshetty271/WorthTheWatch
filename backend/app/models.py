@@ -135,13 +135,14 @@ class BattleCache(Base):
 
 
 class ReviewFeedback(Base):
-    """Anonymous user feedback on review verdicts (thumbs up/down)."""
+    """User feedback on review verdicts (thumbs up/down)."""
     __tablename__ = "review_feedback"
 
     id = Column(Integer, primary_key=True, index=True)
     review_id = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False)
     is_helpful = Column(Boolean, nullable=False)
     ip_hash = Column(String(64), nullable=False)
+    user_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

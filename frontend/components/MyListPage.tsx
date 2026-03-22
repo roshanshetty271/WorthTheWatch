@@ -39,50 +39,106 @@ const getPosterUrl = (path: string | null) => {
     return `${TMDB_IMAGE_BASE}${path}`;
 };
 
-function MovieCard({ tmdb_id, title, poster_path, verdict, media_type }: {
+function WatchlistMovieCard({ tmdb_id, title, poster_path, verdict, media_type, status, onStatusChange }: {
     tmdb_id: number;
     title: string;
     poster_path?: string | null;
     verdict?: string | null;
     media_type?: string;
+    status?: string;
+    onStatusChange?: (tmdbId: number, status: "want_to_watch" | "watched" | "skipped") => void;
 }) {
     const poster = getPosterUrl(poster_path ?? null);
+    const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+    const statusBadge = status === "watched"
+        ? { label: "Watched", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" }
+        : status === "skipped"
+            ? { label: "Skipped", color: "bg-red-500/20 text-red-400 border-red-500/30" }
+            : null;
 
     return (
-        <Link href={`/movie/${tmdb_id}?type=${media_type || "movie"}`} className="group relative">
-            <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5">
-                {poster ? (
-                    <Image
-                        src={poster}
-                        alt={title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        unoptimized
+        <div className="group relative">
+            <Link href={`/movie/${tmdb_id}?type=${media_type || "movie"}`}>
+                <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5">
+                    {poster ? (
+                        <Image
+                            src={poster}
+                            alt={title}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            unoptimized
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/20">
+                            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                            </svg>
+                        </div>
+                    )}
+                    <BookmarkButton
+                        tmdb_id={tmdb_id}
+                        title={title}
+                        poster_path={poster_path ?? null}
+                        verdict={verdict ?? null}
+                        variant="card"
                     />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/20">
-                        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                        </svg>
+                    {statusBadge && (
+                        <div className="absolute bottom-2 left-2 z-10">
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border backdrop-blur-sm ${statusBadge.color}`}>
+                                {statusBadge.label}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </Link>
+            <div className="mt-2 flex items-start justify-between gap-1">
+                <div className="min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{title}</p>
+                    {verdict && (
+                        <span className={`inline-block mt-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${verdictColor(verdict)}`}>
+                            {verdict}
+                        </span>
+                    )}
+                </div>
+                {onStatusChange && (
+                    <div className="relative flex-shrink-0">
+                        <button
+                            onClick={() => setShowStatusMenu(!showStatusMenu)}
+                            className="p-1 text-white/30 hover:text-white/70 transition-colors"
+                            aria-label="Change status"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                        </button>
+                        {showStatusMenu && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
+                                <div className="absolute right-0 top-full mt-1 w-36 rounded-lg bg-surface-card border border-white/10 shadow-xl py-1 z-50">
+                                    {[
+                                        { value: "want_to_watch" as const, label: "Want to Watch" },
+                                        { value: "watched" as const, label: "Watched" },
+                                        { value: "skipped" as const, label: "Skipped" },
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => {
+                                                onStatusChange(tmdb_id, opt.value);
+                                                setShowStatusMenu(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${status === opt.value ? "text-accent-gold font-bold" : "text-text-secondary hover:text-white hover:bg-white/5"}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
-                <BookmarkButton
-                    tmdb_id={tmdb_id}
-                    title={title}
-                    poster_path={poster_path ?? null}
-                    verdict={verdict ?? null}
-                    variant="card"
-                />
             </div>
-            <div className="mt-2">
-                <p className="text-white text-sm font-medium truncate">{title}</p>
-                {verdict && (
-                    <span className={`inline-block mt-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${verdictColor(verdict)}`}>
-                        {verdict}
-                    </span>
-                )}
-            </div>
-        </Link>
+        </div>
     );
 }
 
@@ -91,11 +147,55 @@ export default function MyListPage() {
     const sharedIds = searchParams.get("ids");
     const isSharedView = !!sharedIds;
 
-    const { items, count, getShareUrl, clear, isSignedIn } = useWatchlist();
+    const { items, count, getShareUrl, clear, isSignedIn, updateStatus } = useWatchlist();
     const [sharedMovies, setSharedMovies] = useState<SharedMovie[]>([]);
     const [loadingShared, setLoadingShared] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<string>("all");
+    const [customLists, setCustomLists] = useState<any[]>([]);
+    const [showCreateList, setShowCreateList] = useState(false);
+    const [newListName, setNewListName] = useState("");
+    const [newListDesc, setNewListDesc] = useState("");
+    const [creatingList, setCreatingList] = useState(false);
+
+    // Fetch custom lists for signed-in users
+    useEffect(() => {
+        if (!isSignedIn) return;
+        fetch("/api/lists")
+            .then((res) => (res.ok ? res.json() : { lists: [] }))
+            .then((data) => setCustomLists(data.lists || []))
+            .catch(() => {});
+    }, [isSignedIn]);
+
+    const handleCreateList = async () => {
+        if (!newListName.trim() || creatingList) return;
+        setCreatingList(true);
+        try {
+            const res = await fetch("/api/lists", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newListName.trim(), description: newListDesc.trim(), is_public: true }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setCustomLists((prev) => [{ ...data.list, item_count: 0 }, ...prev]);
+                setNewListName("");
+                setNewListDesc("");
+                setShowCreateList(false);
+            }
+        } catch {}
+        setCreatingList(false);
+    };
+
+    const handleDeleteList = async (listId: string) => {
+        await fetch("/api/lists", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ list_id: listId }),
+        }).catch(() => {});
+        setCustomLists((prev) => prev.filter((l) => l.id !== listId));
+    };
 
     // Fetch shared list movies
     useEffect(() => {
@@ -180,7 +280,7 @@ export default function MyListPage() {
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {sharedMovies.map((m) => (
-                                <MovieCard key={m.tmdb_id} {...m} />
+                                <WatchlistMovieCard key={m.tmdb_id} {...m} />
                             ))}
                         </div>
                     )}
@@ -280,19 +380,153 @@ export default function MyListPage() {
                     </div>
                 )}
 
+                {/* Filter Tabs */}
+                {count > 0 && isSignedIn && (
+                    <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+                        {[
+                            { value: "all", label: "All" },
+                            { value: "want_to_watch", label: "Want to Watch" },
+                            { value: "watched", label: "Watched" },
+                            { value: "skipped", label: "Skipped" },
+                        ].map((tab) => {
+                            const tabCount = tab.value === "all"
+                                ? items.length
+                                : items.filter((i) => (i.status || "want_to_watch") === tab.value).length;
+                            return (
+                                <button
+                                    key={tab.value}
+                                    onClick={() => setActiveFilter(tab.value)}
+                                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${activeFilter === tab.value
+                                        ? "bg-accent-gold text-black"
+                                        : "bg-white/5 text-text-secondary hover:text-white hover:bg-white/10"
+                                        }`}
+                                >
+                                    {tab.label}
+                                    <span className={`text-[10px] ${activeFilter === tab.value ? "text-black/60" : "text-white/30"}`}>
+                                        {tabCount}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {/* Movie Grid */}
-                {count > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {items.map((item) => (
-                            <MovieCard
-                                key={item.tmdb_id}
-                                tmdb_id={item.tmdb_id}
-                                title={item.title}
-                                poster_path={item.poster_path ?? null}
-                                verdict={item.verdict ?? null}
-                                media_type={item.media_type}
-                            />
-                        ))}
+                {count > 0 && (() => {
+                    const filtered = activeFilter === "all"
+                        ? items
+                        : items.filter((i) => (i.status || "want_to_watch") === activeFilter);
+
+                    if (filtered.length === 0) {
+                        return (
+                            <div className="text-center py-16">
+                                <p className="text-text-muted text-sm">No movies in this category yet.</p>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {filtered.map((item) => (
+                                <WatchlistMovieCard
+                                    key={item.tmdb_id}
+                                    tmdb_id={item.tmdb_id}
+                                    title={item.title}
+                                    poster_path={item.poster_path ?? null}
+                                    verdict={item.verdict ?? null}
+                                    media_type={item.media_type}
+                                    status={item.status}
+                                    onStatusChange={isSignedIn ? (tmdbId, status) => updateStatus(tmdbId, status) : undefined}
+                                />
+                            ))}
+                        </div>
+                    );
+                })()}
+                {/* Custom Lists Section */}
+                {isSignedIn && (
+                    <div className="mt-12 pt-8 border-t border-white/5">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-lg font-bold text-white">Your Lists</h2>
+                            <button
+                                onClick={() => setShowCreateList(!showCreateList)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-text-secondary text-xs font-medium rounded-lg hover:text-white hover:bg-white/10 transition-colors"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                New List
+                            </button>
+                        </div>
+
+                        {showCreateList && (
+                            <div className="mb-6 p-4 rounded-xl border border-white/10 bg-surface-card space-y-3">
+                                <input
+                                    type="text"
+                                    value={newListName}
+                                    onChange={(e) => setNewListName(e.target.value)}
+                                    placeholder="List name (e.g. Date Night Picks)"
+                                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent-gold/50"
+                                    maxLength={200}
+                                />
+                                <input
+                                    type="text"
+                                    value={newListDesc}
+                                    onChange={(e) => setNewListDesc(e.target.value)}
+                                    placeholder="Description (optional)"
+                                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent-gold/50"
+                                    maxLength={1000}
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleCreateList}
+                                        disabled={!newListName.trim() || creatingList}
+                                        className="px-4 py-2 bg-accent-gold text-black text-xs font-bold rounded-lg hover:bg-accent-goldLight disabled:opacity-50 transition-colors"
+                                    >
+                                        {creatingList ? "Creating..." : "Create List"}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowCreateList(false)}
+                                        className="px-4 py-2 text-text-secondary text-xs hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {customLists.length === 0 && !showCreateList ? (
+                            <p className="text-text-muted text-sm text-center py-6">
+                                Create custom lists to organize your movies.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {customLists.map((list) => (
+                                    <div
+                                        key={list.id}
+                                        className="flex items-center justify-between p-4 rounded-xl border border-white/10 bg-surface-card hover:bg-white/5 transition-colors group"
+                                    >
+                                        <Link href={`/list/${list.id}`} className="flex-1 min-w-0">
+                                            <h3 className="text-sm font-medium text-white group-hover:text-accent-gold transition-colors truncate">
+                                                {list.name}
+                                            </h3>
+                                            <p className="text-xs text-text-muted mt-0.5">
+                                                {list.item_count || 0} {(list.item_count || 0) === 1 ? "movie" : "movies"}
+                                                {list.is_public && " · Public"}
+                                            </p>
+                                        </Link>
+                                        <button
+                                            onClick={() => handleDeleteList(list.id)}
+                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                            aria-label="Delete list"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

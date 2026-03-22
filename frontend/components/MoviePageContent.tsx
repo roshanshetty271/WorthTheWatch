@@ -12,6 +12,7 @@ import SimilarMovies from "@/components/SimilarMovies";
 import SignInDialog from "@/components/SignInDialog";
 import CinemaRoulette from "@/components/CinemaRoulette";
 import { useSignInPrompt } from "@/lib/useSignInPrompt";
+import { logActivity } from "@/lib/logActivity";
 import type { MovieWithReview, Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -41,7 +42,14 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
     useEffect(() => {
         incrementPageView();
-    }, [incrementPageView]);
+        logActivity({
+            activity_type: "view",
+            tmdb_id: movie.tmdb_id,
+            media_type: movie.media_type || "movie",
+            title: movie.title,
+            poster_path: movie.poster_url || null,
+        });
+    }, [incrementPageView, movie.tmdb_id, movie.media_type, movie.title, movie.poster_url]);
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
     const [isPosterFallback, setIsPosterFallback] = useState<boolean>(!movie.backdrop_url && !!movie.poster_url);

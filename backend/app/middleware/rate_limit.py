@@ -60,9 +60,20 @@ def _seconds_until_window_reset(entries: list[float], window_seconds: int) -> in
     return max(1, int(reset_at - time.time()))
 
 
+def _is_whitelisted(ip: str) -> bool:
+    raw = settings.RATE_LIMIT_WHITELIST
+    if not raw:
+        return False
+    return ip in {s.strip() for s in raw.split(",") if s.strip()}
+
+
 async def check_rate_limit(request: Request, limit_type: str = "generation"):
     """Check rate limits by type. Raises 429 with structured JSON if exceeded."""
     global _daily_generation_count, _daily_reset_time, _global_hourly_store
+
+    ip = _get_client_ip(request)
+    if _is_whitelisted(ip):
+        return
 
     now = time.time()
     config = _LIMIT_MAP.get(limit_type, _LIMIT_MAP["generation"])
@@ -99,7 +110,6 @@ async def check_rate_limit(request: Request, limit_type: str = "generation"):
             },
         )
 
-    ip = _get_client_ip(request)
     key_hour = f"{ip}:{limit_type}:hour"
     key_day = f"{ip}:{limit_type}:day"
 

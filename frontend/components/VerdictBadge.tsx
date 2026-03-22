@@ -2,7 +2,7 @@
 
 interface VerdictBadgeProps {
   verdict: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
 }
 
 const VERDICT_CONFIG: Record<string, { label: string; emoji: string; className: string }> = {
@@ -12,6 +12,7 @@ const VERDICT_CONFIG: Record<string, { label: string; emoji: string; className: 
 };
 
 const SIZE_CLASSES = {
+  xs: "px-1.5 py-0.5 text-[10px]",
   sm: "px-2 py-0.5 text-xs",
   md: "px-3 py-1 text-sm",
   lg: "px-5 py-2 text-base",
