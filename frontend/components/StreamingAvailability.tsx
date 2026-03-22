@@ -45,16 +45,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
         fetchStreaming();
     }, [tmdbId]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded bg-white/10 animate-pulse"></div>
-                <div className="h-6 w-6 rounded bg-white/10 animate-pulse"></div>
-            </div>
-        );
-    }
-
-    if (!data || !data.available) {
+    if (loading || !data || !data.available) {
         return null;
     }
 
