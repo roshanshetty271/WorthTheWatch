@@ -57,7 +57,7 @@ export default function Navbar() {
                 <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8">
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-2 group relative z-50">
-                        <span className="font-display text-xl md:text-2xl text-white tracking-tight group-hover:text-accent-gold transition-colors duration-300">
+                        <span className="font-display text-base md:text-2xl text-white tracking-tight group-hover:text-accent-gold transition-colors duration-300">
                             Worth the <span className="text-accent-gold">Watch</span>?
                         </span>
                     </Link>
@@ -129,22 +129,6 @@ export default function Navbar() {
                         >
                             Can&apos;t Decide?
                         </button>
-
-                        {/* My List icon (mobile) */}
-                        <Link
-                            href="/my-list"
-                            className="md:hidden p-2 text-white hover:text-accent-gold transition-colors relative"
-                            aria-label="My List"
-                        >
-                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                            </svg>
-                            {mounted && count > 0 && (
-                                <span className="absolute -top-0.5 -right-0.5 bg-accent-gold text-black text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
-                                    {count > 9 ? "9+" : count}
-                                </span>
-                            )}
-                        </Link>
 
                         <NotificationBell />
 
@@ -226,7 +210,7 @@ export default function Navbar() {
                     <Link
                         href="/versus"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-accent-gold hover:text-white transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         Movie Battle
                     </Link>
@@ -238,17 +222,7 @@ export default function Navbar() {
                         My List{mounted && count > 0 ? ` (${count})` : ""}
                     </Link>
 
-                    <button
-                        onClick={() => {
-                            setMobileMenuOpen(false);
-                            setRouletteOpen(true);
-                        }}
-                        className="mt-8 w-full rounded-full border border-accent-gold/40 bg-accent-gold/10 py-3 font-body text-sm font-semibold uppercase tracking-widest text-accent-gold hover:bg-accent-gold/20 transition-colors text-center"
-                    >
-                        Can&apos;t Decide?
-                    </button>
-
-                    <div className="mt-6 w-full">
+                    <div className="mt-8 w-full">
                         <div className="flex justify-center">
                             <AuthButton />
                         </div>
