@@ -10,8 +10,9 @@ import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// ─── Static Hero Fallback (The Batman) ──────────────────────────
-const HERO_FALLBACK: MovieWithReview = {
+// ─── Static Hero Fallback (The Batman — movie data only) ────────
+// Review is fetched live from the API so it always matches the DB.
+const HERO_FALLBACK_MOVIE: MovieWithReview = {
   movie: {
     id: 0,
     tmdb_id: 414906,
@@ -28,28 +29,7 @@ const HERO_FALLBACK: MovieWithReview = {
     poster_url: "https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg",
     backdrop_url: "https://image.tmdb.org/t/p/original/b0PlSFdDwbyFAJlMe1mDbOOLCQr.jpg",
   },
-  review: {
-    verdict: "WORTH IT",
-    review_text: "",
-    hook: "Audiences are split on whether The Batman is a masterpiece or a slow slog.",
-    vibe: "Dark, gritty, and atmospheric",
-    praise_points: [
-      "Visually stunning with a haunting score",
-      "Strong performances, especially from Robert Pattinson",
-    ],
-    criticism_points: [
-      "Meandering plot with an unsatisfying conclusion",
-      "Riddler's puzzles lack depth and intrigue",
-    ],
-    confidence: null,
-    sources_count: null,
-    generated_at: null,
-    last_refreshed_at: null,
-    imdb_score: 7.8,
-    positive_pct: 60,
-    negative_pct: 30,
-    mixed_pct: 10,
-  },
+  review: null,
 };
 
 // ─── Section Configuration ─────────────────────────────────────
@@ -84,15 +64,29 @@ async function getFeaturedMovie(): Promise<MovieWithReview> {
       `${API_BASE}/api/movies?category=latest&limit=1`,
       { next: { revalidate: 0 } }
     );
-    if (!res.ok) return HERO_FALLBACK;
+    if (!res.ok) return await getFallbackMovie();
     const data: PaginatedMovies = await res.json();
     const movie = data.movies?.[0];
     if (movie?.movie.backdrop_url) return movie;
     if (movie?.movie.poster_url) return movie;
-    return HERO_FALLBACK;
+    return await getFallbackMovie();
   } catch {
-    return HERO_FALLBACK;
+    return await getFallbackMovie();
   }
+}
+
+async function getFallbackMovie(): Promise<MovieWithReview> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/movies/414906`,
+      { next: { revalidate: 3600 } }
+    );
+    if (res.ok) {
+      const data: MovieWithReview = await res.json();
+      if (data.movie?.backdrop_url || data.movie?.poster_url) return data;
+    }
+  } catch { /* fall through */ }
+  return HERO_FALLBACK_MOVIE;
 }
 
 // ─── Horizontal Section Component ──────────────────────────────
