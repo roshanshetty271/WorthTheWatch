@@ -57,8 +57,8 @@ export default function Navbar() {
                 <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8">
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-2 group relative z-50">
-                        <span className="font-display text-base md:text-2xl text-white tracking-tight group-hover:text-accent-gold transition-colors duration-300">
-                            Worth the <span className="text-accent-gold">Watch</span>?
+                        <span className="font-display text-lg md:text-2xl text-white tracking-tight transition-colors duration-300">
+                            Worth the <span className="text-accent-gold group-hover:text-accent-goldLight transition-colors duration-300">Watch</span>?
                         </span>
                     </Link>
 
@@ -125,7 +125,7 @@ export default function Navbar() {
                         {/* Mobile Roulette Trigger */}
                         <button
                             onClick={() => setRouletteOpen(true)}
-                            className="md:hidden text-xs font-bold text-accent-gold uppercase tracking-wide mr-2"
+                            className="md:hidden text-sm font-bold text-accent-gold uppercase tracking-wide mr-2"
                         >
                             Can&apos;t Decide?
                         </button>

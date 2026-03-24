@@ -129,7 +129,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative h-[50svh] md:h-screen flex flex-col justify-between overflow-hidden lg:overflow-visible">
+            <section className="relative min-h-[50svh] md:min-h-screen flex flex-col justify-end overflow-visible">
                 {/* Background Image Logic */}
                 <div className="absolute inset-0 z-0">
                     {backdropSrc ? (
