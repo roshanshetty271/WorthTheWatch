@@ -130,8 +130,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
             <section className="relative min-h-[50svh] md:min-h-screen flex flex-col justify-end overflow-visible">
-                {/* Background Image Logic */}
-                <div className="absolute inset-0 z-0">
+                {/* Background Image Logic — fixed height so it never resizes */}
+                <div className="absolute top-0 left-0 right-0 h-[50svh] md:h-screen z-0 overflow-hidden">
                     {backdropSrc ? (
                         <>
                             {/* Desktop & Mobile Background (Backdrop) */}
@@ -141,7 +141,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     alt={movie.title}
                                     fill
                                     sizes="100vw"
-                                    className={`object-cover ${isPosterFallback ? "object-top opacity-60" : "object-top opacity-90"}`}
+                                    className={`object-cover scale-105 ${isPosterFallback ? "object-top opacity-60" : "object-top opacity-90"}`}
                                     priority
                                     onError={handleImageError}
                                     unoptimized
