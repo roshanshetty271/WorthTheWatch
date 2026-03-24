@@ -162,7 +162,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-[80dvh] md:min-h-[100dvh] flex-col items-center justify-center">
+      <section className="relative flex min-h-[80svh] md:min-h-[100svh] flex-col items-center justify-center">
         {/* Background Image */}
         {featured ? (
           <div className="absolute inset-0 z-0 overflow-hidden">

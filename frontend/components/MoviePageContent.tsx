@@ -129,7 +129,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[30vh] md:min-h-screen flex flex-col justify-between overflow-hidden lg:overflow-visible">
+            <section className="relative min-h-[50svh] md:min-h-screen flex flex-col justify-between overflow-hidden lg:overflow-visible">
                 {/* Background Image Logic */}
                 <div className="absolute inset-0 z-0">
                     {backdropSrc ? (
@@ -339,10 +339,10 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
             SCORES, AWARDS & OVERVIEW
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 pt-4 sm:pt-8 sm:px-6 animate-fade-in">
+            <div className="mx-auto max-w-4xl px-4 pt-4 sm:pt-8 sm:px-6">
 
                 {/* Score Badges */}
-                <div className="mb-6 flex flex-wrap gap-3 animate-fade-in-delayed">
+                <div className="mb-6 flex flex-wrap gap-3">
                     {review?.imdb_score ? (
                         <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 backdrop-blur-sm">
                             <span className="text-lg font-bold text-yellow-500">IMDb</span>
@@ -505,13 +505,13 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* Main content wrapper for bottom nav */}
             <div className="mx-auto max-w-4xl px-4 py-6 sm:py-8 sm:px-6">
                 {/* Bottom Navigation */}
-                <div className="mt-6 sm:mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-between border-t border-surface-elevated pt-6 sm:pt-8">
+                <div className="mt-6 sm:mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-between sm:items-center border-t border-surface-elevated pt-6 sm:pt-8">
                     <Link
                         href="/"
-                        className="inline-flex items-center gap-2 text-base sm:text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
                     >
                         <svg
-                            className="h-4 w-4"
+                            className="h-3.5 w-3.5"
                             aria-hidden="true"
                             fill="none"
                             viewBox="0 0 24 24"
@@ -528,17 +528,17 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     </Link>
                     <button
                         onClick={() => setRouletteOpen(true)}
-                        className="inline-flex items-center gap-2 text-base sm:text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:outline-none"
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-accent-gold/30 bg-accent-gold/10 px-5 py-2.5 text-sm font-medium text-accent-gold transition-all duration-200 hover:bg-accent-gold/20 hover:border-accent-gold/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
                     >
                         Can&apos;t Decide?
                     </button>
                     <Link
                         href="/search"
-                        className="inline-flex items-center gap-2 text-base sm:text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
                     >
                         Search another title
                         <svg
-                            className="h-4 w-4"
+                            className="h-3.5 w-3.5"
                             aria-hidden="true"
                             fill="none"
                             viewBox="0 0 24 24"

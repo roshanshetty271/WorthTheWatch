@@ -186,10 +186,13 @@ export default function Navbar() {
             {/* Mobile Menu Overlay */}
             <div
                 className={`
-                    fixed inset-0 z-[45] bg-surface/98 backdrop-blur-sm transition-transform duration-300 md:hidden flex flex-col items-center justify-center
+                    fixed inset-0 z-[45] bg-surface/80 backdrop-blur-2xl transition-transform duration-300 md:hidden flex flex-col items-center justify-center
                     ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}
                 `}
             >
+                {/* Subtle gold accent line at top */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-gold/40 to-transparent" />
+
                 <nav className="flex flex-col items-center w-full max-w-xs px-6">
                     <button
                         onClick={() => {
@@ -202,40 +205,50 @@ export default function Navbar() {
                                 router.push("/#now-playing");
                             }
                         }}
-                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         What&apos;s New
                     </button>
                     <Link
                         href="/discover"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         Discover
                     </Link>
                     <Link
                         href="/browse/mood/tired"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         Mood Based
                     </Link>
                     <Link
                         href="/versus"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-4 font-display text-xl text-accent-gold hover:text-white transition-colors border-b border-white/5 tracking-wide text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-accent-gold hover:text-white transition-colors border-b border-white/10 text-center"
                     >
                         Movie Battle
                     </Link>
                     <Link
                         href="/my-list"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         My List{mounted && count > 0 ? ` (${count})` : ""}
                     </Link>
 
-                    <div className="mt-8 w-full">
+                    <button
+                        onClick={() => {
+                            setMobileMenuOpen(false);
+                            setRouletteOpen(true);
+                        }}
+                        className="mt-8 w-full rounded-full border border-accent-gold/40 bg-accent-gold/10 py-3 font-body text-sm font-semibold uppercase tracking-widest text-accent-gold hover:bg-accent-gold/20 transition-colors text-center"
+                    >
+                        Can&apos;t Decide?
+                    </button>
+
+                    <div className="mt-6 w-full">
                         <div className="flex justify-center">
                             <AuthButton />
                         </div>
