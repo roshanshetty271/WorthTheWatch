@@ -49,10 +49,8 @@ function PosterImage({ src, alt, sizes = "120px" }: { src: string | null; alt: s
 export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMoviesProps) {
     const [movies, setMovies] = useState<SimilarMovie[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showSkeleton, setShowSkeleton] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => setShowSkeleton(true), 300);
         async function fetchSimilar() {
             try {
                 const res = await fetch(
@@ -65,12 +63,10 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
             } catch {
                 setMovies([]);
             } finally {
-                clearTimeout(timer);
                 setLoading(false);
             }
         }
         fetchSimilar();
-        return () => clearTimeout(timer);
     }, [tmdbId, mediaType]);
 
     if (!loading && movies.length === 0) return null;
@@ -81,7 +77,7 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                 If you liked {title}
             </h3>
 
-            {loading && showSkeleton ? (
+            {loading ? (
                 <div className="flex gap-4 overflow-hidden">
                     {[...Array(5)].map((_, i) => (
                         <div key={i} className="shrink-0 w-[120px] animate-pulse">
@@ -90,7 +86,7 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                         </div>
                     ))}
                 </div>
-            ) : loading ? null : (
+            ) : (
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
                     {movies.map((movie) => (
                         <Link

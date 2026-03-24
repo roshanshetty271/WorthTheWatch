@@ -6,7 +6,6 @@ import NowPlaying from "@/components/NowPlaying";
 import VerdictBadge from "@/components/VerdictBadge";
 import CantDecideCTA from "@/components/CantDecideCTA";
 import ForYouSection from "@/components/ForYouSection";
-import ScrollReveal from "@/components/ScrollReveal";
 import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -263,14 +262,13 @@ export default async function HomePage() {
             <CantDecideCTA />
 
             {/* Movie Sections */}
-            {sectionsWithData.map((section, i) => (
-              <ScrollReveal key={section.id} delay={i * 50}>
-                <HorizontalSection
-                  id={section.id}
-                  title={section.title}
-                  movies={section.movies}
-                />
-              </ScrollReveal>
+            {sectionsWithData.map((section) => (
+              <HorizontalSection
+                key={section.id}
+                id={section.id}
+                title={section.title}
+                movies={section.movies}
+              />
             ))}
           </div>
         ) : (

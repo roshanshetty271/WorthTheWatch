@@ -326,6 +326,8 @@ export default function ReviewSection({
                     </div>
                 )}
 
+                <h2 className="sr-only">Is {movieTitle} Worth Watching?</h2>
+
                 <ReviewContent review={review} releaseDate={releaseDate} tmdbId={tmdbId} />
 
                 <SignInDialog
@@ -460,7 +462,7 @@ export default function ReviewSection({
 
                             <button
                                 onClick={handleGenerate}
-                                className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95 animate-glow-pulse"
+                                className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
                             >
                                 Generate AI Review
                             </button>

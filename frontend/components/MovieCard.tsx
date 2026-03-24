@@ -74,7 +74,7 @@ export default function MovieCard({ data }: MovieCardProps) {
       <div className={`
         group relative aspect-[2/3] w-full overflow-hidden rounded-2xl 
         bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl
-        hover:-translate-y-2 hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.5)] active:scale-[0.97]
+        hover:-translate-y-2
       `}>
 
         {/* Poster Image */}

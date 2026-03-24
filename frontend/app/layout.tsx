@@ -46,6 +46,9 @@ export const metadata: Metadata = {
     description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
     images: ['/twitter-share.jpg'],
   },
+  verification: {
+    google: 'jQOk60O_Ce2dQkhWwkVnKLkl-aPksftS0VkCG6SnJjw',
+  },
 };
 
 export default function RootLayout({
