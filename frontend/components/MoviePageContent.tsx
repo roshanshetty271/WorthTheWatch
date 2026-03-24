@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import ReviewSection from "@/components/ReviewSection";
 import VerdictBadge from "@/components/VerdictBadge";
 import StreamingAvailability from "@/components/StreamingAvailability";
@@ -37,7 +36,6 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
     const [rouletteOpen, setRouletteOpen] = useState(false);
-    const router = useRouter();
     const { shouldShowDialog, incrementPageView, markDialogShown } = useSignInPrompt();
 
     useEffect(() => {
@@ -127,7 +125,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     );
 
     return (
-        <div className="animate-slide-up">
+        <div>
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
@@ -168,8 +166,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 {/* Back Button */}
                 <div className="relative z-30 pt-20 px-6 md:pt-24">
                     <div className="mx-auto max-w-7xl">
-                        <button
-                            onClick={() => router.back()}
+                        <Link
+                            href="/"
                             className="group inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-colors duration-200 hover:bg-black/60 hover:text-white hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
                             aria-label="Go back"
                         >
@@ -187,17 +185,17 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     d="M15 19l-7-7 7-7"
                                 />
                             </svg>
-                        </button>
+                        </Link>
                     </div>
                 </div>
 
                 {/* Movie Info Overlay */}
-                <div className="relative z-20 w-full px-4 pb-8 sm:px-6">
+                <div className="relative z-20 w-full px-4 pb-4 sm:pb-8 sm:px-6">
                     <div className="mx-auto max-w-7xl">
                         <div className="flex flex-col gap-4 md:flex-row md:items-end md:gap-8">
                             {/* Poster */}
                             {movie.poster_url && (
-                                <div className="relative mx-auto h-44 w-32 shrink-0 overflow-hidden rounded-xl shadow-2xl sm:h-56 sm:w-40 md:mx-0 md:h-72 md:w-52 border-2 border-white/10">
+                                <div className="relative mx-auto h-36 w-24 shrink-0 overflow-hidden rounded-xl shadow-2xl sm:h-56 sm:w-40 md:mx-0 md:h-72 md:w-52 border-2 border-white/10">
                                     <Image
                                         src={movie.poster_url}
                                         alt={movie.title}
@@ -216,7 +214,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                             {/* Info */}
                             <div className="flex-1 space-y-2 text-center md:space-y-3 md:text-left">
-                                <h1 className="font-display text-xl text-white text-shadow-hero sm:text-2xl md:text-5xl">
+                                <h1 className="font-display text-lg text-white text-shadow-hero sm:text-2xl md:text-5xl">
                                     {movie.title}
                                 </h1>
 
@@ -341,7 +339,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
             SCORES, AWARDS & OVERVIEW
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
+            <div className="mx-auto max-w-4xl px-4 pt-4 sm:pt-8 sm:px-6 animate-fade-in">
 
                 {/* Score Badges */}
                 <div className="mb-6 flex flex-wrap gap-3 animate-fade-in-delayed">
@@ -505,12 +503,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             )}
 
             {/* Main content wrapper for bottom nav */}
-            <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+            <div className="mx-auto max-w-4xl px-4 py-6 sm:py-8 sm:px-6">
                 {/* Bottom Navigation */}
-                <div className="mt-8 flex items-center justify-between border-t border-surface-elevated pt-8">
-                    <button
-                        onClick={() => router.back()}
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
+                <div className="mt-6 sm:mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-between border-t border-surface-elevated pt-6 sm:pt-8">
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 text-base sm:text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none"
                     >
                         <svg
                             className="h-4 w-4"
@@ -527,16 +525,16 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             />
                         </svg>
                         Go back
-                    </button>
+                    </Link>
                     <button
                         onClick={() => setRouletteOpen(true)}
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
+                        className="inline-flex items-center gap-2 text-base sm:text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:outline-none"
                     >
                         Can&apos;t Decide?
                     </button>
                     <Link
                         href="/search"
-                        className="inline-flex items-center gap-2 text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50 focus-visible:rounded-lg focus-visible:px-1"
+                        className="inline-flex items-center gap-2 text-base sm:text-lg font-medium text-text-secondary transition-colors duration-200 hover:text-accent-gold focus-visible:text-accent-gold focus-visible:outline-none"
                     >
                         Search another title
                         <svg

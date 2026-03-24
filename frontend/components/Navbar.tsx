@@ -183,14 +183,14 @@ export default function Navbar() {
 
             </nav>
 
-            {/* Mobile Menu Overlay — outside nav to avoid fixed-inside-fixed positioning bugs on mobile */}
+            {/* Mobile Menu Overlay */}
             <div
                 className={`
-                    fixed inset-0 z-[45] bg-surface transition-transform duration-300 md:hidden flex items-center justify-center
+                    fixed inset-0 z-[45] bg-surface/98 backdrop-blur-sm transition-transform duration-300 md:hidden flex flex-col items-center justify-center
                     ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}
                 `}
             >
-                <div className="flex flex-col items-center gap-8">
+                <nav className="flex flex-col items-center w-full max-w-xs px-6">
                     <button
                         onClick={() => {
                             setMobileMenuOpen(false);
@@ -202,43 +202,45 @@ export default function Navbar() {
                                 router.push("/#now-playing");
                             }
                         }}
-                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide"
                     >
                         What&apos;s New
                     </button>
                     <Link
                         href="/discover"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide text-center"
                     >
                         Discover
                     </Link>
                     <Link
                         href="/browse/mood/tired"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide text-center"
                     >
                         Mood Based
                     </Link>
                     <Link
                         href="/versus"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        className="w-full py-4 font-display text-xl text-accent-gold hover:text-white transition-colors border-b border-white/5 tracking-wide text-center"
                     >
                         Movie Battle
                     </Link>
                     <Link
                         href="/my-list"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="font-display text-3xl text-white hover:text-accent-gold transition-colors"
+                        className="w-full py-4 font-display text-xl text-white/90 hover:text-accent-gold transition-colors border-b border-white/5 tracking-wide text-center"
                     >
                         My List{mounted && count > 0 ? ` (${count})` : ""}
                     </Link>
 
-                    <div className="mt-4">
-                        <AuthButton />
+                    <div className="mt-8 w-full">
+                        <div className="flex justify-center">
+                            <AuthButton />
+                        </div>
                     </div>
-                </div>
+                </nav>
             </div>
 
             <CinemaRoulette

@@ -10,6 +10,48 @@ import type { PaginatedMovies, MovieWithReview } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// ─── Static Hero Fallback (The Batman) ──────────────────────────
+const HERO_FALLBACK: MovieWithReview = {
+  movie: {
+    id: 0,
+    tmdb_id: 414906,
+    title: "The Batman",
+    media_type: "movie",
+    overview:
+      "In his second year of fighting crime, Batman uncovers corruption in Gotham City that connects to his own family while facing a serial killer known as the Riddler.",
+    poster_path: "/74xTEgt7R36Fpooo50r9T25onhq.jpg",
+    backdrop_path: "/b0PlSFdDwbyFAJlMe1mDbOOLCQr.jpg",
+    genres: [{ id: 80, name: "Crime" }, { id: 9648, name: "Mystery" }, { id: 53, name: "Thriller" }],
+    release_date: "2022-03-01",
+    tmdb_popularity: null,
+    tmdb_vote_average: 7.8,
+    poster_url: "https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg",
+    backdrop_url: "https://image.tmdb.org/t/p/original/b0PlSFdDwbyFAJlMe1mDbOOLCQr.jpg",
+  },
+  review: {
+    verdict: "WORTH IT",
+    review_text: "",
+    hook: "Audiences are split on whether The Batman is a masterpiece or a slow slog.",
+    vibe: "Dark, gritty, and atmospheric",
+    praise_points: [
+      "Visually stunning with a haunting score",
+      "Strong performances, especially from Robert Pattinson",
+    ],
+    criticism_points: [
+      "Meandering plot with an unsatisfying conclusion",
+      "Riddler's puzzles lack depth and intrigue",
+    ],
+    confidence: null,
+    sources_count: null,
+    generated_at: null,
+    last_refreshed_at: null,
+    imdb_score: 7.8,
+    positive_pct: 60,
+    negative_pct: 30,
+    mixed_pct: 10,
+  },
+};
+
 // ─── Section Configuration ─────────────────────────────────────
 const SECTIONS = [
   { id: "latest", title: "Latest Reviews" },
@@ -36,18 +78,20 @@ async function getSectionMovies(category: string): Promise<MovieWithReview[]> {
   }
 }
 
-async function getFeaturedMovie(): Promise<MovieWithReview | null> {
+async function getFeaturedMovie(): Promise<MovieWithReview> {
   try {
     const res = await fetch(
       `${API_BASE}/api/movies?category=latest&limit=1`,
       { next: { revalidate: 0 } }
     );
-    if (!res.ok) return null;
+    if (!res.ok) return HERO_FALLBACK;
     const data: PaginatedMovies = await res.json();
     const movie = data.movies?.[0];
-    return movie?.movie.backdrop_url ? movie : null;
+    if (movie?.movie.backdrop_url) return movie;
+    if (movie?.movie.poster_url) return movie;
+    return HERO_FALLBACK;
   } catch {
-    return null;
+    return HERO_FALLBACK;
   }
 }
 
@@ -127,7 +171,7 @@ export default async function HomePage() {
       <section className="relative flex min-h-[80dvh] md:min-h-[100dvh] flex-col items-center justify-center">
         {/* Background Image */}
         {featured ? (
-          <div className="absolute top-0 left-0 right-0 h-[60vh] md:h-auto md:inset-0 z-0 overflow-hidden">
+          <div className="absolute inset-0 z-0 overflow-hidden">
             {/* Desktop Backdrop */}
             <Image
               src={featured.movie.backdrop_url!}
@@ -175,7 +219,7 @@ export default async function HomePage() {
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-2xl">
                 <div className="mb-2 flex items-center gap-2.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md border border-white/10">
                     <span className="h-1 w-1 animate-pulse rounded-full bg-accent-gold"></span>
                     LATEST
                   </span>

@@ -15,9 +15,10 @@ from sqlalchemy import select, desc
 
 from app.config import get_settings
 from app.database import init_db, get_db
-from app.models import Movie, Review, SearchEvent, ReviewFeedback  # noqa: F401
+from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry  # noqa: F401
 from app.routers import movies, search, versus, nowplaying, discover, feedback
 from app.jobs.daily_sync import run_daily_sync
+from app.middleware.rate_limit import cleanup_old_rate_limit_entries
 from app.schemas import HealthCheck
 
 settings = get_settings()
@@ -190,6 +191,7 @@ async def cron_daily(
     if not secrets.compare_digest(secret, settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
     
+    await cleanup_old_rate_limit_entries()
     result = await run_daily_sync(db, max_new=20)
     return {"status": "completed", **result}
 

@@ -86,7 +86,7 @@ export default function SignInDialog({ open, onClose, context }: SignInDialogPro
         </ul>
 
         <button
-          onClick={() => signIn("google")}
+          onClick={() => signIn("google", { callbackUrl: window.location.href })}
           className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-accent-gold px-6 py-3 font-bold text-black transition-colors hover:bg-accent-goldLight"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">

@@ -11,6 +11,7 @@ import { logActivity } from "@/lib/logActivity";
 import type { Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const SESSION_KEY = "wtw_pending_gen";
 
 interface ReviewSectionProps {
     tmdbId: number;
@@ -70,10 +71,9 @@ export default function ReviewSection({
                     setRegenerating(false);
                     onReviewUpdate?.(data.review);
                     es.close();
-                    setTimeout(() => {
-                        fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
-                        router.refresh();
-                    }, 1500);
+                    sessionStorage.removeItem(SESSION_KEY);
+                    fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
+                    router.refresh();
                 } else if (data.type === "error") {
                     setError(data.message || "Generation failed");
                     setGenerating(false);
@@ -108,10 +108,9 @@ export default function ReviewSection({
                         setRegenerating(false);
                         onReviewUpdate?.(data.movie.review);
                         if (pollRef.current) clearInterval(pollRef.current);
-                        setTimeout(() => {
-                            fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
-                            router.refresh();
-                        }, 1500);
+                        sessionStorage.removeItem(SESSION_KEY);
+                        fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
+                        router.refresh();
                     } else if (data.status === "generating") {
                         setProgress(data.progress || "Analyzing...");
                         setPercent(data.percent || 10);
@@ -126,12 +125,26 @@ export default function ReviewSection({
         }, 2000);
     }
 
-    // Cleanup on unmount
+    // Resume pending generation on mount (e.g. user navigated away and came back)
     useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem(SESSION_KEY);
+            if (raw) {
+                const pending = JSON.parse(raw);
+                if (pending.tmdbId === tmdbId && !review) {
+                    setGenerating(true);
+                    setProgress("Resuming...");
+                    setPercent(10);
+                    startPolling();
+                }
+            }
+        } catch { /* ignore parse errors */ }
+
         return () => {
             if (eventSourceRef.current) eventSourceRef.current.close();
             if (pollRef.current) clearInterval(pollRef.current);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // ─── Generate (first time) ─────────────────────────────
@@ -198,7 +211,8 @@ export default function ReviewSection({
                 title: movieTitle,
             });
 
-            // Try SSE, fall back to polling
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
+
             try {
                 startSSEStream();
             } catch {
@@ -260,6 +274,7 @@ export default function ReviewSection({
             setPercent(5);
 
             incrementGeneration();
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
 
             try {
                 startSSEStream();

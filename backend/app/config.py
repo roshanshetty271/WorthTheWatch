@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     # Rate Limiting
     DAILY_GENERATION_LIMIT: int = 500
     HOURLY_GLOBAL_LIMIT: int = 100
-    ON_DEMAND_PER_IP_PER_HOUR: int = 5
-    ON_DEMAND_PER_IP_PER_DAY: int = 5
+    ON_DEMAND_PER_IP_PER_HOUR: int = 3
+    ON_DEMAND_PER_IP_PER_DAY: int = 3
     BATTLE_PER_IP_PER_DAY: int = 10
     ROULETTE_PER_IP_PER_DAY: int = 10
     RATE_LIMIT_WHITELIST: str = ""

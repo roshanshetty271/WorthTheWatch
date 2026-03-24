@@ -12,7 +12,7 @@ const KEYS = {
   lastReset: "wtw_last_reset",
 } as const;
 
-const SOFT_LIMITS = { generation: 2, battle: 1, roulette: 1 };
+const SOFT_LIMITS = { generation: 3, battle: 1, roulette: 1 };
 const DIALOG_PAGE_THRESHOLD = 2;
 
 const WHITELIST = (process.env.NEXT_PUBLIC_RATE_LIMIT_WHITELIST || "")

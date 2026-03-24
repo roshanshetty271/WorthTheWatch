@@ -134,6 +134,20 @@ class BattleCache(Base):
     )
 
 
+class RateLimitEntry(Base):
+    """Persistent rate-limit tracking — survives server restarts."""
+    __tablename__ = "rate_limit_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ip_hash = Column(String(64), nullable=False)
+    limit_type = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_rate_limit_ip_type_created", "ip_hash", "limit_type", "created_at"),
+    )
+
+
 class ReviewFeedback(Base):
     """User feedback on review verdicts (thumbs up/down)."""
     __tablename__ = "review_feedback"
