@@ -43,6 +43,27 @@ function formatDate(dateStr: string): string {
     });
 }
 
+function deduplicateActivities(activities: Activity[]): Activity[] {
+    const seen = new Map<string, Activity>();
+    for (const a of activities) {
+        const key = `${a.tmdb_id}-${new Date(a.created_at).toDateString()}`;
+        const existing = seen.get(key);
+        if (!existing) {
+            seen.set(key, a);
+        } else {
+            const priority = ["generate", "battle", "roulette", "view"];
+            const existingRank = priority.indexOf(existing.activity_type);
+            const newRank = priority.indexOf(a.activity_type);
+            if (newRank < existingRank) {
+                seen.set(key, { ...a, poster_path: a.poster_path || existing.poster_path });
+            } else if (!existing.poster_path && a.poster_path) {
+                seen.set(key, { ...existing, poster_path: a.poster_path });
+            }
+        }
+    }
+    return Array.from(seen.values());
+}
+
 function groupByDate(activities: Activity[]): Record<string, Activity[]> {
     const groups: Record<string, Activity[]> = {};
     for (const a of activities) {
@@ -113,7 +134,7 @@ export default function HistoryPage() {
 
     if (!session?.user) return null;
 
-    const grouped = groupByDate(activities);
+    const grouped = groupByDate(deduplicateActivities(activities));
 
     return (
         <div className="min-h-screen pt-24 md:pt-28 pb-16">

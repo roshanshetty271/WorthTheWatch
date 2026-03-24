@@ -118,6 +118,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                         initialReview={review}
                         onReviewUpdate={setReview}
                         releaseDate={movie.release_date || null}
+                        posterPath={movie.poster_url || movie.poster_path || null}
                     />
                 </div>
             </div>

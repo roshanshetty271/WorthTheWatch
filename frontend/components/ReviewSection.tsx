@@ -20,6 +20,7 @@ interface ReviewSectionProps {
     initialReview: Review | null;
     onReviewUpdate?: (review: Review) => void;
     releaseDate?: string | null;
+    posterPath?: string | null;
 }
 
 export default function ReviewSection({
@@ -29,6 +30,7 @@ export default function ReviewSection({
     initialReview,
     onReviewUpdate,
     releaseDate,
+    posterPath,
 }: ReviewSectionProps) {
     const router = useRouter();
     const { canGenerate, incrementGeneration, isSignedIn } = useSignInPrompt();
@@ -209,6 +211,7 @@ export default function ReviewSection({
                 tmdb_id: tmdbId,
                 media_type: mediaType,
                 title: movieTitle,
+                poster_path: posterPath,
             });
 
             sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
