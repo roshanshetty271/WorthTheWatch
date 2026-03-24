@@ -10,6 +10,7 @@ import BookmarkButton from "@/components/BookmarkButton";
 import SimilarMovies from "@/components/SimilarMovies";
 import SignInDialog from "@/components/SignInDialog";
 import CinemaRoulette from "@/components/CinemaRoulette";
+import ScrollReveal from "@/components/ScrollReveal";
 import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import { logActivity } from "@/lib/logActivity";
 import type { MovieWithReview, Review } from "@/lib/api";
@@ -343,7 +344,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
             SCORES — single scrollable row with divider lines
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 sm:px-6">
+            <ScrollReveal className="mx-auto max-w-4xl px-4 sm:px-6">
                 <div className="border-y border-white/10 py-4">
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
                         {review?.imdb_score ? (
@@ -387,12 +388,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                         )}
                     </div>
                 </div>
-            </div>
+            </ScrollReveal>
 
             {/* ═══════════════════════════════════════════════════════════════════
             AWARDS & OVERVIEW
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6">
+            <ScrollReveal className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6" delay={100}>
                 {/* Awards */}
                 {(review as any)?.awards && (
                     <div className="mb-6 flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/5 px-4 py-2.5">
@@ -409,13 +410,13 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                         {movie.overview}
                     </p>
                 )}
-            </div>
+            </ScrollReveal>
 
             {/* ═══════════════════════════════════════════════════════════════════
             CAST LIST — Collapsible
             ═══════════════════════════════════════════════════════════════════ */}
             {cast.length > 0 && (
-                <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
+                <ScrollReveal className="mx-auto max-w-4xl px-4 pt-8 sm:px-6" delay={150}>
                     <button
                         onClick={() => setCastOpen(!castOpen)}
                         className="flex items-center gap-2 mb-4 group cursor-pointer"
@@ -470,25 +471,27 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             ))}
                         </div>
                     )}
-                </div>
+                </ScrollReveal>
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════
             VERDICT — After overview and cast
             ═══════════════════════════════════════════════════════════════════ */}
-            {verdictBlock}
+            <ScrollReveal delay={200}>
+                {verdictBlock}
+            </ScrollReveal>
 
             {/* ═══════════════════════════════════════════════════════════════════
             SIMILAR / RECOMMENDATIONS — Only after review exists
             ═══════════════════════════════════════════════════════════════════ */}
             {review && (
-                <div className="mx-auto max-w-4xl px-4 sm:px-6">
+                <ScrollReveal className="mx-auto max-w-4xl px-4 sm:px-6" delay={250}>
                     <SimilarMovies
                         tmdbId={movie.tmdb_id}
                         mediaType={movie.media_type || "movie"}
                         title={movie.title}
                     />
-                </div>
+                </ScrollReveal>
             )}
 
             {/* Main content wrapper for bottom nav */}
@@ -497,7 +500,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 <div className="mt-6 sm:mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-between sm:items-center border-t border-surface-elevated pt-6 sm:pt-8">
                     <Link
                         href="/"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
                     >
                         <svg
                             className="h-3.5 w-3.5"
@@ -517,13 +520,13 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     </Link>
                     <button
                         onClick={() => setRouletteOpen(true)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-accent-gold/30 bg-accent-gold/10 px-5 py-2.5 text-sm font-medium text-accent-gold transition-all duration-200 hover:bg-accent-gold/20 hover:border-accent-gold/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-accent-gold/30 bg-accent-gold/10 px-5 py-2.5 text-sm font-medium text-accent-gold transition-all duration-200 hover:bg-accent-gold/20 hover:border-accent-gold/50 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
                     >
                         Can&apos;t Decide?
                     </button>
                     <Link
                         href="/search"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
                     >
                         Search another title
                         <svg

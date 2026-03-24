@@ -460,7 +460,7 @@ export default function ReviewSection({
 
                             <button
                                 onClick={handleGenerate}
-                                className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
+                                className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95 animate-glow-pulse"
                             >
                                 Generate AI Review
                             </button>

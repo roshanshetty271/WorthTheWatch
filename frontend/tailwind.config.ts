@@ -40,6 +40,8 @@ const config: Config = {
         "fade-in": "fadeIn 0.5s ease-out",
         "slide-up": "slideUp 0.5s ease-out",
         "pulse-slow": "pulse 3s infinite",
+        "badge-pop": "badgePop 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+        "glow-pulse": "glowPulse 2s ease-in-out infinite",
       },
       keyframes: {
         fadeIn: {
@@ -49,6 +51,15 @@ const config: Config = {
         slideUp: {
           "0%": { opacity: "0", transform: "translateY(20px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        badgePop: {
+          "0%": { opacity: "0", transform: "scale(0.8)" },
+          "60%": { opacity: "1", transform: "scale(1.05)" },
+          "100%": { transform: "scale(1)" },
+        },
+        glowPulse: {
+          "0%, 100%": { boxShadow: "0 0 8px 0 rgba(251,191,36,0.15)" },
+          "50%": { boxShadow: "0 0 20px 4px rgba(251,191,36,0.3)" },
         },
       },
     },
