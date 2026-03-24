@@ -316,8 +316,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                     )}
                 </div>
 
-                {/* Trailer + Streaming */}
-                <div className={`pb-6 flex flex-wrap items-center gap-4 justify-center md:justify-start border-b border-white/5 transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                {/* Trailer + Streaming — single row */}
+                <div className={`pb-5 flex items-center gap-4 justify-center md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
                     {review?.trailer_url && (
                         <button
                             onClick={() => {
@@ -326,12 +326,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     block: "center"
                                 });
                             }}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group"
+                            className="flex items-center gap-2 px-4 py-2 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-xs sm:text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group shrink-0"
                         >
-                            <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
-                            Watch Trailer
+                            Trailer
                         </button>
                     )}
 
@@ -340,73 +340,58 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
-            SCORES, AWARDS & OVERVIEW
+            SCORES — single scrollable row with divider lines
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6">
-
-                {/* Score Badges */}
-                <div className="mb-6 flex flex-wrap gap-3">
-                    {review?.imdb_score ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 backdrop-blur-sm">
-                            <span className="text-lg font-bold text-yellow-500">IMDb</span>
-                            <div className="flex flex-col leading-none">
-                                <span className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider">Rating</span>
+            <div className="mx-auto max-w-4xl px-4 sm:px-6">
+                <div className="border-y border-white/10 py-4">
+                    <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+                        {review?.imdb_score ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base font-bold text-yellow-500">IMDb</span>
                                 <span className="font-bold text-white">{review.imdb_score}</span>
                             </div>
-                        </div>
-                    ) : movie.tmdb_vote_average ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 backdrop-blur-sm">
-                            <span className="text-lg">⭐</span>
-                            <div className="flex flex-col leading-none justify-center">
-                                <span className="font-bold text-white text-lg">{movie.tmdb_vote_average.toFixed(1)}</span>
+                        ) : movie.tmdb_vote_average ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">⭐</span>
+                                <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
                             </div>
-                        </div>
-                    ) : null}
+                        ) : null}
 
-                    {review?.rt_critic_score ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 backdrop-blur-sm">
-                            <span className="text-lg">🍅</span>
-                            <div className="flex flex-col leading-none">
-                                <span className="text-xs font-semibold text-red-400 uppercase tracking-wider">Critics</span>
+                        {review?.rt_critic_score ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">🍅</span>
                                 <span className="font-bold text-white">{review.rt_critic_score}%</span>
                             </div>
-                        </div>
-                    ) : null}
+                        ) : null}
 
-                    {review?.rt_audience_score ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 backdrop-blur-sm">
-                            <span className="text-lg">🍿</span>
-                            <div className="flex flex-col leading-none">
-                                <span className="text-xs font-semibold text-red-400 uppercase tracking-wider">Audience</span>
+                        {review?.rt_audience_score ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">🍿</span>
                                 <span className="font-bold text-white">{review.rt_audience_score}%</span>
                             </div>
-                        </div>
-                    ) : null}
+                        ) : null}
 
-                    {review?.metascore ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 backdrop-blur-sm">
-                            <div className="flex h-6 w-6 items-center justify-center rounded bg-purple-500 font-bold text-white text-xs" aria-hidden="true">
-                                M
-                            </div>
-                            <div className="flex flex-col leading-none">
-                                <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Metascore</span>
+                        {review?.metascore ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 shrink-0">
+                                <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
                                 <span className="font-bold text-white">{review.metascore}</span>
                             </div>
-                        </div>
-                    ) : null}
+                        ) : null}
 
-                    {/* Box Office */}
-                    {boxOfficeDisplay && (
-                        <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 backdrop-blur-sm">
-                            <span className="text-lg">💰</span>
-                            <div className="flex flex-col leading-none">
-                                <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">Box Office</span>
-                                <span className="font-bold text-white">{boxOfficeDisplay}</span>
+                        {boxOfficeDisplay && (
+                            <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">💰</span>
+                                <span className="font-bold text-white text-sm">{boxOfficeDisplay}</span>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
+            </div>
 
+            {/* ═══════════════════════════════════════════════════════════════════
+            AWARDS & OVERVIEW
+            ═══════════════════════════════════════════════════════════════════ */}
+            <div className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6">
                 {/* Awards */}
                 {(review as any)?.awards && (
                     <div className="mb-6 flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/5 px-4 py-2.5">
@@ -419,7 +404,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                 {/* Overview Text */}
                 {movie.overview && (
-                    <p className="text-lg leading-relaxed text-text-secondary/90 font-light">
+                    <p className="text-base sm:text-lg leading-relaxed text-text-secondary/90 font-light">
                         {movie.overview}
                     </p>
                 )}

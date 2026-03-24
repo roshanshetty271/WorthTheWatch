@@ -45,21 +45,19 @@ export default function StreamingAvailability({ tmdbId }: Props) {
         fetchStreaming();
     }, [tmdbId]);
 
-    if (loading || !data || !data.available) {
-        return null;
-    }
+    if (!data || !data.available) return null;
 
     const { flatrate, free, justwatch_link } = data;
-    const streamingOptions = [...flatrate, ...free].slice(0, 5);
+    const allOptions = [...flatrate, ...free];
+    const streamingOptions = allOptions.slice(0, 3);
+    const hasMore = allOptions.length > 3 || !!justwatch_link;
 
     if (streamingOptions.length === 0) return null;
 
     return (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-            <span className="font-display text-base sm:text-lg text-accent-gold flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
-                📺 Watch On
-            </span>
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-accent-gold/80">Watch On</span>
+            <div className="flex items-center gap-2">
                 {streamingOptions.map((provider) => (
                     <div
                         key={provider.provider_id}
@@ -70,24 +68,24 @@ export default function StreamingAvailability({ tmdbId }: Props) {
                             <Image
                                 src={provider.logo_url}
                                 alt={provider.name}
-                                width={36}
-                                height={36}
-                                className="rounded-lg ring-2 ring-white/20 transition-all hover:scale-110 hover:ring-white/40"
+                                width={28}
+                                height={28}
+                                className="rounded-md ring-1 ring-white/20 transition-all hover:scale-110 hover:ring-white/40"
                                 unoptimized
                             />
                         ) : (
-                            <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center text-xs text-white/60 font-medium">
+                            <div className="h-7 w-7 rounded-md bg-white/10 flex items-center justify-center text-[10px] text-white/60 font-medium">
                                 {provider.name.charAt(0)}
                             </div>
                         )}
                     </div>
                 ))}
-                {justwatch_link && (
+                {hasMore && justwatch_link && (
                     <a
                         href={justwatch_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-white bg-black/30 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-black/40 transition-colors ml-1"
+                        className="text-xs text-white/60 hover:text-white transition-colors"
                     >
                         More →
                     </a>
