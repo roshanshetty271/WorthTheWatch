@@ -11,39 +11,31 @@ interface MovieCardProps {
 
 const VERDICT_STYLES: Record<string, {
   borderColor: string;
-  glowColor: string;
   textColor: string;
   label: string;
   gradient: string;
-  titleShadow: string;
   bgColor?: string;
 }> = {
   "WORTH IT": {
     borderColor: "border-emerald-500/50",
-    glowColor: "group-hover:shadow-emerald-500/20",
     textColor: "text-emerald-200",
     bgColor: "bg-emerald-500/30",
     label: "Worth It",
     gradient: "from-emerald-500/20 to-transparent",
-    titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]"
   },
   "NOT WORTH IT": {
     borderColor: "border-rose-500/50",
-    glowColor: "group-hover:shadow-rose-500/20",
     textColor: "text-rose-200",
     bgColor: "bg-rose-500/30",
     label: "Skip",
     gradient: "from-rose-500/20 to-transparent",
-    titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(251,113,133,0.6)]"
   },
   "MIXED BAG": {
     borderColor: "border-amber-500/50",
-    glowColor: "group-hover:shadow-amber-500/20",
     textColor: "text-amber-200",
     bgColor: "bg-amber-500/30",
     label: "Mixed",
     gradient: "from-amber-500/20 to-transparent",
-    titleShadow: "group-hover:drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]"
   },
 };
 
@@ -55,11 +47,9 @@ export default function MovieCard({ data }: MovieCardProps) {
     ? VERDICT_STYLES[review.verdict] || VERDICT_STYLES["MIXED BAG"]
     : {
       borderColor: "border-white/10",
-      glowColor: "group-hover:shadow-white/10",
       textColor: "text-white/80",
       label: "Unrated",
       gradient: "from-white/5 to-transparent",
-      titleShadow: ""
     };
 
   // Get the best rating to show
@@ -74,7 +64,7 @@ export default function MovieCard({ data }: MovieCardProps) {
       <div className={`
         group relative aspect-[2/3] w-full overflow-hidden rounded-2xl 
         bg-surface-card transition-all duration-500 ease-out ring-1 ring-white/10 shadow-2xl
-        hover:-translate-y-2
+        motion-safe:hover:-translate-y-2
       `}>
 
         {/* Poster Image */}
@@ -85,7 +75,7 @@ export default function MovieCard({ data }: MovieCardProps) {
               alt={movie.title}
               fill
               sizes="(max-width: 640px) 140px, (max-width: 1024px) 170px, 200px"
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+              className="object-cover transition-transform duration-700 ease-out motion-safe:group-hover:scale-105"
               priority={false}
             />
           ) : (
@@ -107,7 +97,7 @@ export default function MovieCard({ data }: MovieCardProps) {
               inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1 
               backdrop-blur-md transition-colors ${verdictStyle.borderColor} ${verdictStyle.bgColor || "bg-black/40"}
             `}>
-              <span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor] ${verdictStyle.textColor.replace('text-', 'bg-')}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${verdictStyle.textColor.replace('text-', 'bg-')}`} />
               <span className={`text-[10px] font-bold uppercase tracking-wider ${verdictStyle.textColor}`}>
                 {verdictStyle.label}
               </span>
@@ -130,12 +120,12 @@ export default function MovieCard({ data }: MovieCardProps) {
         {/* Bottom Content */}
         <div className="absolute bottom-0 left-0 right-0 z-20 p-3 sm:p-4 transition-transform duration-300 bg-gradient-to-t from-black via-black/80 to-transparent">
           {/* Title */}
-          <h3 className={`font-display text-base sm:text-lg font-bold leading-tight text-white line-clamp-2 transition-colors duration-300 group-hover:text-white ${verdictStyle.titleShadow}`}>
+          <h3 className="font-display text-base sm:text-lg font-bold leading-tight text-white line-clamp-2 transition-colors duration-300 group-hover:text-white">
             {movie.title}
           </h3>
 
           {/* Metadata Line: Year · Type · Rating */}
-          <div className="mt-2 flex items-center gap-3 text-xs font-medium text-white/80">
+          <div className="mt-2 flex flex-wrap items-center gap-x-1.5 sm:gap-x-3 gap-y-0.5 text-xs font-medium text-white/80">
             {year && <span>{year}</span>}
             {movie.media_type && (
               <>
