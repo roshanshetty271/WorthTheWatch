@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 const nextConfig = {
   async headers() {
     return [
@@ -14,10 +15,15 @@ const nextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https://image.tmdb.org https://*.tmdb.org blob:",
               "media-src 'self'",
-              "connect-src 'self' https://depressed-effie-roshanshetty271-50ca8d16.koyeb.app https://api.anthropic.com",
+              `connect-src 'self' ${apiUrl}`,
               "frame-src 'self' https://www.youtube.com https://youtube.com",
             ].join('; ')
-          }
+          },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ]
       }
     ]

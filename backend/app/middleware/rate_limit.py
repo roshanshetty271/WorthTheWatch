@@ -5,7 +5,6 @@ Survives server restarts and redeployments.
 """
 
 import hashlib
-import os
 from datetime import datetime, timedelta
 
 from fastapi import Request, HTTPException
@@ -16,8 +15,6 @@ from app.database import async_session
 from app.models import RateLimitEntry
 
 settings = get_settings()
-
-IP_HASH_SALT = os.getenv("IP_HASH_SALT", "wtw-default-salt-change-in-prod")
 
 _LIMIT_MAP = {
     "generation": {
@@ -47,7 +44,7 @@ def _get_client_ip(request: Request) -> str:
 
 
 def _hash_ip(raw_ip: str) -> str:
-    return hashlib.sha256(f"{IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
+    return hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
 
 
 def _is_whitelisted(ip: str) -> bool:

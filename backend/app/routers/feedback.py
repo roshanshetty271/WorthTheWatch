@@ -5,7 +5,6 @@ IP-deduplicated, one vote per IP per review.
 """
 
 import hashlib
-import os
 import logging
 
 from fastapi import APIRouter, Depends, Request, HTTPException
@@ -13,13 +12,13 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import Movie, Review, ReviewFeedback
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-IP_HASH_SALT = os.getenv("IP_HASH_SALT", "wtw-default-salt-change-in-prod")
+settings = get_settings()
 
 
 def _hash_ip(request: Request) -> str:
@@ -28,7 +27,7 @@ def _hash_ip(request: Request) -> str:
         raw_ip = forwarded.split(",")[0].strip()
     else:
         raw_ip = request.client.host if request.client else "unknown"
-    return hashlib.sha256(f"{IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
+    return hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
 
 
 class FeedbackRequest(BaseModel):

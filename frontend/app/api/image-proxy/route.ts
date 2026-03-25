@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
         }
 
         const contentType = response.headers.get("content-type") || "image/jpeg";
+        if (!contentType.startsWith("image/")) {
+            return NextResponse.json({ error: "Not an image" }, { status: 400 });
+        }
         const buffer = await response.arrayBuffer();
 
         return new NextResponse(buffer, {
@@ -49,7 +52,6 @@ export async function GET(req: NextRequest) {
             headers: {
                 "Content-Type": contentType,
                 "Cache-Control": "public, max-age=86400, s-maxage=86400",
-                "Access-Control-Allow-Origin": "*",
             },
         });
     } catch {

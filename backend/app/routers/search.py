@@ -5,7 +5,6 @@ Includes SSE streaming for real-time progress updates.
 """
 
 import hashlib
-import os
 import json
 import asyncio
 import logging
@@ -25,14 +24,13 @@ from app.services.pipeline import (
     generate_review_for_movie,
     job_progress,
 )
+from app.config import get_settings
 from app.middleware.rate_limit import check_rate_limit
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 router = APIRouter(prefix="/search", tags=["Search"])
-
-# Salt for IP hashing (prevents rainbow table attacks)
-IP_HASH_SALT = os.getenv("IP_HASH_SALT", "wtw-default-salt-change-in-prod")
 
 
 @router.get("/quick")
@@ -129,7 +127,7 @@ async def search_movies(
 ):
     """Search for a movie/show."""
     raw_ip = request.client.host if request.client else "unknown"
-    ip_hash = hashlib.sha256(f"{IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
+    ip_hash = hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
     db.add(SearchEvent(query=q, ip_hash=ip_hash))
 
     result = await db.execute(
@@ -338,7 +336,6 @@ async def stream_generation_status(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
         },
     )
 
@@ -404,7 +401,7 @@ async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
                 await db.rollback()
                 logger.error(f"Background generation failed for {tmdb_id}: {e}")
                 # Store error in job_progress so SSE/polling can report it
-                job_progress[tmdb_id] = {"message": f"Failed: {str(e)[:100]}", "percent": 0}
+                job_progress[tmdb_id] = {"message": "Failed: Review generation encountered an error", "percent": 0}
     except Exception as e:
         logger.critical(f"🚨 Background generation task crashed for {tmdb_id}: {e}")
         job_progress[tmdb_id] = {"message": "Generation crashed. Please try again.", "percent": 0}

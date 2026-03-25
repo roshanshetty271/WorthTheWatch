@@ -64,11 +64,9 @@ elif deepseek_client:
 elif openai_client:
     llm_client, llm_model = openai_client, openai_model
 else:
-    llm_client = AsyncOpenAI(
-        base_url="https://api.deepseek.com/v1",
-        api_key="missing-key-set-DEEPSEEK_API_KEY-or-OPENAI_API_KEY-in-env",
+    raise RuntimeError(
+        "No LLM API key configured. Set OPENAI_API_KEY or DEEPSEEK_API_KEY in environment."
     )
-    llm_model = "deepseek-chat"
 
 
 # ─── System Prompt (UNCHANGED) ─────────────────────────────

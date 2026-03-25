@@ -15,11 +15,6 @@ const KEYS = {
 const SOFT_LIMITS = { generation: 3, battle: 1, roulette: 1 };
 const DIALOG_PAGE_THRESHOLD = 2;
 
-const WHITELIST = (process.env.NEXT_PUBLIC_RATE_LIMIT_WHITELIST || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
 function getTodayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -61,14 +56,12 @@ export function useSignInPrompt() {
     setBattleCount(getCount(KEYS.battleCount));
     setRouletteCount(getCount(KEYS.rouletteCount));
 
-    if (WHITELIST.length > 0) {
-      fetch("https://api.ipify.org?format=json")
-        .then((r) => r.json())
-        .then((data) => {
-          if (WHITELIST.includes(data.ip)) setWhitelisted(true);
-        })
-        .catch(() => {});
-    }
+    fetch("/api/check-whitelist")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.whitelisted) setWhitelisted(true);
+      })
+      .catch(() => {});
   }, []);
 
   const bypass = isSignedIn || whitelisted;
