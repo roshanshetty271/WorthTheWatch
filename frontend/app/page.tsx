@@ -172,7 +172,7 @@ export default async function HomePage() {
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="hidden md:block object-cover object-top transition-transform duration-[20s] hover:scale-105 opacity-90"
+              className="hidden md:block object-cover object-[center_15%] transition-transform duration-[20s] hover:scale-105 opacity-90"
               priority
               unoptimized
             />
@@ -182,11 +182,13 @@ export default async function HomePage() {
               alt={featured.movie.title}
               fill
               sizes="100vw"
-              className="block md:hidden object-cover object-top opacity-90"
+              className="block md:hidden object-cover object-[center_20%] opacity-90"
               priority
               unoptimized
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
+            {/* Top fade — anchors navbar on a dark edge */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/20 to-transparent" style={{ height: '30%' }} />
+            {/* Bottom fade — blends into page surface */}
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent" />
           </div>
         ) : (

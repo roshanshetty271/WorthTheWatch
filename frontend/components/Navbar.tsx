@@ -49,9 +49,9 @@ export default function Navbar() {
         <>
             <nav
                 className={`
-                    fixed top-0 left-0 right-0 z-50 
-                    transition-all duration-500 ease-out
-                    ${scrolled ? "bg-surface/95 backdrop-blur-md py-3" : "bg-gradient-to-b from-black/80 to-transparent py-3 md:py-5"}
+                    fixed top-0 left-0 right-0 z-50 py-3 md:py-4
+                    transition-colors duration-200 ease-out
+                    ${scrolled ? "bg-surface" : "bg-transparent"}
                 `}
             >
                 <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8">

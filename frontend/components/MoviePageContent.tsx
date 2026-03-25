@@ -32,7 +32,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const { movie, review: initialReview } = movieData;
     const [review, setReview] = useState<Review | null>(initialReview);
     const [cast, setCast] = useState<CastMember[]>([]);
-    const [castOpen, setCastOpen] = useState(false);
+    const [castOpen, setCastOpen] = useState(true);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
@@ -261,66 +261,64 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             ACTIONS — Verdict, Save, Share, Trailer, Streaming
             ═══════════════════════════════════════════════════════════════════ */}
             <div className="mx-auto max-w-4xl px-4 sm:px-6">
-                {/* Verdict Badge + Save + Share */}
-                <div className={`py-5 flex items-center justify-center gap-3 md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-                    {review && (
-                        <>
-                            <VerdictBadge verdict={review.verdict} size="lg" />
-                            <BookmarkButton
-                                tmdb_id={movie.tmdb_id}
-                                title={movie.title}
-                                poster_path={movie.poster_path || null}
-                                verdict={review.verdict}
-                                variant="page"
-                            />
-                            <button
-                                onClick={async () => {
-                                    const url = window.location.href;
-                                    const shareData = {
-                                        title: `${movie.title} — ${review.verdict}`,
-                                        text: `Is ${movie.title} worth watching? Check the verdict!`,
-                                        url,
-                                    };
-                                    try {
-                                        if (navigator.share) {
-                                            await navigator.share(shareData);
-                                        } else {
-                                            await navigator.clipboard.writeText(url);
-                                            setCopied(true);
-                                            setTimeout(() => setCopied(false), 2000);
-                                        }
-                                    } catch {
+                {/* Verdict Badge + Save + Share — only render when review exists */}
+                {review && (
+                    <div className="py-5 flex items-center justify-center gap-3 md:justify-start animate-fade-in">
+                        <VerdictBadge verdict={review.verdict} size="lg" />
+                        <BookmarkButton
+                            tmdb_id={movie.tmdb_id}
+                            title={movie.title}
+                            poster_path={movie.poster_path || null}
+                            verdict={review.verdict}
+                            variant="page"
+                        />
+                        <button
+                            onClick={async () => {
+                                const url = window.location.href;
+                                const shareData = {
+                                    title: `${movie.title} — ${review.verdict}`,
+                                    text: `Is ${movie.title} worth watching? Check the verdict!`,
+                                    url,
+                                };
+                                try {
+                                    if (navigator.share) {
+                                        await navigator.share(shareData);
+                                    } else {
                                         await navigator.clipboard.writeText(url);
                                         setCopied(true);
                                         setTimeout(() => setCopied(false), 2000);
                                     }
-                                }}
-                                className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 hover:text-white transition-colors duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
-                                aria-label="Share this movie"
-                                title="Share"
-                            >
-                                {copied ? (
-                                    <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                ) : (
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                    </svg>
-                                )}
-                            </button>
-                            {copied && (
-                                <span className="text-xs text-green-400 animate-fade-in font-medium">
-                                    Link copied!
-                                </span>
+                                } catch {
+                                    await navigator.clipboard.writeText(url);
+                                    setCopied(true);
+                                    setTimeout(() => setCopied(false), 2000);
+                                }
+                            }}
+                            className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 hover:text-white transition-colors duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
+                            aria-label="Share this movie"
+                            title="Share"
+                        >
+                            {copied ? (
+                                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                </svg>
                             )}
-                        </>
-                    )}
-                </div>
+                        </button>
+                        {copied && (
+                            <span className="text-xs text-green-400 animate-fade-in font-medium">
+                                Link copied!
+                            </span>
+                        )}
+                    </div>
+                )}
 
-                {/* Trailer + Streaming — single row */}
-                <div className={`pb-5 flex items-center gap-4 justify-center md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-                    {review?.trailer_url && (
+                {/* Trailer + Streaming — separate rows so streaming doesn't shift trailer */}
+                {review?.trailer_url && (
+                    <div className="pb-3 flex items-center gap-4 justify-center md:justify-start animate-fade-in">
                         <button
                             onClick={() => {
                                 document.getElementById("trailer-section")?.scrollIntoView({
@@ -335,60 +333,66 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                             </svg>
                             Trailer
                         </button>
-                    )}
-
-                    <StreamingAvailability tmdbId={movie.tmdb_id} />
-                </div>
+                        <StreamingAvailability tmdbId={movie.tmdb_id} />
+                    </div>
+                )}
+                {!review?.trailer_url && (
+                    <div className="pb-3 flex items-center justify-center md:justify-start">
+                        <StreamingAvailability tmdbId={movie.tmdb_id} />
+                    </div>
+                )}
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
-            SCORES — single scrollable row with divider lines
+            SCORES — only render when there are scores to show
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 sm:px-6">
-                <div className="border-y border-white/10 py-4">
-                    <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-                        {review?.imdb_score ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base font-bold text-yellow-500">IMDb</span>
-                                <span className="font-bold text-white">{review.imdb_score}</span>
-                            </div>
-                        ) : movie.tmdb_vote_average ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">⭐</span>
-                                <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
-                            </div>
-                        ) : null}
+            {(review?.imdb_score || movie.tmdb_vote_average || review?.rt_critic_score || review?.rt_audience_score || review?.metascore || boxOfficeDisplay) && (
+                <div className="mx-auto max-w-4xl px-4 sm:px-6 animate-fade-in">
+                    <div className="border-y border-white/10 py-4">
+                        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+                            {review?.imdb_score ? (
+                                <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 shrink-0">
+                                    <span className="text-base font-bold text-yellow-500">IMDb</span>
+                                    <span className="font-bold text-white">{review.imdb_score}</span>
+                                </div>
+                            ) : movie.tmdb_vote_average ? (
+                                <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 shrink-0">
+                                    <span className="text-base">⭐</span>
+                                    <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
+                                </div>
+                            ) : null}
 
-                        {review?.rt_critic_score ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">🍅</span>
-                                <span className="font-bold text-white">{review.rt_critic_score}%</span>
-                            </div>
-                        ) : null}
+                            {review?.rt_critic_score ? (
+                                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
+                                    <span className="text-base">🍅</span>
+                                    <span className="font-bold text-white">{review.rt_critic_score}%</span>
+                                </div>
+                            ) : null}
 
-                        {review?.rt_audience_score ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">🍿</span>
-                                <span className="font-bold text-white">{review.rt_audience_score}%</span>
-                            </div>
-                        ) : null}
+                            {review?.rt_audience_score ? (
+                                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
+                                    <span className="text-base">🍿</span>
+                                    <span className="font-bold text-white">{review.rt_audience_score}%</span>
+                                </div>
+                            ) : null}
 
-                        {review?.metascore ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 shrink-0">
-                                <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
-                                <span className="font-bold text-white">{review.metascore}</span>
-                            </div>
-                        ) : null}
+                            {review?.metascore ? (
+                                <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 shrink-0">
+                                    <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
+                                    <span className="font-bold text-white">{review.metascore}</span>
+                                </div>
+                            ) : null}
 
-                        {boxOfficeDisplay && (
-                            <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">💰</span>
-                                <span className="font-bold text-white text-sm">{boxOfficeDisplay}</span>
-                            </div>
-                        )}
+                            {boxOfficeDisplay && (
+                                <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 shrink-0">
+                                    <span className="text-base">💰</span>
+                                    <span className="font-bold text-white text-sm">{boxOfficeDisplay}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* ═══════════════════════════════════════════════════════════════════
             AWARDS & OVERVIEW

@@ -35,12 +35,12 @@ TIRED_ICONIC = [
     13,       # Forrest Gump
     862,      # Toy Story
     194,      # Amelie
-    11216,    # The Grand Budapest Hotel
+    120467,   # The Grand Budapest Hotel
     2062,     # Ratatouille
     8587,     # The Lion King (1994)
-    4232,     # The Princess Bride
+    2493,     # The Princess Bride
     14160,    # Up
-    128,      # My Neighbor Totoro
+    8392,     # My Neighbor Totoro
     508442,   # Soul
     10681,    # WALL-E
     585,      # Monsters, Inc.
@@ -49,8 +49,8 @@ TIRED_ICONIC = [
     313369,   # La La Land
     671,      # Harry Potter 1
     105,      # Back to the Future
-    3170,     # Groundhog Day
-    425,      # The Sound of Music
+    137,      # Groundhog Day
+    15121,    # The Sound of Music
     11,       # Star Wars: A New Hope
     1726,     # Iron Man
     346698,   # Barbie
@@ -60,29 +60,29 @@ TIRED_ICONIC = [
 ]
 
 TIRED_UNDERRATED = [
-    4348,     # Chef
-    843906,   # The Holdovers
-    11970,    # Paddington
+    212778,   # Chef
+    840430,   # The Holdovers
+    116149,   # Paddington
     508943,   # Luca
-    228161,   # The Secret Life of Walter Mitty
-    38575,    # Midnight in Paris
-    4951,     # The Intern
+    116745,   # The Secret Life of Walter Mitty
+    59436,    # Midnight in Paris
+    257211,   # The Intern
     122906,   # About Time
     490132,   # Green Book
-    652837,   # Encanto
+    568124,   # Encanto
     38757,    # Tangled
     508947,   # Turning Red
     153,      # Lost in Translation
-    8392,     # My Big Fat Greek Wedding
+    8346,     # My Big Fat Greek Wedding
     37165,    # The Truman Show
-    950387,   # Wonka
+    787699,   # Wonka
     321612,   # Beauty and the Beast (2017)
-    1541,     # School of Rock
+    1584,     # School of Rock
     637,      # Life Is Beautiful
     673,      # Harry Potter 3 (Prisoner of Azkaban)
     207703,   # Kingsman: The Secret Service
-    50646,    # Pitch Perfect
-    10229,    # A Room with a View
+    114150,   # Pitch Perfect
+    11257,    # A Room with a View
     81,       # Nausicaa of the Valley of the Wind
     489,      # Good Will Hunting
 ]
@@ -107,12 +107,12 @@ PUMPED_ICONIC = [
     122,      # LOTR: Return of the King
     68718,    # Django Unchained
     857,      # Saving Private Ryan
-    7214,     # Casino Royale (2006)
+    36557,    # Casino Royale (2006)
     263115,   # Logan
-    354912,   # Mission: Impossible - Fallout
+    353081,   # Mission: Impossible - Fallout
     324857,   # Spider-Man: Into the Spider-Verse
     1891,     # The Empire Strikes Back
-    9693,     # The Bourne Identity
+    2501,     # The Bourne Identity
     348,      # Alien
     238,      # The Godfather
     807,      # Se7en
@@ -121,19 +121,19 @@ PUMPED_ICONIC = [
 ]
 
 PUMPED_UNDERRATED = [
-    11631,    # The Raid: Redemption
-    141052,   # RRR
+    94329,    # The Raid: Redemption
+    579974,   # RRR
     840326,   # Sisu
-    278927,   # The Night Comes for Us
-    620683,   # Bullet Train
-    454,      # Crouching Tiger, Hidden Dragon
-    1885,     # First Blood (Rambo)
+    449992,   # The Night Comes for Us
+    718930,   # Bullet Train
+    146,      # Crouching Tiger, Hidden Dragon
+    1368,     # First Blood (Rambo)
     228150,   # Fury
-    392044,   # Extraction
+    545609,   # Extraction
     577922,   # Tenet
     1124,     # The Prestige
     496243,   # Parasite
-    310,      # RoboCop (1987)
+    5548,     # RoboCop (1987)
     956,      # Mission: Impossible (1996)
     10528,    # Sherlock Holmes (2009)
     872585,   # Oppenheimer
@@ -141,7 +141,7 @@ PUMPED_UNDERRATED = [
     11324,    # Shutter Island
     600,      # Full Metal Jacket
     399579,   # Alita: Battle Angel
-    1051896,  # The Beekeeper
+    866398,   # The Beekeeper
     569094,   # Spider-Verse 2
     119450,   # Dawn of the Planet of the Apes
     557,      # Spider-Man (2002)
@@ -158,54 +158,54 @@ EMOTIONAL_ICONIC = [
     497,      # The Green Mile
     597,      # Titanic
     637,      # Life Is Beautiful
-    696,      # The Shawshank Redemption
+    278,      # The Shawshank Redemption
     857,      # Saving Private Ryan
     13,       # Forrest Gump
-    8966,     # The Notebook
-    843,      # Dead Poets Society
-    798,      # Eternal Sunshine of the Spotless Mind
-    1585,     # Brokeback Mountain
-    389,      # 12 Years a Slave
+    11036,    # The Notebook
+    207,      # Dead Poets Society
+    38,       # Eternal Sunshine of the Spotless Mind
+    142,      # Brokeback Mountain
+    76203,    # 12 Years a Slave
     1402,     # The Pursuit of Happyness
     238,      # The Godfather
     240,      # The Godfather Part II
     14160,    # Up
     8587,     # The Lion King
-    508,      # Philadelphia
-    4960,     # Marley and Me
+    9800,     # Philadelphia
+    14306,    # Marley and Me
     14,       # American Beauty
-    520763,   # A Star Is Born (2018)
+    332562,   # A Star Is Born (2018)
     329865,   # Arrival
     152601,   # Her
     313369,   # La La Land
-    423204,   # Marriage Story
+    492188,   # Marriage Story
 ]
 
 EMOTIONAL_UNDERRATED = [
     12477,    # Grave of the Fireflies
     423,      # The Pianist
-    476292,   # Capernaum
-    334533,   # Lion
-    284293,   # Manchester by the Sea
+    517814,   # Capernaum
+    334543,   # Lion
+    334541,   # Manchester by the Sea
     14574,    # The Boy in the Striped Pyjamas
-    36685,    # The Impossible
-    1433,     # Atonement
+    80278,    # The Impossible
+    4347,     # Atonement
     398818,   # Call Me by Your Name
-    264660,   # The Theory of Everything
-    773,      # Little Women (1994)
-    926,      # Terms of Endearment
-    74643,    # The Fault in Our Stars
-    9443,     # My Girl
-    9475,     # My Sister's Keeper
+    266856,   # The Theory of Everything
+    9587,     # Little Women (1994)
+    11050,    # Terms of Endearment
+    222935,   # The Fault in Our Stars
+    4032,     # My Girl
+    10024,    # My Sister's Keeper
     581734,   # Nomadland
-    467244,   # A Ghost Story
+    428449,   # A Ghost Story
     399055,   # The Shape of Water
     490132,   # Green Book
-    4476,     # P.S. I Love You
+    6023,     # P.S. I Love You
     122906,   # About Time
     475557,   # Joker
     153,      # Lost in Translation
-    11216,    # The Grand Budapest Hotel
+    120467,   # The Grand Budapest Hotel
     508442,   # Soul
 ]
 
@@ -223,7 +223,7 @@ CEREBRAL_ICONIC = [
     11324,    # Shutter Island
     329865,   # Arrival
     1124,     # The Prestige
-    798,      # Eternal Sunshine of the Spotless Mind
+    38,       # Eternal Sunshine of the Spotless Mind
     680,      # Pulp Fiction
     807,      # Se7en
     274,      # The Silence of the Lambs
@@ -234,7 +234,7 @@ CEREBRAL_ICONIC = [
     62,       # 2001: A Space Odyssey
     475557,   # Joker
     238,      # The Godfather
-    68721,    # Gone Girl
+    210577,   # Gone Girl
     37165,    # The Truman Show
     244786,   # Whiplash
     286217,   # The Martian
@@ -243,29 +243,29 @@ CEREBRAL_ICONIC = [
 ]
 
 CEREBRAL_UNDERRATED = [
-    242224,   # Ex Machina
+    264660,   # Ex Machina
     577922,   # Tenet
-    1817,     # Mulholland Drive
-    8488,     # No Country for Old Men
-    1858,     # Twelve Monkeys
+    1018,     # Mulholland Drive
+    6977,     # No Country for Old Men
+    63,       # Twelve Monkeys
     1954,     # The Butterfly Effect
-    55167,    # Coherence
-    8681,     # Primer
-    11018,    # Predestination
-    6977,     # Paprika
+    220289,   # Coherence
+    14337,    # Primer
+    206487,   # Predestination
+    4977,     # Paprika
     152601,   # Her
-    1359,     # American History X
-    4638,     # A Beautiful Mind
-    843,      # Dead Poets Society
+    73,       # American History X
+    453,      # A Beautiful Mind
+    207,      # Dead Poets Society
     581734,   # Nomadland
-    467244,   # A Ghost Story
-    264660,   # The Theory of Everything
-    334533,   # Lion
-    423204,   # Marriage Story
-    2770,     # Solaris (1972)
+    428449,   # A Ghost Story
+    266856,   # The Theory of Everything
+    334543,   # Lion
+    492188,   # Marriage Story
+    593,      # Solaris (1972)
     500,      # Reservoir Dogs
     539,      # Psycho
-    77338,    # The Wolf of Wall Street
+    106646,   # The Wolf of Wall Street
     640,      # Catch Me If You Can
     76600,    # Avatar: The Way of Water
 ]
@@ -299,33 +299,33 @@ FUN_ICONIC = [
     85,       # Raiders of the Lost Ark
     313369,   # La La Land
     8587,     # The Lion King
-    3170,     # Groundhog Day
+    137,      # Groundhog Day
     607,      # Men in Black
 ]
 
 FUN_UNDERRATED = [
     569094,   # Spider-Verse 2
     207703,   # Kingsman: The Secret Service
-    620683,   # Bullet Train
-    1541,     # School of Rock
-    4232,     # The Princess Bride
+    718930,   # Bullet Train
+    1584,     # School of Rock
+    2493,     # The Princess Bride
     10681,    # WALL-E
     277834,   # Moana
     38757,    # Tangled
     508947,   # Turning Red
-    652837,   # Encanto
+    568124,   # Encanto
     508943,   # Luca
     508442,   # Soul
-    50646,    # Pitch Perfect
+    114150,   # Pitch Perfect
     68718,    # Django Unchained
     238713,   # Spy (2015)
-    11836,    # The Princess Diaries
-    950387,   # Wonka
+    9880,     # The Princess Diaries
+    787699,   # Wonka
     321612,   # Beauty and the Beast (2017)
-    11970,    # Paddington
+    116149,   # Paddington
     10528,    # Sherlock Holmes (2009)
-    8392,     # My Big Fat Greek Wedding
-    4348,     # Chef
+    8346,     # My Big Fat Greek Wedding
+    212778,   # Chef
     95,       # Armageddon
     2062,     # Ratatouille
     1895,     # Star Wars: Return of the Jedi
