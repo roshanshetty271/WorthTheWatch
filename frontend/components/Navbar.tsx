@@ -36,13 +36,13 @@ function MobileAuthSection({ onClose }: { onClose: () => void }) {
             {/* Avatar + Name */}
             <div className="flex items-center gap-3">
                 {session.user?.image ? (
-                    <Image
+                    <img
                         src={session.user.image}
                         alt={session.user.name || "User"}
                         width={40}
                         height={40}
                         className="rounded-full ring-2 ring-accent-gold/30"
-                        unoptimized
+                        referrerPolicy="no-referrer"
                     />
                 ) : (
                     <div className="h-10 w-10 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-lg font-bold">
@@ -123,6 +123,16 @@ export default function Navbar() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    // Lock body scroll when mobile menu is open
+    useEffect(() => {
+        if (mobileMenuOpen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
+        return () => { document.body.style.overflow = ""; };
+    }, [mobileMenuOpen]);
+
     const handleSearchClick = () => {
         if (pathname === "/") {
             window.scrollTo({ top: 0, behavior: "smooth" });
@@ -146,7 +156,7 @@ export default function Navbar() {
             >
                 <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8">
                     {/* Logo */}
-                    <Link href="/" className="flex items-center gap-2 group relative z-50">
+                    <Link href="/" onClick={() => mobileMenuOpen && setMobileMenuOpen(false)} className="flex items-center gap-2 group relative z-50">
                         <span className="font-display text-lg md:text-2xl text-white tracking-tight transition-colors duration-300 text-shadow-hero">
                             Worth the <span className="text-accent-gold group-hover:text-accent-goldLight transition-colors duration-300">Watch</span>?
                         </span>

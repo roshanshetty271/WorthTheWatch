@@ -52,13 +52,13 @@ export default function AuthButton() {
                 aria-label="Account menu"
             >
                 {session.user?.image ? (
-                    <Image
+                    <img
                         src={session.user.image}
                         alt={session.user.name || "User"}
                         width={32}
                         height={32}
                         className="rounded-full ring-2 ring-transparent group-hover:ring-accent-gold/50 transition-all"
-                        unoptimized
+                        referrerPolicy="no-referrer"
                     />
                 ) : (
                     <div className="h-8 w-8 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-sm font-bold">
