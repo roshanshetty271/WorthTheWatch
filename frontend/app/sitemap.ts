@@ -21,9 +21,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     let moviePages: MetadataRoute.Sitemap = [];
 
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
         const res = await fetch(`${API_BASE}/api/sitemap`, {
             next: { revalidate: 3600 },
+            signal: controller.signal,
         });
+        clearTimeout(timeout);
 
         if (res.ok) {
             const movies: Array<{ tmdb_id: number; updated_at: string; title: string }> = await res.json();
