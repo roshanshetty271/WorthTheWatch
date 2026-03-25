@@ -200,11 +200,11 @@ export default async function HomePage() {
           {/* Mobile-only radial vignette behind text for readability */}
           <div className="pointer-events-none absolute inset-0 md:hidden" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 40%, rgba(0,0,0,0.35) 0%, transparent 100%)' }} />
           <div className="relative z-10 w-full max-w-5xl text-center">
-            <h1 className="mb-3 sm:mb-4 font-display text-[clamp(1.75rem,5vw,2rem)] sm:text-3xl md:text-5xl text-white tracking-tight text-shadow-hero">
+            <h1 className="mb-3 sm:mb-4 font-display text-[clamp(2rem,6vw,2.5rem)] sm:text-3xl md:text-4xl text-white tracking-tight text-shadow-hero">
               Don&apos;t watch <br />
               <span className="text-accent-gold">another bad movie.</span>
             </h1>
-            <p className="mx-auto mb-4 sm:mb-5 max-w-lg text-base sm:text-xl text-white font-semibold text-shadow-hero">
+            <p className="mx-auto mb-4 sm:mb-5 max-w-lg text-sm sm:text-lg text-white/90 font-medium text-shadow-sub">
               Search any title to get an instant, AI-powered verdict from fans and critics.
             </p>
             <div className="mx-auto max-w-2xl sm:max-w-3xl">
