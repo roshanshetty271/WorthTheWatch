@@ -25,7 +25,7 @@ export default function Navbar() {
         setMounted(true);
         const handleScroll = () => {
             requestAnimationFrame(() => {
-                setScrolled(window.scrollY > 80);
+                setScrolled(window.scrollY > 10);
             });
         };
 
@@ -50,7 +50,7 @@ export default function Navbar() {
             <nav
                 className={`
                     fixed top-0 left-0 right-0 z-50 py-3 md:py-4
-                    transition-colors duration-200 ease-out
+                    transition-colors duration-300 ease-in-out
                     ${scrolled ? "bg-surface" : "bg-transparent"}
                 `}
             >
