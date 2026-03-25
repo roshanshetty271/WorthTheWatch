@@ -162,7 +162,7 @@ export default async function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-[80svh] md:min-h-[100svh] flex-col items-center justify-center">
+      <section className="relative flex min-h-[80svh] md:min-h-[100svh] flex-col">
         {/* Background Image */}
         {featured ? (
           <div className="absolute inset-0 z-0 overflow-hidden">
@@ -195,23 +195,25 @@ export default async function HomePage() {
           <div className="absolute inset-0 z-0 bg-gradient-to-b from-black via-surface to-surface" />
         )}
 
-        {/* Center Content */}
-        <div className="relative z-30 w-full max-w-5xl px-4 text-center pt-20 mb-4 sm:pt-28 sm:mb-24 md:mb-28">
-          <h1 className="mb-3 sm:mb-4 font-display text-[clamp(1.25rem,5vw,1.5rem)] sm:text-3xl md:text-5xl text-white tracking-tight text-shadow-hero">
-            Don&apos;t watch <br />
-            <span className="text-accent-gold">another bad movie.</span>
-          </h1>
-          <p className="mx-auto mb-4 sm:mb-5 max-w-lg text-sm sm:text-xl text-white/80 font-medium text-shadow-sub">
-            Search any title to get an instant, AI-powered verdict from fans and critics.
-          </p>
-          <div className="mx-auto max-w-2xl sm:max-w-3xl mb-12">
-            <SearchBar placeholder="Search any movie or TV show..." size="lg" />
+        {/* Center Content — flex-1 keeps headline + search vertically centered in space above featured */}
+        <div className="relative z-30 flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-20 pb-6 sm:pt-28 sm:pb-8">
+          <div className="w-full max-w-5xl text-center">
+            <h1 className="mb-3 sm:mb-4 font-display text-[clamp(1.25rem,5vw,1.5rem)] sm:text-3xl md:text-5xl text-white tracking-tight text-shadow-hero">
+              Don&apos;t watch <br />
+              <span className="text-accent-gold">another bad movie.</span>
+            </h1>
+            <p className="mx-auto mb-4 sm:mb-5 max-w-lg text-sm sm:text-xl text-white/80 font-medium text-shadow-sub">
+              Search any title to get an instant, AI-powered verdict from fans and critics.
+            </p>
+            <div className="mx-auto max-w-2xl sm:max-w-3xl">
+              <SearchBar placeholder="Search any movie or TV show..." size="lg" />
+            </div>
           </div>
         </div>
 
-        {/* Bottom Left: Featured Movie Info */}
+        {/* Bottom Left: Featured Movie Info — in document flow so long titles push down, never under search */}
         {featured && (
-          <div className="relative sm:absolute sm:bottom-0 left-0 z-20 w-full px-4 pb-2 sm:px-12 sm:pb-6 pointer-events-none">
+          <div className="relative z-20 mt-auto w-full shrink-0 px-4 pb-4 pt-8 sm:px-12 sm:pb-6 sm:pt-10 pointer-events-none">
             <div className="mx-auto flex max-w-7xl items-end justify-between pointer-events-auto">
               <div className="max-w-full sm:max-w-2xl">
                 <div className="mb-2 flex items-center gap-2.5">
@@ -224,7 +226,7 @@ export default async function HomePage() {
                   )}
                 </div>
                 <Link href={`/movie/${featured.movie.tmdb_id}?type=${featured.movie.media_type || "movie"}`} className="group block">
-                  <h2 className="font-display text-base text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-xl md:text-2xl line-clamp-2">
+                  <h2 className="font-display text-base text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-xl md:text-2xl">
                     {featured.movie.title}
                   </h2>
                 </Link>

@@ -131,39 +131,38 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* ═══════════════════════════════════════════════════════════════════
           FULLSCREEN HERO BACKDROP
           ═══════════════════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[50svh] md:min-h-screen flex flex-col justify-end overflow-visible">
-                {/* Background Image Logic — fixed height so it never resizes */}
-                <div className="absolute top-0 left-0 right-0 h-[50svh] md:h-screen z-0 overflow-hidden">
-                    {backdropSrc ? (
-                        <>
-                            {/* Desktop & Mobile Background (Backdrop) */}
-                            <div className="absolute inset-0">
-                                <Image
-                                    src={backdropSrc}
-                                    alt={movie.title}
-                                    fill
-                                    sizes="100vw"
-                                    className={`object-cover scale-105 ${isPosterFallback ? "object-top opacity-60" : "object-top opacity-90"}`}
-                                    priority
-                                    onError={handleImageError}
-                                    unoptimized
-                                />
-                            </div>
-
-
-
-                            <div
-                                className="absolute inset-0 z-10"
-                                style={{
-                                    background: "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 80%)"
-                                }}
-                            />
-                            {isPosterFallback && <div className="absolute inset-0 bg-black/40" />}
-                        </>
-                    ) : (
-                        <div className="absolute inset-0 z-0 bg-gradient-to-b from-surface-elevated to-surface" />
-                    )}
-                </div>
+            <section className="relative flex min-h-[80svh] md:min-h-[100svh] flex-col">
+                {/* Background Image — fills entire section, fades via overlays */}
+                {backdropSrc ? (
+                    <div className="absolute inset-0 z-0 overflow-hidden">
+                        <Image
+                            src={backdropSrc}
+                            alt={movie.title}
+                            fill
+                            sizes="100vw"
+                            className={`hidden md:block object-cover ${isPosterFallback ? "object-top opacity-60" : "object-[center_15%] opacity-90"}`}
+                            priority
+                            onError={handleImageError}
+                            unoptimized
+                        />
+                        <Image
+                            src={movie.poster_url || backdropSrc}
+                            alt={movie.title}
+                            fill
+                            sizes="100vw"
+                            className="block md:hidden object-cover object-[center_20%] opacity-90"
+                            priority
+                            unoptimized
+                        />
+                        {/* Top fade — anchors navbar on a dark edge */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/20 to-transparent" style={{ height: '30%' }} />
+                        {/* Bottom fade — blends into page surface */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent" />
+                        {isPosterFallback && <div className="absolute inset-0 bg-black/40" />}
+                    </div>
+                ) : (
+                    <div className="absolute inset-0 z-0 bg-gradient-to-b from-surface-elevated to-surface" />
+                )}
 
                 {/* Back Button */}
                 <div className="relative z-30 pt-20 px-4 sm:px-6 md:pt-24">
@@ -192,7 +191,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 </div>
 
                 {/* Movie Info Overlay — hero area: poster + title + meta */}
-                <div className="relative z-20 w-full px-4 pb-6 sm:pb-8 sm:px-6">
+                <div className="relative z-20 w-full px-4 pt-8 pb-10 sm:px-6 sm:pt-10 sm:pb-12 md:pt-12 md:pb-14">
                     <div className="mx-auto max-w-7xl">
                         <div className="flex flex-col items-center gap-3 md:flex-row md:items-end md:gap-8">
                             {/* Poster */}
@@ -214,14 +213,14 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 </div>
                             )}
 
-                            {/* Title + Year/Genre row — kept tight in hero */}
-                            <div className="flex-1 space-y-2 text-center md:space-y-3 md:text-left">
+                            {/* Title + Meta + Actions column */}
+                            <div className="flex-1 min-w-0 text-center md:text-left">
                                 <h1 className="font-display text-xl text-white text-shadow-hero sm:text-2xl md:text-5xl">
                                     {movie.title}
                                 </h1>
 
                                 {/* Year + Runtime + MPAA */}
-                                <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs font-medium text-white/90 sm:gap-3 sm:text-sm md:justify-start">
+                                <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-xs font-medium text-white/90 sm:gap-3 sm:text-sm md:justify-start">
                                     {year && (
                                         <span className="flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-sm px-2.5 py-0.5 sm:px-3 sm:py-1">
                                             <span className="hidden sm:inline text-base" aria-hidden="true">📅</span> {year}
@@ -239,7 +238,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                     )}
                                 </div>
 
-                                <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs sm:text-sm md:justify-start">
+                                <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-xs sm:text-sm md:justify-start">
                                     {genres && (
                                         <span className="rounded-full bg-black/40 backdrop-blur-sm px-2.5 py-0.5 sm:px-3 sm:py-1 text-white border border-white/10">
                                             {genres}
@@ -251,6 +250,85 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         </span>
                                     )}
                                 </div>
+
+                                {/* Verdict Badge + Save + Share */}
+                                <div className={`mt-4 flex items-center justify-center gap-3 md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                                    {review && (
+                                        <>
+                                            <VerdictBadge verdict={review.verdict} size="lg" />
+                                            <BookmarkButton
+                                                tmdb_id={movie.tmdb_id}
+                                                title={movie.title}
+                                                poster_path={movie.poster_path || null}
+                                                verdict={review.verdict}
+                                                variant="page"
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    const url = window.location.href;
+                                                    const shareData = {
+                                                        title: `${movie.title} — ${review.verdict}`,
+                                                        text: `Is ${movie.title} worth watching? Check the verdict!`,
+                                                        url,
+                                                    };
+                                                    try {
+                                                        if (navigator.share) {
+                                                            await navigator.share(shareData);
+                                                        } else {
+                                                            await navigator.clipboard.writeText(url);
+                                                            setCopied(true);
+                                                            setTimeout(() => setCopied(false), 2000);
+                                                        }
+                                                    } catch {
+                                                        await navigator.clipboard.writeText(url);
+                                                        setCopied(true);
+                                                        setTimeout(() => setCopied(false), 2000);
+                                                    }
+                                                }}
+                                                className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 hover:text-white transition-colors duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
+                                                aria-label="Share this movie"
+                                                title="Share"
+                                            >
+                                                {copied ? (
+                                                    <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                            {copied && (
+                                                <span className="text-xs text-green-400 animate-fade-in font-medium">
+                                                    Link copied!
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Trailer + Streaming — single row */}
+                                <div className={`mt-6 flex items-center gap-4 justify-center md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                                    {review?.trailer_url && (
+                                        <button
+                                            onClick={() => {
+                                                document.getElementById("trailer-section")?.scrollIntoView({
+                                                    behavior: "smooth",
+                                                    block: "center"
+                                                });
+                                            }}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group shrink-0"
+                                        >
+                                            <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                                <path d="M8 5v14l11-7z" />
+                                            </svg>
+                                            Trailer
+                                        </button>
+                                    )}
+
+                                    <StreamingAvailability tmdbId={movie.tmdb_id} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -258,141 +336,53 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             </section>
 
             {/* ═══════════════════════════════════════════════════════════════════
-            ACTIONS — Verdict, Save, Share, Trailer, Streaming
+            SCORES — single scrollable row with divider lines
             ═══════════════════════════════════════════════════════════════════ */}
             <div className="mx-auto max-w-4xl px-4 sm:px-6">
-                {/* Verdict Badge + Save + Share — only render when review exists */}
-                {review && (
-                    <div className="py-5 flex items-center justify-center gap-3 md:justify-start animate-fade-in">
-                        <VerdictBadge verdict={review.verdict} size="lg" />
-                        <BookmarkButton
-                            tmdb_id={movie.tmdb_id}
-                            title={movie.title}
-                            poster_path={movie.poster_path || null}
-                            verdict={review.verdict}
-                            variant="page"
-                        />
-                        <button
-                            onClick={async () => {
-                                const url = window.location.href;
-                                const shareData = {
-                                    title: `${movie.title} — ${review.verdict}`,
-                                    text: `Is ${movie.title} worth watching? Check the verdict!`,
-                                    url,
-                                };
-                                try {
-                                    if (navigator.share) {
-                                        await navigator.share(shareData);
-                                    } else {
-                                        await navigator.clipboard.writeText(url);
-                                        setCopied(true);
-                                        setTimeout(() => setCopied(false), 2000);
-                                    }
-                                } catch {
-                                    await navigator.clipboard.writeText(url);
-                                    setCopied(true);
-                                    setTimeout(() => setCopied(false), 2000);
-                                }
-                            }}
-                            className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 hover:text-white transition-colors duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
-                            aria-label="Share this movie"
-                            title="Share"
-                        >
-                            {copied ? (
-                                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            ) : (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                </svg>
-                            )}
-                        </button>
-                        {copied && (
-                            <span className="text-xs text-green-400 animate-fade-in font-medium">
-                                Link copied!
-                            </span>
+                <div className="py-5">
+                    <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
+                        {review?.imdb_score ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base font-bold text-yellow-500">IMDb</span>
+                                <span className="font-bold text-white">{review.imdb_score}</span>
+                            </div>
+                        ) : movie.tmdb_vote_average ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">⭐</span>
+                                <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
+                            </div>
+                        ) : null}
+
+                        {review?.rt_critic_score ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">🍅</span>
+                                <span className="font-bold text-white">{review.rt_critic_score}%</span>
+                            </div>
+                        ) : null}
+
+                        {review?.rt_audience_score ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">🍿</span>
+                                <span className="font-bold text-white">{review.rt_audience_score}%</span>
+                            </div>
+                        ) : null}
+
+                        {review?.metascore ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 shrink-0">
+                                <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
+                                <span className="font-bold text-white">{review.metascore}</span>
+                            </div>
+                        ) : null}
+
+                        {boxOfficeDisplay && (
+                            <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 shrink-0">
+                                <span className="text-base">💰</span>
+                                <span className="font-bold text-white text-sm">{boxOfficeDisplay}</span>
+                            </div>
                         )}
                     </div>
-                )}
-
-                {/* Trailer + Streaming — separate rows so streaming doesn't shift trailer */}
-                {review?.trailer_url && (
-                    <div className="pb-3 flex items-center gap-4 justify-center md:justify-start animate-fade-in">
-                        <button
-                            onClick={() => {
-                                document.getElementById("trailer-section")?.scrollIntoView({
-                                    behavior: "smooth",
-                                    block: "center"
-                                });
-                            }}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-xs sm:text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group shrink-0"
-                        >
-                            <svg className="w-3.5 h-3.5 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
-                            Trailer
-                        </button>
-                        <StreamingAvailability tmdbId={movie.tmdb_id} />
-                    </div>
-                )}
-                {!review?.trailer_url && (
-                    <div className="pb-3 flex items-center justify-center md:justify-start">
-                        <StreamingAvailability tmdbId={movie.tmdb_id} />
-                    </div>
-                )}
-            </div>
-
-            {/* ═══════════════════════════════════════════════════════════════════
-            SCORES — only render when there are scores to show
-            ═══════════════════════════════════════════════════════════════════ */}
-            {(review?.imdb_score || movie.tmdb_vote_average || review?.rt_critic_score || review?.rt_audience_score || review?.metascore || boxOfficeDisplay) && (
-                <div className="mx-auto max-w-4xl px-4 sm:px-6 animate-fade-in">
-                    <div className="border-y border-white/10 py-4">
-                        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-                            {review?.imdb_score ? (
-                                <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 shrink-0">
-                                    <span className="text-base font-bold text-yellow-500">IMDb</span>
-                                    <span className="font-bold text-white">{review.imdb_score}</span>
-                                </div>
-                            ) : movie.tmdb_vote_average ? (
-                                <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 shrink-0">
-                                    <span className="text-base">⭐</span>
-                                    <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
-                                </div>
-                            ) : null}
-
-                            {review?.rt_critic_score ? (
-                                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
-                                    <span className="text-base">🍅</span>
-                                    <span className="font-bold text-white">{review.rt_critic_score}%</span>
-                                </div>
-                            ) : null}
-
-                            {review?.rt_audience_score ? (
-                                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
-                                    <span className="text-base">🍿</span>
-                                    <span className="font-bold text-white">{review.rt_audience_score}%</span>
-                                </div>
-                            ) : null}
-
-                            {review?.metascore ? (
-                                <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 shrink-0">
-                                    <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
-                                    <span className="font-bold text-white">{review.metascore}</span>
-                                </div>
-                            ) : null}
-
-                            {boxOfficeDisplay && (
-                                <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 shrink-0">
-                                    <span className="text-base">💰</span>
-                                    <span className="font-bold text-white text-sm">{boxOfficeDisplay}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
                 </div>
-            )}
+            </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
             AWARDS & OVERVIEW

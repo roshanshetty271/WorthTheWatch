@@ -22,18 +22,28 @@ interface Props {
     tmdbId: number;
 }
 
-// Compact inline version for hero section
+const streamingCache = new Map<number, StreamingData>();
+
 export default function StreamingAvailability({ tmdbId }: Props) {
-    const [data, setData] = useState<StreamingData | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [data, setData] = useState<StreamingData | null>(
+        () => streamingCache.get(tmdbId) ?? null
+    );
+    const [loading, setLoading] = useState(!streamingCache.has(tmdbId));
 
     useEffect(() => {
+        if (streamingCache.has(tmdbId)) {
+            setData(streamingCache.get(tmdbId)!);
+            setLoading(false);
+            return;
+        }
+
         const fetchStreaming = async () => {
             try {
                 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                 const res = await fetch(`${API_BASE}/api/movies/${tmdbId}/streaming`);
                 if (!res.ok) throw new Error("Failed to fetch");
-                const json = await res.json();
+                const json: StreamingData = await res.json();
+                streamingCache.set(tmdbId, json);
                 setData(json);
             } catch {
                 // Silent fail
@@ -56,7 +66,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
 
     return (
         <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-accent-gold/80">Watch On</span>
+            <span className="text-sm font-semibold uppercase tracking-wider text-accent-gold/80">Watch On</span>
             <div className="flex items-center gap-2">
                 {streamingOptions.map((provider) => (
                     <div
@@ -68,13 +78,13 @@ export default function StreamingAvailability({ tmdbId }: Props) {
                             <Image
                                 src={provider.logo_url}
                                 alt={provider.name}
-                                width={28}
-                                height={28}
+                                width={36}
+                                height={36}
                                 className="rounded-md ring-1 ring-white/20 transition-all hover:scale-110 hover:ring-white/40"
                                 unoptimized
                             />
                         ) : (
-                            <div className="h-7 w-7 rounded-md bg-white/10 flex items-center justify-center text-[10px] text-white/60 font-medium">
+                            <div className="h-9 w-9 rounded-md bg-white/10 flex items-center justify-center text-xs text-white/60 font-medium">
                                 {provider.name.charAt(0)}
                             </div>
                         )}
@@ -85,7 +95,7 @@ export default function StreamingAvailability({ tmdbId }: Props) {
                         href={justwatch_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-white/60 hover:text-white transition-colors"
+                        className="text-sm text-white/60 hover:text-white transition-colors"
                     >
                         More →
                     </a>
