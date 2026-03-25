@@ -85,7 +85,7 @@ function WatchlistMovieCard({ tmdb_id, title, poster_path, verdict, media_type, 
                     />
                     {statusBadge && (
                         <div className="absolute bottom-2 left-2 z-10">
-                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border backdrop-blur-sm ${statusBadge.color}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border backdrop-blur-sm ${statusBadge.color}`}>
                                 {statusBadge.label}
                             </span>
                         </div>
@@ -96,7 +96,7 @@ function WatchlistMovieCard({ tmdb_id, title, poster_path, verdict, media_type, 
                 <div className="min-w-0">
                     <p className="text-white text-sm font-medium truncate">{title}</p>
                     {verdict && (
-                        <span className={`inline-block mt-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${verdictColor(verdict)}`}>
+                        <span className={`inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${verdictColor(verdict)}`}>
                             {verdict}
                         </span>
                     )}
@@ -105,10 +105,10 @@ function WatchlistMovieCard({ tmdb_id, title, poster_path, verdict, media_type, 
                     <div className="relative flex-shrink-0">
                         <button
                             onClick={() => setShowStatusMenu(!showStatusMenu)}
-                            className="p-1 text-white/30 hover:text-white/70 transition-colors"
+                            className="p-2 text-white/30 hover:text-white/70 active:text-white/70 transition-colors"
                             aria-label="Change status"
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                             </svg>
                         </button>
@@ -516,7 +516,7 @@ export default function MyListPage() {
                                         </Link>
                                         <button
                                             onClick={() => handleDeleteList(list.id)}
-                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                            className="p-2 text-white/20 hover:text-red-400 active:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                                             aria-label="Delete list"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -534,17 +534,17 @@ export default function MyListPage() {
             {/* ═══════ Clear All Confirmation Dialog ═══════ */}
             {showClearConfirm && (
                 <div
-                    className="fixed inset-0 z-[100] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+                    className="fixed inset-0 z-[100] grid place-items-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
                     onClick={() => setShowClearConfirm(false)}
                 >
                     <div
-                        className="w-full max-w-[340px] bg-[#141414] border border-white/10 rounded-2xl p-6 text-center shadow-2xl"
+                        className="w-full max-w-[340px] bg-[#141414] border border-white/10 rounded-2xl p-6 text-center shadow-2xl animate-slide-up"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <svg className="w-10 h-10 text-red-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        <h3 className="text-lg font-bold text-white mb-1">Clear your watchlist?</h3>
+                        <h3 className="font-display text-lg text-white mb-1">Clear your watchlist?</h3>
                         <p className="text-white/60 text-sm mb-6">
                             This will remove all {count} saved {count === 1 ? "movie" : "movies"}. This cannot be undone.
                         </p>

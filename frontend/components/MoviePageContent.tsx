@@ -32,7 +32,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
     const { movie, review: initialReview } = movieData;
     const [review, setReview] = useState<Review | null>(initialReview);
     const [cast, setCast] = useState<CastMember[]>([]);
-    const [castOpen, setCastOpen] = useState(true);
+    const [castOpen, setCastOpen] = useState(false);
+    const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
     const [rouletteOpen, setRouletteOpen] = useState(false);
@@ -165,7 +166,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 </div>
 
                 {/* Back Button */}
-                <div className="relative z-30 pt-20 px-6 md:pt-24">
+                <div className="relative z-30 pt-20 px-4 sm:px-6 md:pt-24">
                     <div className="mx-auto max-w-7xl">
                         <Link
                             href="/"
@@ -223,12 +224,12 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs font-medium text-white/90 sm:gap-3 sm:text-sm md:justify-start">
                                     {year && (
                                         <span className="flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-sm px-2.5 py-0.5 sm:px-3 sm:py-1">
-                                            <span className="text-sm sm:text-base" aria-hidden="true">📅</span> {year}
+                                            <span className="hidden sm:inline text-base" aria-hidden="true">📅</span> {year}
                                         </span>
                                     )}
                                     {movie.runtime && (
                                         <span className="flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-sm px-2.5 py-0.5 sm:px-3 sm:py-1">
-                                            <span className="text-sm sm:text-base" aria-hidden="true">⏱️</span> {movie.runtime} min
+                                            <span className="hidden sm:inline text-base" aria-hidden="true">⏱️</span> {movie.runtime} min
                                         </span>
                                     )}
                                     {(review as any)?.rated && (
@@ -405,9 +406,19 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
 
                 {/* Overview Text */}
                 {movie.overview && (
-                    <p className="text-base sm:text-lg leading-relaxed text-text-secondary/90 font-light">
-                        {movie.overview}
-                    </p>
+                    <div>
+                        <p className={`text-base sm:text-lg leading-relaxed text-text-secondary/90 font-light ${!overviewExpanded ? "line-clamp-4 sm:line-clamp-none" : ""}`}>
+                            {movie.overview}
+                        </p>
+                        {movie.overview.length > 200 && (
+                            <button
+                                onClick={() => setOverviewExpanded(!overviewExpanded)}
+                                className="text-xs text-accent-gold mt-2 hover:text-accent-goldLight transition-colors sm:hidden"
+                            >
+                                {overviewExpanded ? "Show less" : "Read more"}
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -418,14 +429,14 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                 <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
                     <button
                         onClick={() => setCastOpen(!castOpen)}
-                        className="flex items-center gap-2 mb-4 group cursor-pointer"
+                        className="flex items-center gap-2 mb-4 py-2 group cursor-pointer"
                         aria-expanded={castOpen}
                     >
                         <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 group-hover:text-white/60 transition-colors">
                             Cast
                         </h3>
                         <svg
-                            className={`w-3.5 h-3.5 text-white/30 group-hover:text-white/50 transition-transform ${castOpen ? "rotate-180" : ""}`}
+                            className={`w-4 h-4 text-white/30 group-hover:text-white/50 transition-transform ${castOpen ? "rotate-180" : ""}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -456,7 +467,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02]">
                                                 <span className="text-lg text-white/20" aria-hidden="true">👤</span>
-                                                <span className="text-[7px] text-white/20 mt-0.5">{person.name.split(' ')[0]}</span>
+                                                <span className="text-[10px] text-white/20 mt-0.5">{person.name.split(' ')[0]}</span>
                                             </div>
                                         )}
                                     </div>

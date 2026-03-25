@@ -333,8 +333,8 @@ export default function Versus() {
                 setPhase("result");
             } catch (e: any) {
                 console.error("Battle failed:", e);
+                setBattleError(e.message || "Something went wrong. Try again.");
                 setPhase("landing");
-                alert(e.message || "Battle failed. Try again.");
             } finally {
                 if (loadingInterval.current) clearInterval(loadingInterval.current);
             }
@@ -474,11 +474,19 @@ export default function Versus() {
                     <div className="max-w-6xl mx-auto px-4 md:px-8 pb-16 relative z-10">
 
                         {/* ── Battle Rate Limit Banner ── */}
-                        {battleError && (
+                        {battleError === "rate_limit" && (
                             <div className="mb-8 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6 text-center max-w-lg mx-auto">
                                 <p className="text-sm text-text-secondary">
                                     Battle limit reached. Try again later.
                                 </p>
+                            </div>
+                        )}
+
+                        {/* ── General Battle Error Banner ── */}
+                        {battleError && battleError !== "rate_limit" && (
+                            <div className="w-full max-w-md mx-auto mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-center animate-fade-in">
+                                <p className="text-sm text-red-300">{battleError}</p>
+                                <button onClick={() => setBattleError(null)} className="text-xs text-red-400 mt-1 hover:text-red-300 transition-colors">Dismiss</button>
                             </div>
                         )}
 
@@ -651,9 +659,9 @@ export default function Versus() {
                                             <div className="flex-1 text-center min-w-0 px-1">
                                                 <div className="flex flex-col items-center justify-center gap-1">
                                                     <div className="flex items-center justify-center gap-1 w-full">
-                                                        <span className="text-[10px] xs:text-xs md:text-sm font-bold text-white leading-tight text-right flex-1">{battle.a.title}</span>
+                                                        <span className="text-xs md:text-sm font-bold text-white leading-tight text-right flex-1">{battle.a.title}</span>
                                                         <span className="text-accent-gold font-black text-xs md:text-sm px-1 flex-shrink-0">VS</span>
-                                                        <span className="text-[10px] xs:text-xs md:text-sm font-bold text-white leading-tight text-left flex-1">{battle.b.title}</span>
+                                                        <span className="text-xs md:text-sm font-bold text-white leading-tight text-left flex-1">{battle.b.title}</span>
                                                     </div>
                                                     <p className="text-[10px] text-accent-gold/60 mt-2 uppercase tracking-widest font-medium group-hover:text-accent-gold transition-colors">
                                                         {battle.subtitle}
@@ -1049,7 +1057,7 @@ function MovieSlot({
                     </div>
                     <button
                         onClick={(e) => { e.stopPropagation(); onClear(); }}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
+                        className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 rounded-full flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-lg z-10"
                     >
                         <span className="text-white text-xs font-bold">×</span>
                     </button>

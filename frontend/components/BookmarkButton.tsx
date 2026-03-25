@@ -76,7 +76,7 @@ export default function BookmarkButton({
                 <button
                     onClick={handleClick}
                     className={`
-          absolute top-2 right-2 z-10 p-1.5 rounded-full
+          absolute top-1.5 right-1.5 z-10 p-2.5 rounded-full
           transition-all duration-200
           ${saved ? "bg-accent-gold/90 text-black" : "bg-black/50 text-white/70 hover:text-white hover:bg-black/70"}
           ${pop ? "scale-125" : "scale-100"}

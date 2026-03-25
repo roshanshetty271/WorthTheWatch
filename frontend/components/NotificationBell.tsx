@@ -109,7 +109,7 @@ export default function NotificationBell() {
             </button>
 
             {showDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-80 rounded-xl bg-surface-card border border-white/10 shadow-2xl z-50 overflow-hidden animate-fade-in">
+                <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-80 rounded-xl bg-surface-card border border-white/10 shadow-2xl z-50 overflow-hidden animate-fade-in">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
                         <h3 className="text-sm font-bold text-white">Notifications</h3>
                         {unreadCount > 0 && (

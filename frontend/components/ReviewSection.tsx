@@ -423,7 +423,7 @@ export default function ReviewSection({
             {error && !rateLimitInfo && (
                 <div className="mb-6">
                     <ErrorState
-                        title="Generation Failed"
+                        title="Couldn't get a verdict"
                         message={error}
                         icon="⚠️"
                         action={{ label: "Try Again", onClick: handleGenerate }}
@@ -464,7 +464,7 @@ export default function ReviewSection({
                                 onClick={handleGenerate}
                                 className="px-6 py-3 bg-accent-gold text-surface font-semibold rounded-xl hover:bg-accent-goldLight transition-colors active:scale-95"
                             >
-                                Generate AI Review
+                                Get the Verdict
                             </button>
                         </>
                     )}

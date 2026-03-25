@@ -29,7 +29,7 @@ function PosterImage({ src, alt, sizes = "120px" }: { src: string | null; alt: s
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-white/10 to-white/[0.02] p-2">
                 <span className="text-2xl mb-1 opacity-40">🎬</span>
-                <span className="text-[9px] text-white/40 text-center line-clamp-2 font-medium">{alt}</span>
+                <span className="text-[10px] text-white/40 text-center line-clamp-2 font-medium">{alt}</span>
             </div>
         );
     }
@@ -49,6 +49,7 @@ function PosterImage({ src, alt, sizes = "120px" }: { src: string | null; alt: s
 export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMoviesProps) {
     const [movies, setMovies] = useState<SimilarMovie[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
 
     useEffect(() => {
         async function fetchSimilar() {
@@ -61,6 +62,7 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                     setMovies(data.results || []);
                 }
             } catch {
+                setFetchError(true);
                 setMovies([]);
             } finally {
                 setLoading(false);
@@ -69,11 +71,20 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
         fetchSimilar();
     }, [tmdbId, mediaType]);
 
-    if (!loading && movies.length === 0) return null;
+    if (!loading && movies.length === 0) {
+        if (fetchError) {
+            return (
+                <section className="py-6">
+                    <p className="text-xs text-text-muted">Couldn&apos;t load recommendations.</p>
+                </section>
+            );
+        }
+        return null;
+    }
 
     return (
         <section className="py-6">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 mb-4">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 mb-4 truncate">
                 If you liked {title}
             </h3>
 
@@ -99,7 +110,7 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
 
                                 {/* Rating */}
                                 {movie.tmdb_vote_average && movie.tmdb_vote_average > 0 && (
-                                    <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold z-10">
+                                    <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-accent-gold z-10">
                                         ★ {movie.tmdb_vote_average.toFixed(1)}
                                     </div>
                                 )}
@@ -107,7 +118,7 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                                 {/* Verdict badge if we have a review */}
                                 {movie.verdict && (
                                     <div className="absolute bottom-1.5 left-1.5 z-10">
-                                        <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${movie.verdict === "WORTH IT"
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${movie.verdict === "WORTH IT"
                                                 ? "text-green-400 bg-green-400/10 border-green-400/30"
                                                 : movie.verdict === "NOT WORTH IT"
                                                     ? "text-red-400 bg-red-400/10 border-red-400/30"

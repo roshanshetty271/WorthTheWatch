@@ -27,6 +27,7 @@ export default function ProfilePage() {
     const router = useRouter();
     const [profile, setProfile] = useState<TasteProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -40,7 +41,7 @@ export default function ProfilePage() {
             .then((data) => {
                 if (data) setProfile(data);
             })
-            .catch(() => {})
+            .catch(() => setError(true))
             .finally(() => setLoading(false));
     }, [session, status, router]);
 
@@ -52,7 +53,23 @@ export default function ProfilePage() {
         );
     }
 
-    if (!session?.user || !profile) return null;
+    if (!session?.user) return null;
+
+    if (error || !profile) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
+                <p className="text-4xl mb-4">😵</p>
+                <h2 className="font-display text-xl text-white mb-2">Couldn&apos;t load your profile</h2>
+                <p className="text-sm text-text-muted mb-6">Check your connection and try again. If it keeps happening, try signing out and back in.</p>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="px-5 py-2.5 bg-white/10 text-white text-sm font-semibold rounded-xl hover:bg-white/20 active:scale-95 transition-all"
+                >
+                    Refresh
+                </button>
+            </div>
+        );
+    }
 
     const maxGenreCount = profile.topGenres[0]?.count || 1;
     const hasEnoughData = profile.stats.totalActivity >= 3;
@@ -93,7 +110,7 @@ export default function ProfilePage() {
                         >
                             <p className="text-2xl mb-1">{stat.icon}</p>
                             <p className="text-2xl font-bold text-white">{stat.value}</p>
-                            <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">
+                            <p className="text-xs text-text-muted uppercase tracking-wider mt-1">
                                 {stat.label}
                             </p>
                         </div>

@@ -177,7 +177,7 @@ export default function SearchBar({
             ? "border-accent-gold/50 shadow-sm shadow-black/40"
             : "border-white/10 hover:border-white/20 hover:bg-black/50"
             } ${isLarge
-              ? "rounded-2xl py-4 pl-10 pr-12 sm:pr-32 text-base sm:text-lg placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
+              ? "rounded-2xl py-4 pl-10 pr-12 sm:pr-32 text-base sm:text-lg placeholder:text-ellipsis"
               : "rounded-xl py-2.5 pl-9 pr-20 text-sm placeholder:text-ellipsis overflow-hidden whitespace-nowrap"
             } focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold`}
         />

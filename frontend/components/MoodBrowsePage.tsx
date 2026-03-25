@@ -63,6 +63,7 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
     const [movies, setMovies] = useState<MovieWithReview[]>([]);
     const [loading, setLoading] = useState(true);
     const [isShuffled, setIsShuffled] = useState(false);
+    const [fetchError, setFetchError] = useState(false);
 
     const meta = MOOD_META[mood] || MOOD_META["fun"];
 
@@ -73,9 +74,11 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
             const res = await fetch(url);
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
+            setFetchError(false);
             setMovies(data.movies || []);
         } catch (e) {
             console.error("Mood fetch failed:", e);
+            setFetchError(true);
             setMovies([]);
         } finally {
             setLoading(false);
@@ -161,20 +164,37 @@ export default function MoodBrowsePage({ mood }: MoodBrowsePageProps) {
 
                     {/* Empty State */}
                     {!loading && movies.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-20 text-center">
-                            <h2 className="text-xl font-bold text-white mb-2">
-                                No picks for this mood yet
-                            </h2>
-                            <p className="text-white/60 text-sm max-w-[300px] mb-6">
-                                We are still building our library. Try searching for movies to help us grow it.
-                            </p>
-                            <Link
-                                href="/"
-                                className="px-8 py-3 bg-accent-gold text-black font-bold uppercase tracking-wider rounded-xl text-xs hover:brightness-110 transition-all"
-                            >
-                                Search Movies
-                            </Link>
-                        </div>
+                        fetchError ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+                                <h2 className="font-display text-xl text-white mb-2">
+                                    Couldn&apos;t load mood picks
+                                </h2>
+                                <p className="text-white/60 text-sm max-w-[300px] mb-6">
+                                    Check your connection and try again.
+                                </p>
+                                <button
+                                    onClick={() => fetchMovies(isShuffled)}
+                                    className="px-8 py-3 bg-accent-gold text-black font-bold uppercase tracking-wider rounded-xl text-xs hover:brightness-110 transition-all"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <h2 className="text-xl font-bold text-white mb-2">
+                                    No picks for this mood yet
+                                </h2>
+                                <p className="text-white/60 text-sm max-w-[300px] mb-6">
+                                    We are still building our library. Try searching for movies to help us grow it.
+                                </p>
+                                <Link
+                                    href="/"
+                                    className="px-8 py-3 bg-accent-gold text-black font-bold uppercase tracking-wider rounded-xl text-xs hover:brightness-110 transition-all"
+                                >
+                                    Search Movies
+                                </Link>
+                            </div>
+                        )
                     )}
 
                     {/* Movie Grid */}

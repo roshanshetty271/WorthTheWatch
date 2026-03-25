@@ -85,10 +85,10 @@ function SearchContent() {
       {!loading && result?.tmdb_results && result.tmdb_results.length > 0 && (
         <div className="space-y-6">
           <h2 className="font-display text-xl text-text-primary">
-            Found {result.tmdb_results.length} Titles
+            {result.tmdb_results.length} results for &ldquo;{query}&rdquo;
           </h2>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-6 animate-fade-in">
             {result.tmdb_results.map((movie) => {
               // Check if we have a review for this movie in our DB
               // The API returns 'movie' if there's an exact DB match, but we want to check
@@ -109,7 +109,7 @@ function SearchContent() {
                 <Link
                   href={`/movie/${movie.tmdb_id}?type=${movie.media_type || "movie"}`}
                   key={movie.tmdb_id}
-                  className="group relative flex flex-col overflow-hidden rounded-xl bg-surface-card border border-surface-elevated transition-all hover:scale-105 hover:shadow-xl hover:border-accent-gold/30 hover:z-10"
+                  className="group relative flex flex-col overflow-hidden rounded-xl bg-surface-card border border-surface-elevated transition-all hover:scale-105 active:scale-[0.98] hover:shadow-xl hover:border-accent-gold/30 hover:z-10"
                 >
                   {/* Poster Aspect Ratio 2:3 */}
                   <div className="relative aspect-[2/3] w-full overflow-hidden bg-surface-elevated">

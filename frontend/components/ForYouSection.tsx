@@ -44,7 +44,23 @@ export default function ForYouSection() {
             .finally(() => setLoading(false));
     }, [session]);
 
-    if (!session?.user || loading || movies.length === 0) return null;
+    if (!session?.user || movies.length === 0) {
+        if (loading && session?.user) {
+            return (
+                <section className="py-4">
+                    <div className="h-4 w-32 bg-surface-elevated rounded mb-4 skeleton" />
+                    <div className="flex gap-4 overflow-hidden">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="shrink-0 w-[140px] sm:w-[170px]">
+                                <div className="aspect-[2/3] rounded-2xl skeleton" />
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            );
+        }
+        return null;
+    }
 
     return (
         <section className="py-8">

@@ -91,6 +91,7 @@ export default function DiscoverPage() {
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [fetchError, setFetchError] = useState(false);
 
     const fetchResults = useCallback(async (pageNum: number = 1) => {
         setLoading(true);
@@ -107,6 +108,7 @@ export default function DiscoverPage() {
             const res = await fetch(`${API_BASE}/api/discover?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
+                setFetchError(false);
                 if (pageNum === 1) {
                     setResults(data.results || []);
                 } else {
@@ -116,6 +118,7 @@ export default function DiscoverPage() {
                 setPage(pageNum);
             }
         } catch {
+            setFetchError(true);
             if (pageNum === 1) setResults([]);
         } finally {
             setLoading(false);
@@ -201,7 +204,7 @@ export default function DiscoverPage() {
                         {hasFilters && (
                             <button
                                 onClick={clearFilters}
-                                className="text-[10px] uppercase tracking-widest text-accent-gold/70 hover:text-accent-gold transition-colors"
+                                className="text-xs uppercase tracking-widest text-accent-gold/70 hover:text-accent-gold active:text-accent-gold py-1 px-2 -mr-2 transition-colors"
                             >
                                 Clear All
                             </button>
@@ -301,7 +304,7 @@ export default function DiscoverPage() {
 
                                         {/* Rating */}
                                         {item.tmdb_vote_average && item.tmdb_vote_average > 0 && (
-                                            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-accent-gold z-10">
+                                            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-accent-gold z-10">
                                                 ★ {item.tmdb_vote_average.toFixed(1)}
                                             </div>
                                         )}
@@ -309,7 +312,7 @@ export default function DiscoverPage() {
                                         {/* Verdict badge */}
                                         {item.verdict && (
                                             <div className="absolute bottom-2 left-2 z-10">
-                                                <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${item.verdict === "WORTH IT"
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${item.verdict === "WORTH IT"
                                                         ? "text-green-400 bg-green-400/10 border-green-400/30"
                                                         : item.verdict === "NOT WORTH IT"
                                                             ? "text-red-400 bg-red-400/10 border-red-400/30"
@@ -346,6 +349,20 @@ export default function DiscoverPage() {
                             </div>
                         )}
                     </>
+                ) : fetchError ? (
+                    <div className="text-center py-16 animate-fade-in">
+                        <p className="text-4xl mb-4">⚠️</p>
+                        <h3 className="font-display text-xl text-white/60 mb-2">Couldn&apos;t load results</h3>
+                        <p className="text-sm text-white/30">
+                            Check your connection and try again.
+                        </p>
+                        <button
+                            onClick={() => fetchResults(1)}
+                            className="mt-4 px-6 py-2 bg-accent-gold text-black rounded-full text-sm font-bold"
+                        >
+                            Retry
+                        </button>
+                    </div>
                 ) : (
                     <div className="text-center py-16">
                         <p className="text-4xl mb-4">🔍</p>

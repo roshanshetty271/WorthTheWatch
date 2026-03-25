@@ -15,7 +15,7 @@ export default function ErrorState({ icon = "⚠️", title, message, action, su
     return (
         <div className="flex flex-col items-center justify-center p-8 text-center animate-fade-in">
             <div className="mb-4 text-4xl">{icon}</div>
-            <h3 className="mb-2 text-lg font-bold text-white">{title}</h3>
+            <h3 className="mb-2 font-display text-lg text-white">{title}</h3>
             <p className="mb-6 max-w-sm text-sm text-text-muted">{message}</p>
 
             {action && (
@@ -29,7 +29,7 @@ export default function ErrorState({ icon = "⚠️", title, message, action, su
 
             {suggestion && (
                 <div className="mt-8 rounded-lg bg-surface-elevated px-4 py-3 text-xs text-text-secondary border border-white/5">
-                    <span className="font-bold text-accent-gold">Suggestion:</span> {suggestion}
+                    <span className="font-bold text-accent-gold">Tip:</span> {suggestion}
                 </div>
             )}
         </div>

@@ -48,7 +48,7 @@ export default function AuthButton() {
         <div className="relative" ref={menuRef}>
             <button
                 onClick={() => setShowMenu(!showMenu)}
-                className="flex items-center gap-2 group"
+                className="flex items-center gap-2 group p-1"
                 aria-label="Account menu"
             >
                 {session.user?.image ? (

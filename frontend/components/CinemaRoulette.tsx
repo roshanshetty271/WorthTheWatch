@@ -282,7 +282,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                     exit={{ scale: 0.92, opacity: 0 }}
                     transition={{ duration: 0.4 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="relative w-full max-w-[380px] bg-[#0d0d0d] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden"
+                    className="relative w-full max-w-[calc(100vw-2rem)] sm:max-w-[380px] bg-[#0d0d0d] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden"
                 >
 
                     {/* ═══════ PHASE 0 — PROMPT ═══════ */}

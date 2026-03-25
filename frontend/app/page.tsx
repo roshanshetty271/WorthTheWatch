@@ -195,7 +195,7 @@ export default async function HomePage() {
 
         {/* Center Content */}
         <div className="relative z-30 w-full max-w-5xl px-4 text-center pt-20 mb-4 sm:pt-28 sm:mb-24 md:mb-28">
-          <h1 className="mb-4 font-bold text-xl text-white sm:text-3xl md:text-5xl tracking-tight text-shadow-hero">
+          <h1 className="mb-4 font-display text-2xl text-white sm:text-3xl md:text-5xl tracking-tight text-shadow-hero">
             Don&apos;t watch <br />
             <span className="text-accent-gold">another bad movie.</span>
           </h1>
@@ -222,7 +222,7 @@ export default async function HomePage() {
                   )}
                 </div>
                 <Link href={`/movie/${featured.movie.tmdb_id}?type=${featured.movie.media_type || "movie"}`} className="group block">
-                  <h2 className="font-display text-base text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-xl md:text-2xl">
+                  <h2 className="font-display text-base text-white text-shadow-hero transition-colors group-hover:text-accent-gold sm:text-xl md:text-2xl line-clamp-2">
                     {featured.movie.title}
                   </h2>
                 </Link>
@@ -251,7 +251,7 @@ export default async function HomePage() {
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8">
         {hasAnySections ? (
-          <div className="space-y-2">
+          <div className="space-y-0">
             {/* Personalized Recommendations (signed-in only) */}
             <ForYouSection />
 

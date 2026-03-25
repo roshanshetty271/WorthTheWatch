@@ -72,21 +72,21 @@ export default function Navbar() {
                                     router.push("/#now-playing");
                                 }
                             }}
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer"
                         >
                             What&apos;s New
                         </button>
 
                         <Link
                             href="/discover"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest"
                         >
                             Discover
                         </Link>
 
                         <Link
                             href="/browse/mood/tired"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest"
                         >
                             Mood Based
                         </Link>
@@ -109,7 +109,7 @@ export default function Navbar() {
                         {/* My List */}
                         <Link
                             href="/my-list"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest relative"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest relative"
                         >
                             My List
                             {mounted && count > 0 && (
@@ -134,7 +134,7 @@ export default function Navbar() {
 
                         <button
                             onClick={handleSearchClick}
-                            className="p-2 text-white/80 hover:text-accent-gold transition-colors"
+                            className="p-2 text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors"
                             aria-label="Search"
                         >
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -149,7 +149,7 @@ export default function Navbar() {
                         {/* Mobile Menu Toggle */}
                         <button
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="md:hidden p-2 text-white/80 hover:text-accent-gold transition-colors"
+                            className="md:hidden p-2 text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors"
                             aria-label="Menu"
                         >
                             {mobileMenuOpen ? (
@@ -189,35 +189,35 @@ export default function Navbar() {
                                 router.push("/#now-playing");
                             }
                         }}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         What&apos;s New
                     </button>
                     <Link
                         href="/discover"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         Discover
                     </Link>
                     <Link
                         href="/browse/mood/tired"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         Mood Based
                     </Link>
                     <Link
                         href="/versus"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         Movie Battle
                     </Link>
                     <Link
                         href="/my-list"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
                         My List{mounted && count > 0 ? ` (${count})` : ""}
                     </Link>

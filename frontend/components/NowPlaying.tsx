@@ -117,7 +117,7 @@ export default function NowPlaying() {
             {/* Content */}
             <div key={tab} className="animate-fade-in">
             {loading ? (
-                <div className="flex gap-4 sm:gap-6 overflow-hidden px-4 sm:px-0">
+                <div className="flex gap-4 sm:gap-6 overflow-x-auto px-4 sm:px-0 scrollbar-hide">
                     {[...Array(6)].map((_, i) => (
                         <div
                             key={i}

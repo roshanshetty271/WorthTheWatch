@@ -73,7 +73,7 @@ export default function RootLayout({
 
           {/* Footer */}
           <footer className="border-t border-surface-elevated/50 mt-12">
-            <div className="mx-auto max-w-6xl px-6 py-10 sm:py-12">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-12">
               <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="font-display text-lg text-white">Worth the Watch?</p>
@@ -81,10 +81,10 @@ export default function RootLayout({
                 </div>
 
                 <nav className="flex gap-x-10 gap-y-2 flex-wrap text-sm" aria-label="Footer">
-                  <Link href="/discover" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Discover</Link>
-                  <Link href="/browse/mood/tired" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Mood Based</Link>
-                  <Link href="/versus" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">Movie Battle</Link>
-                  <Link href="/my-list" className="text-text-secondary hover:text-accent-gold transition-colors duration-200">My List</Link>
+                  <Link href="/discover" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">Discover</Link>
+                  <Link href="/browse/mood/tired" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">Mood Based</Link>
+                  <Link href="/versus" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">Movie Battle</Link>
+                  <Link href="/my-list" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">My List</Link>
                   <CantDecideFooterLink />
                 </nav>
               </div>
