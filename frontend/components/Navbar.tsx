@@ -121,11 +121,10 @@ export default function Navbar() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-4 relative z-50">
-                        {/* Mobile Roulette Trigger */}
+                    <div className="flex items-center gap-2 sm:gap-4 relative z-50">
                         <button
                             onClick={() => setRouletteOpen(true)}
-                            className="md:hidden text-sm font-bold text-accent-gold uppercase tracking-wide mr-2"
+                            className="md:hidden text-[11px] sm:text-sm font-bold text-accent-gold uppercase tracking-wide"
                         >
                             Can&apos;t Decide?
                         </button>
@@ -221,6 +220,12 @@ export default function Navbar() {
                     >
                         My List{mounted && count > 0 ? ` (${count})` : ""}
                     </Link>
+                    <button
+                        onClick={() => { setMobileMenuOpen(false); setRouletteOpen(true); }}
+                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors border-b border-white/10 text-center"
+                    >
+                        Can&apos;t Decide?
+                    </button>
 
                     <div className="mt-8 w-full">
                         <div className="flex justify-center">

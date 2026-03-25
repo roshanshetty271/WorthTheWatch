@@ -8,7 +8,7 @@ body {
   @apply bg-surface text-text-primary font-body;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Matte finish - no background gradients */
+  overflow-x: hidden;
 }
 
 .content-auto {
