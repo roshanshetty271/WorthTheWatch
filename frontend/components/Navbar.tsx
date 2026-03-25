@@ -11,6 +11,96 @@ const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
 import { useWatchlist } from "@/lib/useWatchlist";
 import AuthButton from "./AuthButton";
 import NotificationBell from "./NotificationBell";
+import { useSession, signIn, signOut } from "next-auth/react";
+import Image from "next/image";
+
+function MobileAuthSection({ onClose }: { onClose: () => void }) {
+    const { data: session, status } = useSession();
+    const [confirmSignOut, setConfirmSignOut] = useState(false);
+
+    if (status === "loading") return <div className="h-8" />;
+
+    if (!session) {
+        return (
+            <button
+                onClick={() => { onClose(); signIn("google"); }}
+                className="w-full py-4 font-body text-sm font-semibold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center"
+            >
+                Sign In
+            </button>
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-center gap-4">
+            {/* Avatar + Name */}
+            <div className="flex items-center gap-3">
+                {session.user?.image ? (
+                    <Image
+                        src={session.user.image}
+                        alt={session.user.name || "User"}
+                        width={40}
+                        height={40}
+                        className="rounded-full ring-2 ring-accent-gold/30"
+                        unoptimized
+                    />
+                ) : (
+                    <div className="h-10 w-10 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-lg font-bold">
+                        {(session.user?.name || "U")[0].toUpperCase()}
+                    </div>
+                )}
+                <div className="text-left">
+                    <p className="text-sm font-medium text-white">{session.user?.name}</p>
+                    <p className="text-xs text-text-muted">{session.user?.email}</p>
+                </div>
+            </div>
+
+            {/* Links */}
+            <div className="w-full flex flex-col gap-1">
+                <Link
+                    href="/profile"
+                    onClick={onClose}
+                    className="w-full py-3 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors text-center border-b border-white/5"
+                >
+                    My Profile
+                </Link>
+                <Link
+                    href="/history"
+                    onClick={onClose}
+                    className="w-full py-3 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold transition-colors text-center border-b border-white/5"
+                >
+                    Watch History
+                </Link>
+                {!confirmSignOut ? (
+                    <button
+                        onClick={() => setConfirmSignOut(true)}
+                        className="w-full py-3 font-body text-sm font-semibold uppercase tracking-widest text-white/40 hover:text-red-400 transition-colors text-center"
+                    >
+                        Sign Out
+                    </button>
+                ) : (
+                    <div className="py-3 space-y-3 text-center">
+                        <p className="text-xs text-text-muted">Your watchlist will stay saved. Sign out?</p>
+                        <div className="flex gap-3 justify-center">
+                            <button
+                                onClick={() => { onClose(); signOut({ callbackUrl: "/" }); }}
+                                className="px-5 py-2 text-xs font-medium rounded-full bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                            >
+                                Sign Out
+                            </button>
+                            <button
+                                onClick={() => setConfirmSignOut(false)}
+                                className="px-5 py-2 text-xs font-medium rounded-full bg-white/5 text-text-secondary hover:bg-white/10 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export default function Navbar() {
     const [rouletteOpen, setRouletteOpen] = useState(false);
@@ -57,7 +147,7 @@ export default function Navbar() {
                 <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8">
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-2 group relative z-50">
-                        <span className="font-display text-lg md:text-2xl text-white tracking-tight transition-colors duration-300">
+                        <span className="font-display text-lg md:text-2xl text-white tracking-tight transition-colors duration-300 text-shadow-hero">
                             Worth the <span className="text-accent-gold group-hover:text-accent-goldLight transition-colors duration-300">Watch</span>?
                         </span>
                     </Link>
@@ -72,28 +162,28 @@ export default function Navbar() {
                                     router.push("/#now-playing");
                                 }
                             }}
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer text-shadow-hero"
                         >
                             What&apos;s New
                         </button>
 
                         <Link
                             href="/discover"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest text-shadow-hero"
                         >
                             Discover
                         </Link>
 
                         <Link
                             href="/browse/mood/tired"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest text-shadow-hero"
                         >
                             Mood Based
                         </Link>
 
                         <Link
                             href="/versus"
-                            className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                            className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity text-shadow-hero"
                         >
                             <span className="text-accent-gold">Movie Battle</span>
                         </Link>
@@ -101,7 +191,7 @@ export default function Navbar() {
                         {/* Roulette Trigger */}
                         <button
                             onClick={() => setRouletteOpen(true)}
-                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group"
+                            className="text-sm font-bold text-accent-gold hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 cursor-pointer group text-shadow-hero"
                         >
                             <span className="group-hover:animate-pulse">Can&apos;t Decide?</span>
                         </button>
@@ -109,7 +199,7 @@ export default function Navbar() {
                         {/* My List */}
                         <Link
                             href="/my-list"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest relative"
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest relative text-shadow-hero"
                         >
                             My List
                             {mounted && count > 0 && (
@@ -124,16 +214,18 @@ export default function Navbar() {
                     <div className="flex items-center gap-2 sm:gap-4 relative z-50">
                         <button
                             onClick={() => setRouletteOpen(true)}
-                            className="md:hidden text-[11px] sm:text-sm font-bold text-accent-gold uppercase tracking-wide"
+                            className="md:hidden text-[11px] sm:text-sm font-bold text-accent-gold uppercase tracking-wide text-shadow-hero"
                         >
                             Can&apos;t Decide?
                         </button>
 
-                        <NotificationBell />
+                        <div className="hidden md:block">
+                            <NotificationBell />
+                        </div>
 
                         <button
                             onClick={handleSearchClick}
-                            className="p-2 text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors"
+                            className="p-2 text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors [filter:drop-shadow(0_0_6px_rgba(255,255,255,0.3))_drop-shadow(0_1px_3px_rgba(0,0,0,1))]"
                             aria-label="Search"
                         >
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -148,7 +240,7 @@ export default function Navbar() {
                         {/* Mobile Menu Toggle */}
                         <button
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="md:hidden p-2 text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors"
+                            className="md:hidden p-2 text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors [filter:drop-shadow(0_0_6px_rgba(255,255,255,0.3))_drop-shadow(0_1px_3px_rgba(0,0,0,1))]"
                             aria-label="Menu"
                         >
                             {mobileMenuOpen ? (
@@ -227,10 +319,9 @@ export default function Navbar() {
                         Can&apos;t Decide?
                     </button>
 
-                    <div className="mt-8 w-full">
-                        <div className="flex justify-center">
-                            <AuthButton />
-                        </div>
+                    {/* Mobile Auth Section — inline, not dropdown */}
+                    <div className="mt-8 w-full border-t border-white/10 pt-6">
+                        <MobileAuthSection onClose={() => setMobileMenuOpen(false)} />
                     </div>
                 </nav>
             </div>

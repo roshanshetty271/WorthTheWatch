@@ -58,7 +58,7 @@ body {
 /* ─── Text Shadow (readable on any backdrop) ────────── */
 
 .text-shadow-hero {
-  text-shadow: 0 1px 4px rgba(0,0,0,1), 0 4px 16px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.5);
+  text-shadow: 0 0 10px rgba(255,255,255,0.3), 0 1px 4px rgba(0,0,0,1), 0 4px 16px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.5);
 }
 
 .text-shadow-sub {

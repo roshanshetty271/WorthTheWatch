@@ -57,7 +57,13 @@ def _is_whitelisted(ip: str) -> bool:
 async def check_rate_limit(request: Request, limit_type: str = "generation"):
     """Check rate limits using persistent DB storage. Raises 429 if exceeded."""
     raw_ip = _get_client_ip(request)
-    if _is_whitelisted(raw_ip):
+    whitelisted = _is_whitelisted(raw_ip)
+    import logging
+    logging.getLogger("app.rate_limit").info(
+        f"🔒 Rate limit check: ip={raw_ip}, whitelisted={whitelisted}, type={limit_type}, "
+        f"x-forwarded-for={request.headers.get('x-forwarded-for', 'none')}"
+    )
+    if whitelisted:
         return
 
     hashed_ip = _hash_ip(raw_ip)

@@ -499,7 +499,7 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
             {/* Main content wrapper for bottom nav */}
             <div className="mx-auto max-w-4xl px-4 py-6 sm:py-8 sm:px-6">
                 {/* Bottom Navigation */}
-                <div className="mt-6 sm:mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-between sm:items-center border-t border-surface-elevated pt-6 sm:pt-8">
+                <div className="mt-6 sm:mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-between sm:items-center pt-6 sm:pt-8">
                     <Link
                         href="/"
                         className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:border-accent-gold/40 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"

@@ -58,6 +58,7 @@ export default function AuthButton() {
                         width={32}
                         height={32}
                         className="rounded-full ring-2 ring-transparent group-hover:ring-accent-gold/50 transition-all"
+                        unoptimized
                     />
                 ) : (
                     <div className="h-8 w-8 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-sm font-bold">
