@@ -35,20 +35,9 @@ function MobileAuthSection({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col items-center gap-4">
             {/* Avatar + Name */}
             <div className="flex items-center gap-3">
-                {session.user?.image ? (
-                    <img
-                        src={session.user.image}
-                        alt={session.user.name || "User"}
-                        width={40}
-                        height={40}
-                        className="rounded-full ring-2 ring-accent-gold/30"
-                        referrerPolicy="no-referrer"
-                    />
-                ) : (
-                    <div className="h-10 w-10 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-lg font-bold">
-                        {(session.user?.name || "U")[0].toUpperCase()}
-                    </div>
-                )}
+                <div className="h-10 w-10 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-lg font-bold shrink-0">
+                    {(session.user?.name || "U")[0].toUpperCase()}
+                </div>
                 <div className="text-left">
                     <p className="text-sm font-medium text-white">{session.user?.name}</p>
                     <p className="text-xs text-text-muted">{session.user?.email}</p>
@@ -271,7 +260,7 @@ export default function Navbar() {
             {/* Mobile Menu Overlay */}
             <div
                 className={`
-                    fixed inset-0 z-[45] bg-surface/80 backdrop-blur-2xl transition-transform duration-300 md:hidden flex flex-col items-center justify-center
+                    fixed inset-0 z-[45] bg-surface/95 backdrop-blur-2xl transition-transform duration-300 md:hidden flex flex-col items-center pt-20 overflow-y-auto
                     ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}
                 `}
             >
