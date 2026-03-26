@@ -24,7 +24,7 @@ function MobileAuthSection({ onClose }: { onClose: () => void }) {
         return (
             <button
                 onClick={() => { onClose(); signIn("google"); }}
-                className="w-full py-4 font-body text-sm font-semibold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center"
+                className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors text-center border-b border-white/10"
             >
                 Sign In
             </button>
@@ -32,7 +32,7 @@ function MobileAuthSection({ onClose }: { onClose: () => void }) {
     }
 
     return (
-        <div className="flex flex-col items-center gap-4">
+        <div className="w-full pt-8 flex flex-col items-center gap-4">
             {/* Avatar + Name */}
             <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-lg font-bold shrink-0">
@@ -313,13 +313,13 @@ export default function Navbar() {
                     </Link>
                     <button
                         onClick={() => { setMobileMenuOpen(false); setRouletteOpen(true); }}
-                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center"
+                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center border-b border-white/10"
                     >
                         Can&apos;t Decide?
                     </button>
 
                     {/* Mobile Auth Section — inline, not dropdown */}
-                    <div className="mt-8 w-full border-t border-white/10 pt-6">
+                    <div className="w-full">
                         <MobileAuthSection onClose={() => setMobileMenuOpen(false)} />
                     </div>
                 </nav>
