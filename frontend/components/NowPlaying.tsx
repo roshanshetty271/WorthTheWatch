@@ -86,7 +86,7 @@ export default function NowPlaying() {
     return (
         <section className="py-8" id="now-playing">
             {/* Header */}
-            <div className="flex items-end justify-between mb-4 px-4 sm:px-0">
+            <div className="flex items-end justify-between mb-4">
                 <div className="border-l-4 border-accent-gold pl-3 sm:pl-4">
                     <h2 className="font-body text-xl sm:text-2xl font-bold tracking-wide text-white uppercase">
                         Now Playing
@@ -95,7 +95,7 @@ export default function NowPlaying() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-6 px-4 sm:px-0">
+            <div className="flex gap-2 mb-6">
                 {tabs.map((t) => (
                     <button
                         key={t.key}

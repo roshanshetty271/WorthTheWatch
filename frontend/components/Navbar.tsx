@@ -313,7 +313,7 @@ export default function Navbar() {
                     </Link>
                     <button
                         onClick={() => { setMobileMenuOpen(false); setRouletteOpen(true); }}
-                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors border-b border-white/10 text-center"
+                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center"
                     >
                         Can&apos;t Decide?
                     </button>

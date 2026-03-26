@@ -89,7 +89,7 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
             </h3>
 
             {loading ? (
-                <div className="flex gap-4 overflow-hidden">
+                <div className="flex gap-4 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
                     {[...Array(5)].map((_, i) => (
                         <div key={i} className="shrink-0 w-[120px] animate-pulse">
                             <div className="aspect-[2/3] rounded-lg bg-white/5" />
@@ -98,12 +98,12 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                     ))}
                 </div>
             ) : (
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+                <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-pl-4 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                     {movies.map((movie) => (
                         <Link
                             key={movie.tmdb_id}
                             href={`/movie/${movie.tmdb_id}?type=${movie.media_type}`}
-                            className="shrink-0 w-[120px] group"
+                            className="snap-start shrink-0 w-[120px] sm:w-[140px] group"
                         >
                             <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
                                 <PosterImage src={movie.poster_url} alt={movie.title} />

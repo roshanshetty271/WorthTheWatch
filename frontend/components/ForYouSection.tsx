@@ -64,7 +64,7 @@ export default function ForYouSection() {
 
     return (
         <section className="py-8">
-            <div className="flex items-end justify-between mb-6 px-4 sm:px-0">
+            <div className="flex items-end justify-between mb-6">
                 <div className="border-l-4 border-accent-gold pl-3 sm:pl-4">
                     <h2 className="font-body text-xl sm:text-2xl font-bold tracking-wide text-white uppercase">
                         For You

@@ -13,7 +13,7 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: https://image.tmdb.org https://*.tmdb.org blob:",
+              "img-src 'self' data: https://image.tmdb.org https://*.tmdb.org https://*.googleusercontent.com blob:",
               "media-src 'self'",
               `connect-src 'self' ${apiUrl}`,
               "frame-src 'self' https://www.youtube.com https://youtube.com",
