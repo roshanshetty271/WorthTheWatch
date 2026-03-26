@@ -79,15 +79,9 @@ export default function ProfilePage() {
             <div className="mx-auto max-w-3xl px-4">
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-8">
-                    {profile.userImage && (
-                        <Image
-                            src={profile.userImage}
-                            alt={profile.userName}
-                            width={56}
-                            height={56}
-                            className="rounded-full ring-2 ring-accent-gold/30"
-                        />
-                    )}
+                    <div className="h-14 w-14 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-2xl font-bold ring-2 ring-accent-gold/30 shrink-0">
+                        {(profile.userName || "U")[0].toUpperCase()}
+                    </div>
                     <div>
                         <h1 className="font-display text-2xl md:text-3xl text-white">
                             {profile.userName}

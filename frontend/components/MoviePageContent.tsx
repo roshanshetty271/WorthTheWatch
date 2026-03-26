@@ -26,9 +26,10 @@ interface CastMember {
 
 interface MoviePageContentProps {
     movieData: MovieWithReview;
+    initialStreaming?: any;
 }
 
-export default function MoviePageContent({ movieData }: MoviePageContentProps) {
+export default function MoviePageContent({ movieData, initialStreaming }: MoviePageContentProps) {
     const { movie, review: initialReview } = movieData;
     const [review, setReview] = useState<Review | null>(initialReview);
     const [cast, setCast] = useState<CastMember[]>([]);
@@ -252,7 +253,8 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                 </div>
 
                                 {/* Verdict Badge + Save + Share */}
-                                <div className={`mt-4 flex items-center justify-center gap-3 md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                                {review && (
+                                <div className="mt-4 flex w-full items-center justify-center gap-3 md:justify-start animate-fade-in">
                                     {review && (
                                         <>
                                             <VerdictBadge verdict={review.verdict} size="lg" />
@@ -307,9 +309,11 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         </>
                                     )}
                                 </div>
+                                )}
 
                                 {/* Trailer + Streaming — single row */}
-                                <div className={`mt-6 flex items-center gap-4 justify-center md:justify-start transition-opacity duration-300 ${review ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                                {review && (
+                                <div className="mt-6 flex w-full items-center gap-4 flex-wrap justify-center md:justify-start animate-fade-in">
                                     {review?.trailer_url && (
                                         <button
                                             onClick={() => {
@@ -327,8 +331,9 @@ export default function MoviePageContent({ movieData }: MoviePageContentProps) {
                                         </button>
                                     )}
 
-                                    <StreamingAvailability tmdbId={movie.tmdb_id} />
+                                    <StreamingAvailability tmdbId={movie.tmdb_id} initialData={initialStreaming} />
                                 </div>
+                                )}
                             </div>
                         </div>
                     </div>

@@ -30,6 +30,18 @@ async function getMovie(tmdbId: string, mediaType?: string): Promise<MovieWithRe
   }
 }
 
+async function getStreaming(tmdbId: string) {
+  try {
+    const res = await fetch(`${API_BASE}/api/movies/${tmdbId}/streaming`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 const SITE_URL = 'https://worth-the-watch.vercel.app';
 
 function generateJsonLd(movie: MovieWithReview) {
@@ -187,7 +199,10 @@ export default async function MoviePage({ params, searchParams }: Props) {
   const { id } = await params;
   const sParams = await searchParams;
   const mediaType = sParams?.type;
-  const data = await getMovie(id, mediaType);
+  const [data, streaming] = await Promise.all([
+    getMovie(id, mediaType),
+    getStreaming(id),
+  ]);
   if (!data) notFound();
 
   const jsonLd = generateJsonLd(data);
@@ -202,7 +217,7 @@ export default async function MoviePage({ params, searchParams }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: sanitize(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: sanitize(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: sanitize(breadcrumbJsonLd) }} />
-      <MoviePageContent movieData={data} />
+      <MoviePageContent movieData={data} initialStreaming={streaming} />
     </>
   );
 }

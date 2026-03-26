@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface Provider {
     name: string;
@@ -18,24 +17,41 @@ interface StreamingData {
     justwatch_link: string;
 }
 
-interface Props {
-    tmdbId: number;
-}
-
 const streamingCache = new Map<number, StreamingData>();
 
-export default function StreamingAvailability({ tmdbId }: Props) {
+interface Props {
+    tmdbId: number;
+    initialData?: StreamingData | null;
+}
+
+// Seed cache from server-side data
+function seedCache(tmdbId: number, data: StreamingData | null | undefined) {
+    if (data && !streamingCache.has(tmdbId)) {
+        streamingCache.set(tmdbId, data);
+    }
+}
+
+export default function StreamingAvailability({ tmdbId, initialData }: Props) {
+    // Seed cache immediately from server-side prop
+    if (initialData) seedCache(tmdbId, initialData);
+
     const [data, setData] = useState<StreamingData | null>(
-        () => streamingCache.get(tmdbId) ?? null
+        () => streamingCache.get(tmdbId) ?? initialData ?? null
     );
-    const [loading, setLoading] = useState(!streamingCache.has(tmdbId));
+    const [loading, setLoading] = useState(!streamingCache.has(tmdbId) && !initialData);
+    const fetchedRef = useRef(false);
 
     useEffect(() => {
+        // Prevent double-fetch in strict mode
+        if (fetchedRef.current) return;
+
         if (streamingCache.has(tmdbId)) {
             setData(streamingCache.get(tmdbId)!);
             setLoading(false);
             return;
         }
+
+        fetchedRef.current = true;
 
         const fetchStreaming = async () => {
             try {
@@ -46,7 +62,17 @@ export default function StreamingAvailability({ tmdbId }: Props) {
                 streamingCache.set(tmdbId, json);
                 setData(json);
             } catch {
-                // Silent fail
+                // Mark as unavailable so we don't keep retrying
+                const empty: StreamingData = {
+                    available: false,
+                    flatrate: [],
+                    rent: [],
+                    buy: [],
+                    free: [],
+                    justwatch_link: "",
+                };
+                streamingCache.set(tmdbId, empty);
+                setData(empty);
             } finally {
                 setLoading(false);
             }
@@ -55,17 +81,19 @@ export default function StreamingAvailability({ tmdbId }: Props) {
         fetchStreaming();
     }, [tmdbId]);
 
-    if (!data || !data.available) return null;
+    // Always render the container to prevent layout shift.
+    // If loading or no data, render an invisible placeholder with the same height.
+    const hasData = data?.available && [...(data.flatrate || []), ...(data.free || [])].length > 0;
 
-    const { flatrate, free, justwatch_link } = data;
+    if (loading || !hasData) return null;
+
+    const { flatrate, free, justwatch_link } = data!;
     const allOptions = [...flatrate, ...free];
     const streamingOptions = allOptions.slice(0, 3);
     const hasMore = allOptions.length > 3 || !!justwatch_link;
 
-    if (streamingOptions.length === 0) return null;
-
     return (
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 animate-fade-in">
             <span className="text-sm font-semibold uppercase tracking-wider text-accent-gold/80">Watch On</span>
             <div className="flex items-center gap-2">
                 {streamingOptions.map((provider) => (
@@ -75,13 +103,12 @@ export default function StreamingAvailability({ tmdbId }: Props) {
                         title={provider.name}
                     >
                         {provider.logo_url ? (
-                            <Image
+                            <img
                                 src={provider.logo_url}
                                 alt={provider.name}
                                 width={36}
                                 height={36}
                                 className="rounded-md ring-1 ring-white/20 transition-all hover:scale-110 hover:ring-white/40"
-                                unoptimized
                             />
                         ) : (
                             <div className="h-9 w-9 rounded-md bg-white/10 flex items-center justify-center text-xs text-white/60 font-medium">
