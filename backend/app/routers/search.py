@@ -8,8 +8,9 @@ import hashlib
 import json
 import asyncio
 import logging
+import secrets
 
-from fastapi import APIRouter, Depends, Query, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +26,15 @@ from app.services.pipeline import (
     job_progress,
 )
 from app.config import get_settings
-from app.middleware.rate_limit import check_rate_limit
+from app.middleware.rate_limit import (
+    check_rate_limit,
+    check_generation_quota,
+    record_generation_usage,
+    check_ip_abuse_guard,
+    _get_client_ip,
+    _hash_ip,
+    _is_whitelisted,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -204,7 +213,6 @@ async def trigger_generation(
     if tmdb_id in job_progress:
         return {"status": "generating", "message": "Review generation already in progress"}
 
-    # Block unreleased movies
     from datetime import date
     try:
         if media_type == "tv":
@@ -226,7 +234,44 @@ async def trigger_generation(
     except (ValueError, TypeError):
         pass
 
-    await check_rate_limit(request, limit_type="generation")
+    # --- Quota & abuse checks ---
+    raw_ip = _get_client_ip(request)
+    ip_hash = _hash_ip(raw_ip)
+    proxy_secret = request.headers.get("x-wtw-proxy-secret", "")
+    use_proxy_quota = (
+        proxy_secret
+        and settings.INTERNAL_PROXY_SECRET
+        and secrets.compare_digest(proxy_secret, settings.INTERNAL_PROXY_SECRET)
+    )
+
+    if _is_whitelisted(raw_ip):
+        pass  # skip quota + abuse
+    elif use_proxy_quota:
+        actor_type = request.headers.get("x-wtw-actor-type", "anon")
+        actor_id = request.headers.get("x-wtw-actor-id", "")
+        client_ip = request.headers.get("x-wtw-client-ip", raw_ip)
+        ip_hash = _hash_ip(client_ip)
+
+        quota = await check_generation_quota(actor_type, actor_id)
+        if quota["exhausted"]:
+            raise HTTPException(status_code=403, detail={
+                "status": "generation_quota_exhausted",
+                **quota,
+            })
+
+        abuse = await check_ip_abuse_guard(ip_hash)
+        if abuse["blocked"]:
+            raise HTTPException(status_code=429, detail=abuse)
+
+        background_tasks.add_task(
+            _generate_review_background,
+            tmdb_id=tmdb_id,
+            media_type=media_type,
+        )
+        await record_generation_usage(actor_type, actor_id, ip_hash, "generate", tmdb_id)
+        return {"status": "generating", "tmdb_id": tmdb_id}
+    else:
+        await check_rate_limit(request, limit_type="generation")
 
     background_tasks.add_task(
         _generate_review_background,
@@ -246,8 +291,36 @@ async def regenerate_review(
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete existing review and regenerate with fresh data."""
-    await check_rate_limit(request, limit_type="generation")
+    """Regenerate review with fresh data. Quota/abuse checked BEFORE deleting old review."""
+    raw_ip = _get_client_ip(request)
+    ip_hash = _hash_ip(raw_ip)
+    proxy_secret = request.headers.get("x-wtw-proxy-secret", "")
+    use_proxy_quota = (
+        proxy_secret
+        and settings.INTERNAL_PROXY_SECRET
+        and secrets.compare_digest(proxy_secret, settings.INTERNAL_PROXY_SECRET)
+    )
+
+    if _is_whitelisted(raw_ip):
+        pass  # skip quota + abuse
+    elif use_proxy_quota:
+        actor_type = request.headers.get("x-wtw-actor-type", "anon")
+        actor_id = request.headers.get("x-wtw-actor-id", "")
+        client_ip = request.headers.get("x-wtw-client-ip", raw_ip)
+        ip_hash = _hash_ip(client_ip)
+
+        quota = await check_generation_quota(actor_type, actor_id)
+        if quota["exhausted"]:
+            raise HTTPException(status_code=403, detail={
+                "status": "generation_quota_exhausted",
+                **quota,
+            })
+
+        abuse = await check_ip_abuse_guard(ip_hash)
+        if abuse["blocked"]:
+            raise HTTPException(status_code=429, detail=abuse)
+    else:
+        await check_rate_limit(request, limit_type="generation")
 
     # Find the movie
     result = await db.execute(
@@ -257,7 +330,13 @@ async def regenerate_review(
     )
     movie = result.unique().scalar_one_or_none()
 
-    # Delete existing review if it exists
+    # Enqueue fresh generation FIRST, then delete old review
+    background_tasks.add_task(
+        _generate_review_background,
+        tmdb_id=tmdb_id,
+        media_type=media_type,
+    )
+
     if movie and movie.review:
         await db.execute(
             delete(Review).where(Review.movie_id == movie.id)
@@ -265,12 +344,8 @@ async def regenerate_review(
         await db.commit()
         logger.info(f"🗑️ Deleted old review for {movie.title} (tmdb_id={tmdb_id})")
 
-    # Trigger fresh generation
-    background_tasks.add_task(
-        _generate_review_background,
-        tmdb_id=tmdb_id,
-        media_type=media_type,
-    )
+    if use_proxy_quota and not _is_whitelisted(raw_ip):
+        await record_generation_usage(actor_type, actor_id, ip_hash, "regenerate", tmdb_id)
 
     return {"status": "regenerating", "tmdb_id": tmdb_id}
 

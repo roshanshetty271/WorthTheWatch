@@ -148,6 +148,25 @@ class RateLimitEntry(Base):
     )
 
 
+class GenerationUsageEntry(Base):
+    """Tracks review-generation quota usage per actor (browser or signed-in user).
+    Persists in Neon — survives all Koyeb/Vercel redeploys."""
+    __tablename__ = "generation_usage_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    actor_type = Column(String(20), nullable=False)    # "anon" or "user"
+    actor_id = Column(String(255), nullable=False)      # wtw_anon_id cookie or user ID
+    ip_hash = Column(String(64), nullable=False)
+    action = Column(String(20), nullable=False)         # "generate" or "regenerate"
+    tmdb_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_usage_actor", "actor_type", "actor_id", "created_at"),
+        Index("idx_usage_ip", "ip_hash", "created_at"),
+    )
+
+
 class ReviewFeedback(Base):
     """User feedback on review verdicts (thumbs up/down)."""
     __tablename__ = "review_feedback"

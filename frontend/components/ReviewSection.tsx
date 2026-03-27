@@ -6,7 +6,6 @@ import TriviaLoader from "./TriviaLoader";
 import ReviewContent from "./ReviewContent";
 import ErrorState from "./ErrorState";
 import SignInDialog from "./SignInDialog";
-import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import { logActivity } from "@/lib/logActivity";
 import type { Review } from "@/lib/api";
 
@@ -33,7 +32,6 @@ export default function ReviewSection({
     posterPath,
 }: ReviewSectionProps) {
     const router = useRouter();
-    const { canGenerate, incrementGeneration, isSignedIn } = useSignInPrompt();
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState("Preparing...");
@@ -153,11 +151,6 @@ export default function ReviewSection({
     async function handleGenerate() {
         if (isUnreleased) return;
 
-        if (!canGenerate) {
-            setShowSignIn(true);
-            return;
-        }
-
         setGenerating(true);
         setError(null);
         setRateLimitInfo(null);
@@ -166,25 +159,41 @@ export default function ReviewSection({
 
         try {
             const res = await fetch(
-                `${API_BASE}/api/search/generate/${tmdbId}?media_type=${mediaType}`,
+                `/api/verdicts/generate/${tmdbId}?media_type=${mediaType}`,
                 { method: "POST" }
             );
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
+                const detail = data.detail || data;
+
+                if (res.status === 403 && detail?.status === "generation_quota_exhausted") {
+                    setGenerating(false);
+                    if (detail.actor_type === "user") {
+                        setRateLimitInfo({
+                            type: "user_quota_exhausted",
+                            message: "You've hit your daily limit of 20 verdicts. Check back tomorrow!",
+                            retryAfter: 0,
+                            limitType: "generation",
+                        });
+                    } else {
+                        setShowSignIn(true);
+                    }
+                    return;
+                }
+
                 if (res.status === 429) {
-                    const detail = data.detail;
                     if (detail && typeof detail === "object" && detail.type) {
                         setRateLimitInfo({
                             type: detail.type,
-                            message: detail.message || "Rate limit reached.",
+                            message: detail.message || "Our servers are busy. Try again shortly.",
                             retryAfter: detail.retry_after_seconds || 0,
                             limitType: detail.limit_type || "generation",
                         });
                     } else {
                         setRateLimitInfo({
-                            type: "ip_daily_limit",
-                            message: typeof detail === "string" ? detail : "Rate limit reached. Try again later.",
+                            type: "capacity",
+                            message: "Our servers are busy. Try again shortly.",
                             retryAfter: 0,
                             limitType: "generation",
                         });
@@ -192,7 +201,10 @@ export default function ReviewSection({
                     setGenerating(false);
                     return;
                 }
-                throw new Error(data.detail || "Failed to start generation");
+
+                throw new Error(
+                    typeof detail === "string" ? detail : detail?.message || "Failed to start generation"
+                );
             }
 
             const data = await res.json();
@@ -205,7 +217,6 @@ export default function ReviewSection({
                 return;
             }
 
-            incrementGeneration();
             logActivity({
                 activity_type: "generate",
                 tmdb_id: tmdbId,
@@ -232,42 +243,55 @@ export default function ReviewSection({
     async function handleRegenerate() {
         if (isUnreleased) return;
 
-        if (!canGenerate) {
-            setShowSignIn(true);
-            return;
-        }
-
         setError(null);
         setRateLimitInfo(null);
 
         try {
             const res = await fetch(
-                `${API_BASE}/api/search/regenerate/${tmdbId}?media_type=${mediaType}`,
+                `/api/verdicts/regenerate/${tmdbId}?media_type=${mediaType}`,
                 { method: "POST" }
             );
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
+                const detail = data.detail || data;
+
+                if (res.status === 403 && detail?.status === "generation_quota_exhausted") {
+                    if (detail.actor_type === "user") {
+                        setRateLimitInfo({
+                            type: "user_quota_exhausted",
+                            message: "You've hit your daily limit of 20 verdicts. Check back tomorrow!",
+                            retryAfter: 0,
+                            limitType: "generation",
+                        });
+                    } else {
+                        setShowSignIn(true);
+                    }
+                    return;
+                }
+
                 if (res.status === 429) {
-                    const detail = data.detail;
                     if (detail && typeof detail === "object" && detail.type) {
                         setRateLimitInfo({
                             type: detail.type,
-                            message: detail.message || "Rate limit reached.",
+                            message: detail.message || "Our servers are busy. Try again shortly.",
                             retryAfter: detail.retry_after_seconds || 0,
                             limitType: detail.limit_type || "generation",
                         });
                     } else {
                         setRateLimitInfo({
-                            type: "ip_daily_limit",
-                            message: typeof detail === "string" ? detail : "Rate limit reached.",
+                            type: "capacity",
+                            message: "Our servers are busy. Try again shortly.",
                             retryAfter: 0,
                             limitType: "generation",
                         });
                     }
                     return;
                 }
-                throw new Error(data.detail || "Failed to regenerate");
+
+                throw new Error(
+                    typeof detail === "string" ? detail : detail?.message || "Failed to regenerate"
+                );
             }
 
             setRegenerating(true);
@@ -276,7 +300,6 @@ export default function ReviewSection({
             setProgress("Refreshing verdict with latest data...");
             setPercent(5);
 
-            incrementGeneration();
             sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
 
             try {
@@ -333,7 +356,7 @@ export default function ReviewSection({
                 <SignInDialog
                     open={showSignIn}
                     onClose={() => setShowSignIn(false)}
-                    context="Your free verdicts for today are used up."
+                    context="You've used your 3 free verdicts. Sign in to unlock 20 per day!"
                 />
             </div>
         );
@@ -417,7 +440,7 @@ export default function ReviewSection({
             <SignInDialog
                 open={showSignIn}
                 onClose={() => setShowSignIn(false)}
-                context="Your free verdicts for today are used up."
+                context="You've used your 3 free verdicts. Sign in to unlock 20 per day!"
             />
 
             {error && !rateLimitInfo && (

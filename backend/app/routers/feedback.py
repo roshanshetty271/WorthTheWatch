@@ -24,7 +24,8 @@ settings = get_settings()
 def _hash_ip(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        raw_ip = forwarded.split(",")[0].strip()
+        ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+        raw_ip = ips[-1] if ips else "unknown"
     else:
         raw_ip = request.client.host if request.client else "unknown"
     return hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]

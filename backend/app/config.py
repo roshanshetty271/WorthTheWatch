@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
 
     # Rate Limiting
-    DAILY_GENERATION_LIMIT: int = 500
-    HOURLY_GLOBAL_LIMIT: int = 100
+    DAILY_GENERATION_LIMIT: int = 1000
+    HOURLY_GLOBAL_LIMIT: int = 300
     ON_DEMAND_PER_IP_PER_HOUR: int = 3
     ON_DEMAND_PER_IP_PER_DAY: int = 3
     BATTLE_PER_IP_PER_DAY: int = 3
@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
     # Security — required in production
     IP_HASH_SALT: str
+    INTERNAL_PROXY_SECRET: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

@@ -7,7 +7,7 @@ import gc
 import logging
 import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ from sqlalchemy import select, desc
 
 from app.config import get_settings
 from app.database import init_db, get_db
-from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry  # noqa: F401
+from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry, GenerationUsageEntry  # noqa: F401
 from app.routers import movies, search, versus, nowplaying, discover, feedback
 from app.jobs.daily_sync import run_daily_sync
 from app.middleware.rate_limit import cleanup_old_rate_limit_entries
@@ -40,6 +40,9 @@ async def lifespan(app: FastAPI):
     logger.info("🎬 Worth the Watch? — Starting up...")
     await init_db()
     logger.info("✅ Database initialized")
+
+    if settings.ENVIRONMENT == "production" and not settings.INTERNAL_PROXY_SECRET:
+        logger.warning("⚠️ INTERNAL_PROXY_SECRET is not set — proxy quota path is disabled!")
     
     from app.services.tmdb import tmdb_service
     import asyncio
@@ -111,10 +114,16 @@ async def get_sitemap_data(db: AsyncSession = Depends(get_db)):
     ]
 
 
+def _get_admin_secret(request: Request, secret: str = "") -> str:
+    """Read admin secret from header first, fall back to query param."""
+    return request.headers.get("x-admin-secret", "") or secret
+
+
 # ─── Health Check ─────────────────────────────────────────
 
 @app.get("/health", response_model=HealthCheck)
 async def health_check(
+    request: Request,
     check_services: bool = False,
     secret: str = "",
     db: AsyncSession = Depends(get_db),
@@ -122,7 +131,7 @@ async def health_check(
     if not check_services:
         return HealthCheck(status="ok")
     
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret for deep check")
 
     health_status = {
@@ -185,10 +194,11 @@ async def health_check(
 
 @app.post("/api/cron/daily")
 async def cron_daily(
+    request: Request,
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
     
     await cleanup_old_rate_limit_entries()
@@ -198,11 +208,12 @@ async def cron_daily(
 
 @app.post("/api/refresh")
 async def manual_refresh(
+    request: Request,
     secret: str = "",
     max_refresh: int = 10,
     background_tasks: BackgroundTasks = None,
 ):
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     background_tasks.add_task(_refresh_background, max_refresh)
@@ -221,15 +232,95 @@ async def _refresh_background(max_refresh: int):
             logger.error(f"❌ Manual refresh failed: {e}")
 
 
+# ─── Admin: Usage Stats ──────────────────────────────────
+
+@app.get("/api/admin/usage-stats")
+async def usage_stats(
+    request: Request,
+    secret: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Dashboard snapshot: generations today/hour, top IPs, suspicious activity."""
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    from datetime import datetime, timedelta
+    from sqlalchemy import func, distinct
+
+    now = datetime.utcnow()
+    hour_ago = now - timedelta(hours=1)
+    day_ago = now - timedelta(hours=24)
+
+    gen_today = (await db.execute(
+        select(func.count()).select_from(GenerationUsageEntry)
+        .where(GenerationUsageEntry.created_at > day_ago)
+    )).scalar() or 0
+
+    gen_hour = (await db.execute(
+        select(func.count()).select_from(GenerationUsageEntry)
+        .where(GenerationUsageEntry.created_at > hour_ago)
+    )).scalar() or 0
+
+    top_ips_rows = (await db.execute(
+        select(
+            GenerationUsageEntry.ip_hash,
+            func.count().label("count"),
+            func.count(distinct(GenerationUsageEntry.actor_id)).label("distinct_actors"),
+        )
+        .where(GenerationUsageEntry.created_at > day_ago)
+        .group_by(GenerationUsageEntry.ip_hash)
+        .order_by(func.count().desc())
+        .limit(5)
+    )).all()
+
+    return {
+        "generated_today": gen_today,
+        "generated_this_hour": gen_hour,
+        "daily_limit": settings.DAILY_GENERATION_LIMIT,
+        "hourly_limit": settings.HOURLY_GLOBAL_LIMIT,
+        "daily_pct": round(gen_today / settings.DAILY_GENERATION_LIMIT * 100, 1),
+        "hourly_pct": round(gen_hour / settings.HOURLY_GLOBAL_LIMIT * 100, 1),
+        "top_ips_today": [
+            {
+                "ip_hash": row.ip_hash,
+                "generations": row.count,
+                "distinct_actors": row.distinct_actors,
+                "suspicious": row.distinct_actors > 5 and row.count > 15,
+            }
+            for row in top_ips_rows
+        ],
+    }
+
+
+# ─── Admin: Reset Quotas ──────────────────────────────────
+
+@app.post("/api/admin/reset-quotas")
+async def reset_quotas(
+    request: Request,
+    secret: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset all generation quotas. Everyone gets a fresh start."""
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    from sqlalchemy import delete as sa_delete
+    result = await db.execute(sa_delete(GenerationUsageEntry))
+    await db.commit()
+    logger.info(f"🔄 Admin reset: cleared {result.rowcount} generation usage entries")
+    return {"status": "reset", "deleted": result.rowcount}
+
+
 # ─── Seed Endpoint (dev only) ─────────────────────────────
 
 @app.post("/api/seed")
 async def seed_database(
+    request: Request,
     count: int = 50,
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     result = await run_daily_sync(db, max_new=count)
@@ -241,10 +332,11 @@ async def seed_database(
 @app.delete("/api/movies/{tmdb_id}")
 async def delete_movie(
     tmdb_id: int,
+    request: Request,
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     result = await db.execute(
@@ -269,12 +361,13 @@ REGEN_BATCH_SIZE = 20
 
 @app.post("/api/regenerate")
 async def regenerate_all_reviews(
+    request: Request,
     secret: str = "",
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Re-generate all existing reviews with the current prompt."""
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     from sqlalchemy.orm import joinedload
@@ -347,12 +440,13 @@ async def _regenerate_background(tmdb_ids: list[int]):
 
 @app.post("/api/seed-top-rated")
 async def seed_top_rated(
+    request: Request,
     pages: int = 10,
     media_type: str = "movie",
     secret: str = "",
     background_tasks: BackgroundTasks = None,
 ):
-    if not secrets.compare_digest(secret, settings.CRON_SECRET):
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     if media_type not in ("movie", "tv"):

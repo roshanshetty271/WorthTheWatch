@@ -8,9 +8,7 @@ import VerdictBadge from "@/components/VerdictBadge";
 import StreamingAvailability from "@/components/StreamingAvailability";
 import BookmarkButton from "@/components/BookmarkButton";
 import SimilarMovies from "@/components/SimilarMovies";
-import SignInDialog from "@/components/SignInDialog";
 import CinemaRoulette from "@/components/CinemaRoulette";
-import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import { logActivity } from "@/lib/logActivity";
 import type { MovieWithReview, Review } from "@/lib/api";
 
@@ -38,10 +36,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
     const [rouletteOpen, setRouletteOpen] = useState(false);
-    const { shouldShowDialog, incrementPageView, markDialogShown } = useSignInPrompt();
-
     useEffect(() => {
-        incrementPageView();
         logActivity({
             activity_type: "view",
             tmdb_id: movie.tmdb_id,
@@ -49,7 +44,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             title: movie.title,
             poster_path: movie.poster_url || null,
         });
-    }, [incrementPageView, movie.tmdb_id, movie.media_type, movie.title, movie.poster_url]);
+    }, [movie.tmdb_id, movie.media_type, movie.title, movie.poster_url]);
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
     const [isPosterFallback, setIsPosterFallback] = useState<boolean>(!movie.backdrop_url && !!movie.poster_url);
@@ -555,7 +550,6 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                 <CinemaRoulette isOpen={rouletteOpen} onClose={() => setRouletteOpen(false)} />
             </div>
 
-            <SignInDialog open={shouldShowDialog} onClose={markDialogShown} />
         </div>
     );
 }
