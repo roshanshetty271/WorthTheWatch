@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import TriviaLoader from "./TriviaLoader";
 import ReviewContent from "./ReviewContent";
 import ErrorState from "./ErrorState";
+import RateLimitCard from "./RateLimitCard";
 import SignInDialog from "./SignInDialog";
 import { logActivity } from "@/lib/logActivity";
 import type { Review } from "@/lib/api";
@@ -337,15 +338,12 @@ export default function ReviewSection({
                 </div>
 
                 {rateLimitInfo && (
-                    <div className="mb-4 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-5 text-center">
-                        <p className="text-sm text-text-secondary mb-3">
-                            {rateLimitInfo.message}
-                        </p>
-                        {rateLimitInfo.retryAfter > 0 && (
-                            <p className="text-xs text-text-muted mb-3">
-                                Try again in {Math.ceil(rateLimitInfo.retryAfter / 60)} minute{rateLimitInfo.retryAfter > 60 ? "s" : ""}
-                            </p>
-                        )}
+                    <div className="mb-4">
+                        <RateLimitCard
+                            type={rateLimitInfo.type}
+                            message={rateLimitInfo.message}
+                            retryAfter={rateLimitInfo.retryAfter}
+                        />
                     </div>
                 )}
 
@@ -425,15 +423,12 @@ export default function ReviewSection({
     return (
         <div className="mt-8 text-center">
             {rateLimitInfo && (
-                <div className="mb-6 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6 text-center">
-                    <p className="text-sm text-text-secondary mb-4">
-                        {rateLimitInfo.message}
-                    </p>
-                    {rateLimitInfo.retryAfter > 0 && (
-                        <p className="text-xs text-text-muted mb-4">
-                            Try again in {Math.ceil(rateLimitInfo.retryAfter / 60)} minute{rateLimitInfo.retryAfter > 60 ? "s" : ""}
-                        </p>
-                    )}
+                <div className="mb-6">
+                    <RateLimitCard
+                        type={rateLimitInfo.type}
+                        message={rateLimitInfo.message}
+                        retryAfter={rateLimitInfo.retryAfter}
+                    />
                 </div>
             )}
 

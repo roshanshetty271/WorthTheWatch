@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useWatchlist } from "@/lib/useWatchlist";
 import SignInDialog from "./SignInDialog";
+import RateLimitCard from "./RateLimitCard";
 import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import { logActivity } from "@/lib/logActivity";
 import dynamic from "next/dynamic";
@@ -475,10 +476,11 @@ export default function Versus() {
 
                         {/* ── Battle Rate Limit Banner ── */}
                         {battleError === "rate_limit" && (
-                            <div className="mb-8 rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6 text-center max-w-lg mx-auto">
-                                <p className="text-sm text-text-secondary">
-                                    Battle limit reached. Try again later.
-                                </p>
+                            <div className="mb-8 max-w-lg mx-auto">
+                                <RateLimitCard
+                                    type="capacity"
+                                    message="Battle limit reached. Try again later."
+                                />
                             </div>
                         )}
 

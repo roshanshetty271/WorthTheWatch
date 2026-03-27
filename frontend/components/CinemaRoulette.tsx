@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import BookmarkButton from "./BookmarkButton";
 import SignInDialog from "./SignInDialog";
+import RateLimitCard from "./RateLimitCard";
 import { useSignInPrompt } from "@/lib/useSignInPrompt";
 import { logActivity } from "@/lib/logActivity";
 
@@ -313,10 +314,11 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                 </h2>
 
                                 {rouletteError && (
-                                    <div className="rounded-xl border border-accent-gold/20 bg-accent-gold/5 px-5 py-4 text-center max-w-xs">
-                                        <p className="text-xs text-text-secondary">
-                                            Spin limit reached. Try again later.
-                                        </p>
+                                    <div className="max-w-xs w-full">
+                                        <RateLimitCard
+                                            type="capacity"
+                                            message="Spin limit reached. Try again later."
+                                        />
                                     </div>
                                 )}
 

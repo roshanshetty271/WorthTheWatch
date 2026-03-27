@@ -92,6 +92,12 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
 
     const boxOfficeDisplay = formatBoxOffice((review as any)?.box_office);
 
+    const hasAnyScore = !!(
+        review?.imdb_score || movie.tmdb_vote_average ||
+        review?.rt_critic_score || review?.rt_audience_score ||
+        review?.metascore || boxOfficeDisplay
+    );
+
     // Review/Generate block — rendered in different positions based on review state
     const verdictBlock = (
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -306,28 +312,30 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                                 </div>
                                 )}
 
-                                {/* Trailer + Streaming — single row */}
-                                {review && (
+                                {/* Trailer + Streaming */}
+                                {review?.trailer_url && (
                                 <div className="mt-6 flex w-full items-center gap-4 flex-wrap justify-center md:justify-start animate-fade-in">
-                                    {review?.trailer_url && (
-                                        <button
-                                            onClick={() => {
-                                                document.getElementById("trailer-section")?.scrollIntoView({
-                                                    behavior: "smooth",
-                                                    block: "center"
-                                                });
-                                            }}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group shrink-0"
-                                        >
-                                            <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                                <path d="M8 5v14l11-7z" />
-                                            </svg>
-                                            Trailer
-                                        </button>
-                                    )}
-
+                                    <button
+                                        onClick={() => {
+                                            document.getElementById("trailer-section")?.scrollIntoView({
+                                                behavior: "smooth",
+                                                block: "center"
+                                            });
+                                        }}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-[#FF0000] hover:bg-[#cc0000] text-white font-bold text-sm tracking-wide rounded-full transition-colors duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none group shrink-0"
+                                    >
+                                        <svg className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                            <path d="M8 5v14l11-7z" />
+                                        </svg>
+                                        Trailer
+                                    </button>
                                     <StreamingAvailability tmdbId={movie.tmdb_id} initialData={initialStreaming} />
                                 </div>
+                                )}
+                                {review && !review?.trailer_url && (
+                                    <div className="mt-6 empty:hidden">
+                                        <StreamingAvailability tmdbId={movie.tmdb_id} initialData={initialStreaming} />
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -338,6 +346,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             {/* ═══════════════════════════════════════════════════════════════════
             SCORES — single scrollable row with divider lines
             ═══════════════════════════════════════════════════════════════════ */}
+            {hasAnyScore && (
             <div className="mx-auto max-w-4xl px-4 sm:px-6">
                 <div className="py-5">
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
@@ -383,10 +392,12 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                     </div>
                 </div>
             </div>
+            )}
 
             {/* ═══════════════════════════════════════════════════════════════════
             AWARDS & OVERVIEW
             ═══════════════════════════════════════════════════════════════════ */}
+            {((review as any)?.awards || movie.overview) && (
             <div className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6">
                 {/* Awards */}
                 {(review as any)?.awards && (
@@ -415,6 +426,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                     </div>
                 )}
             </div>
+            )}
 
             {/* ═══════════════════════════════════════════════════════════════════
             CAST LIST — Collapsible
