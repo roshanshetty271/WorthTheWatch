@@ -16,6 +16,7 @@ export interface WatchlistItem {
 const STORAGE_KEY = "wtw-watchlist";
 const SYNC_EVENT = "wtw-watchlist-sync";
 const COUNT_CACHE_KEY = "wtw-watchlist-count";
+const GUEST_SAVE_LIMIT = 3;
 
 /**
  * Hybrid watchlist hook.
@@ -59,12 +60,30 @@ export function useWatchlist() {
         }
     }, [mounted, isSignedIn, isLoading]);
 
-    // Listen for cross-component sync (localStorage mode only)
+    // Keep cachedCount in sync so the badge never shows stale numbers
     useEffect(() => {
-        if (isSignedIn) return;
+        if (mounted) {
+            setCachedCount(items.length);
+            sessionStorage.setItem(COUNT_CACHE_KEY, String(items.length));
+        }
+    }, [items, mounted]);
 
-        function handleSync() {
-            loadFromLocalStorage();
+    // Listen for cross-component sync
+    useEffect(() => {
+        function handleSync(e: Event) {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.action === "add" && detail.item) {
+                setItems((prev) => {
+                    if (prev.some((i) => i.tmdb_id === detail.item.tmdb_id)) return prev;
+                    return [detail.item, ...prev];
+                });
+            } else if (detail?.action === "remove" && detail.tmdbId != null) {
+                setItems((prev) => prev.filter((i) => i.tmdb_id !== detail.tmdbId));
+            } else if (detail?.action === "clear") {
+                setItems([]);
+            } else if (!isSignedIn) {
+                loadFromLocalStorage();
+            }
         }
         window.addEventListener(SYNC_EVENT, handleSync);
         return () => window.removeEventListener(SYNC_EVENT, handleSync);
@@ -161,66 +180,38 @@ export function useWatchlist() {
     // ─── Public API ────────────────────────────────────────
 
     const addItem = useCallback(
-        async (item: WatchlistItem) => {
+        (item: WatchlistItem) => {
+            setItems((prev) => {
+                if (prev.some((i) => i.tmdb_id === item.tmdb_id)) return prev;
+                const next = [item, ...prev];
+                if (!isSignedIn) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+                return next;
+            });
+            window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: { action: "add", item } }));
+
             if (isSignedIn) {
-                // Add to database
-                try {
-                    setSyncing(true);
-                    await fetch("/api/watchlist", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(item),
-                    });
-                    setItems((prev) => {
-                        if (prev.some((i) => i.tmdb_id === item.tmdb_id)) return prev;
-                        const newItems = [item, ...prev];
-                        sessionStorage.setItem(COUNT_CACHE_KEY, String(newItems.length));
-                        return newItems;
-                    });
-                } catch (error) {
-                    console.error("Failed to add to watchlist:", error);
-                } finally {
-                    setSyncing(false);
-                }
-            } else {
-                // Add to localStorage
-                setItems((prev) => {
-                    if (prev.some((i) => i.tmdb_id === item.tmdb_id)) return prev;
-                    const newItems = [item, ...prev];
-                    saveToLocalStorage(newItems);
-                    sessionStorage.setItem(COUNT_CACHE_KEY, String(newItems.length));
-                    return newItems;
-                });
+                fetch("/api/watchlist", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(item),
+                }).catch((e) => console.error("Failed to add to watchlist:", e));
             }
         },
         [isSignedIn]
     );
 
     const removeItem = useCallback(
-        async (tmdbId: number) => {
+        (tmdbId: number) => {
+            setItems((prev) => {
+                const next = prev.filter((i) => i.tmdb_id !== tmdbId);
+                if (!isSignedIn) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+                return next;
+            });
+            window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: { action: "remove", tmdbId } }));
+
             if (isSignedIn) {
-                // Remove from database
-                try {
-                    setSyncing(true);
-                    await fetch(`/api/watchlist/${tmdbId}`, { method: "DELETE" });
-                    setItems((prev) => {
-                        const newItems = prev.filter((i) => i.tmdb_id !== tmdbId);
-                        sessionStorage.setItem(COUNT_CACHE_KEY, String(Math.max(0, newItems.length)));
-                        return newItems;
-                    });
-                } catch (error) {
-                    console.error("Failed to remove from watchlist:", error);
-                } finally {
-                    setSyncing(false);
-                }
-            } else {
-                // Remove from localStorage
-                setItems((prev) => {
-                    const newItems = prev.filter((i) => i.tmdb_id !== tmdbId);
-                    saveToLocalStorage(newItems);
-                    sessionStorage.setItem(COUNT_CACHE_KEY, String(Math.max(0, newItems.length)));
-                    return newItems;
-                });
+                fetch(`/api/watchlist/${tmdbId}`, { method: "DELETE" })
+                    .catch((e) => console.error("Failed to remove from watchlist:", e));
             }
         },
         [isSignedIn]
@@ -234,21 +225,18 @@ export function useWatchlist() {
     );
 
     const clearAll = useCallback(async () => {
+        const itemsToDelete = [...items];
+
+        // Optimistic: clear UI immediately
+        setItems([]);
+        window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: { action: "clear" } }));
+
         if (isSignedIn) {
-            // Remove all from database
-            try {
-                setSyncing(true);
-                for (const item of items) {
-                    await fetch(`/api/watchlist/${item.tmdb_id}`, { method: "DELETE" });
-                }
-                setItems([]);
-            } catch (error) {
-                console.error("Failed to clear watchlist:", error);
-            } finally {
-                setSyncing(false);
+            for (const item of itemsToDelete) {
+                fetch(`/api/watchlist/${item.tmdb_id}`, { method: "DELETE" })
+                    .catch((e) => console.error("Failed to delete watchlist item:", e));
             }
         } else {
-            setItems([]);
             saveToLocalStorage([]);
         }
     }, [isSignedIn, items]);
@@ -301,13 +289,14 @@ export function useWatchlist() {
         addItem,
         removeItem,
         isInWatchlist,
-        isSaved: isInWatchlist, // Alias for backward compatibility
+        isSaved: isInWatchlist,
         toggle,
         updateStatus,
         clearAll,
-        clear: clearAll, // Alias for backward compatibility
+        clear: clearAll,
         getShareUrl,
         isSignedIn,
+        guestLimitReached: !isSignedIn && items.length >= GUEST_SAVE_LIMIT,
         syncing,
         mounted,
     };

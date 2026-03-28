@@ -211,6 +211,27 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
 
   return (
     <div className="animate-fade-in space-y-8">
+      {/* Refresh Verdict */}
+      {onRefresh && (
+        <div className="flex justify-end pb-2 sm:pb-4">
+          <button
+            onClick={onRefresh}
+            className="group inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-accent-gold/70 transition-all duration-200 hover:bg-accent-gold/10 hover:text-accent-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold"
+          >
+            <svg
+              className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh verdict</span>
+          </button>
+        </div>
+      )}
+
       {/* Early Verdict Banner */}
       {isEarlyVerdict && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 flex items-start gap-3">
@@ -233,33 +254,9 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
         </div>
       )}
 
-      {/* 2. VERDICT BADGE + REFRESH */}
+      {/* 2. VERDICT BADGE */}
       <div className="flex flex-col items-center gap-3">
-        <div className="flex items-center gap-3">
-          <VerdictBadge verdict={review.verdict} size="lg" />
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-widest border border-white/10 bg-white/5 text-white/60 hover:text-accent-gold hover:border-accent-gold/30 hover:bg-accent-gold/10 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none group overflow-hidden"
-            >
-              <span className="absolute inset-0 -translate-x-full group-first-of-type:animate-[shimmer-once_1.5s_ease-out_0.5s_forwards] bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
-              <svg
-                className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span className="hidden sm:inline">Refresh Verdict</span>
-              <span className="sm:hidden">Refresh</span>
-            </button>
-          )}
-        </div>
-        <p className="text-[10px] text-white/30 tracking-wide">
-          AI-powered verdict — refreshes with the latest reviews
-        </p>
+        <VerdictBadge verdict={review.verdict} size="lg" />
       </div>
 
       {/* 3. THE HOOK + Tags */}

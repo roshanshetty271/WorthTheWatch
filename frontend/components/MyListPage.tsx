@@ -370,6 +370,18 @@ export default function MyListPage() {
                         <h2 className="text-xl font-bold text-white mb-2">Your list is empty</h2>
                         <p className="text-white/60 text-sm max-w-[280px] mb-8">
                             Save movies you want to watch and they will show up here.
+                            {!isSignedIn && (
+                                <>
+                                    {" "}
+                                    <button
+                                        onClick={() => signIn("google")}
+                                        className="text-accent-gold hover:text-accent-goldLight font-medium underline underline-offset-2"
+                                    >
+                                        Sign in
+                                    </button>
+                                    {" "}to sync across devices.
+                                </>
+                            )}
                         </p>
                         <Link
                             href="/"

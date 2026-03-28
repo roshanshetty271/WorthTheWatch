@@ -23,7 +23,7 @@ export default function BookmarkButton({
     className = "",
 }: BookmarkButtonProps) {
     const { data: session } = useSession();
-    const { isSaved, toggle, mounted: watchlistMounted } = useWatchlist();
+    const { isSaved, toggle, guestLimitReached, mounted: watchlistMounted } = useWatchlist();
     const [saved, setSaved] = useState(false);
     const [pop, setPop] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -43,7 +43,7 @@ export default function BookmarkButton({
         e.preventDefault();
         e.stopPropagation();
 
-        if (!session?.user) {
+        if (!session?.user && guestLimitReached && !saved) {
             setShowSignIn(true);
             return;
         }
@@ -91,7 +91,7 @@ export default function BookmarkButton({
                 <SignInDialog
                     open={showSignIn}
                     onClose={() => setShowSignIn(false)}
-                    context="Sign in to save movies to your list."
+                    context="You've saved 3 movies! Sign in to save unlimited movies and sync across devices."
                 />
             </>
         );
@@ -130,7 +130,7 @@ export default function BookmarkButton({
             <SignInDialog
                 open={showSignIn}
                 onClose={() => setShowSignIn(false)}
-                context="Sign in to save movies to your list."
+                context="You've saved 3 movies! Sign in to save unlimited movies and sync across devices."
             />
         </>
     );
