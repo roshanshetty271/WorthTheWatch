@@ -12,49 +12,18 @@ const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
     loading: () => null,
 });
 
-const FEATURES = [
-    {
-        title: "AI Verdicts",
-        description: "Search any title. Get a verdict in 15 seconds.",
-        action: "search" as const,
-        gated: false,
-    },
-    {
-        title: "Cinema Roulette",
-        description: "Can\u2019t decide? We\u2019ll pick one worth watching.",
-        action: "roulette" as const,
-        gated: false,
-    },
-    {
-        title: "Movie Battle",
-        description: "Pit two movies against each other. AI picks the winner.",
-        action: "versus" as const,
-        gated: false,
-    },
-    {
-        title: "Taste Profile",
-        description: "Your stats, top genres, favorite eras, and movie DNA.",
-        action: "profile" as const,
-        gated: true,
-    },
-    {
-        title: "Watchlist",
-        description: "Save picks. Sync everywhere. Never forget a good rec.",
-        action: "watchlist" as const,
-        gated: true,
-    },
-    {
-        title: "For You",
-        description: "Recs built around your taste, not just what\u2019s trending.",
-        action: "foryou" as const,
-        gated: true,
-    },
-    {
-        title: "Watch History",
-        description: "Everything you\u2019ve looked up, all in one place.",
-        action: "history" as const,
-        gated: true,
-    },
+const FREE_FEATURES = [
+    { label: "AI Verdicts", sub: "Instant reviews", action: "search" },
+    { label: "Cinema Roulette", sub: "Random pick", action: "roulette" },
+    { label: "Movie Battle", sub: "Head-to-head", action: "versus" },
+    { label: "Watchlist", sub: "Save locally", action: "watchlist" },
+];
+
+const SIGNED_IN_FEATURES = [
+    { label: "Cloud Watchlist", sub: "Sync all devices", action: "watchlist" },
+    { label: "Taste Profile", sub: "Your movie DNA", action: "profile" },
+    { label: "For You", sub: "Personal recs", action: "foryou" },
+    { label: "Watch History", sub: "Every lookup", action: "history" },
 ];
 
 interface FeaturesShowcaseProps {
@@ -99,14 +68,13 @@ export default function FeaturesShowcase({ isOpen, onClose }: FeaturesShowcasePr
         cb();
     };
 
-    const handleAction = (action: string) => {
+    const go = (action: string) => {
         onClose();
         switch (action) {
             case "search":
                 window.scrollTo({ top: 0, behavior: "smooth" });
                 setTimeout(() => {
-                    const input = document.querySelector('input[type="text"]') as HTMLInputElement;
-                    input?.focus();
+                    (document.querySelector('input[type="text"]') as HTMLInputElement)?.focus();
                 }, 400);
                 break;
             case "roulette":
@@ -116,27 +84,39 @@ export default function FeaturesShowcase({ isOpen, onClose }: FeaturesShowcasePr
                 router.push("/versus");
                 break;
             case "profile":
-                requireAuth(() => router.push("/profile"));
+                router.push("/profile");
                 break;
             case "watchlist":
-                requireAuth(() => router.push("/my-list"));
+                router.push("/my-list");
                 break;
             case "foryou":
-                requireAuth(() => {
-                    if (window.location.pathname === "/") {
-                        document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" });
-                    } else {
-                        router.push("/#for-you");
-                    }
-                });
+                if (window.location.pathname === "/") {
+                    document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" });
+                } else {
+                    router.push("/#for-you");
+                }
                 break;
             case "history":
-                requireAuth(() => router.push("/history"));
+                router.push("/history");
                 break;
         }
     };
 
     if (!mounted) return null;
+
+    const isSignedIn = !!session?.user;
+
+    const GoldCheck = ({ dimmed }: { dimmed?: boolean }) => (
+        <svg
+            className={`mt-0.5 h-4 w-4 flex-shrink-0 text-accent-gold${dimmed ? " opacity-40" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={3}
+        >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+    );
 
     return (
         <>
@@ -146,10 +126,9 @@ export default function FeaturesShowcase({ isOpen, onClose }: FeaturesShowcasePr
                     onClick={onClose}
                 >
                     <div
-                        className="relative mx-4 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-surface-card px-6 py-5 shadow-2xl"
+                        className="relative mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-surface-card p-8 shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Close button */}
                         <button
                             onClick={onClose}
                             className="absolute right-4 top-4 text-text-muted transition-colors hover:text-white"
@@ -160,45 +139,61 @@ export default function FeaturesShowcase({ isOpen, onClose }: FeaturesShowcasePr
                             </svg>
                         </button>
 
-                        {/* Header */}
-                        <h2 className="font-display text-lg text-white">Everything we offer</h2>
-                        <p className="mt-1 text-sm text-accent-gold/80">Oh, we do way more than verdicts.</p>
+                        <h2 className="font-display text-xl text-white">Everything we offer</h2>
+                        <p className="mt-2 text-sm text-accent-gold/80">Oh, we do way more than verdicts.</p>
 
-                        {/* Feature grid — 2 columns */}
-                        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-0">
-                            {FEATURES.map((feature) => (
+                        <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3">
+                            {FREE_FEATURES.map((f) => (
                                 <button
-                                    key={feature.title}
-                                    onClick={() => handleAction(feature.action)}
-                                    className="group flex items-start gap-2.5 w-full text-left py-1.5 transition-colors hover:bg-white/[0.03] rounded-lg px-1 -mx-1"
+                                    key={f.label}
+                                    onClick={() => go(f.action)}
+                                    className="group flex items-start gap-3 text-left cursor-pointer"
                                 >
-                                    <svg
-                                        className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-accent-gold"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                        strokeWidth={2.5}
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                    </svg>
+                                    <GoldCheck />
                                     <div>
-                                        <span className="text-sm font-medium text-white group-hover:text-accent-gold transition-colors">
-                                            {feature.title}
-                                        </span>
-                                        <span className="block text-[11px] text-text-muted leading-tight mt-0.5">
-                                            {feature.description}
-                                        </span>
+                                        <span className="text-sm font-semibold text-white group-hover:text-accent-gold group-hover:underline underline-offset-2 transition-colors">{f.label}</span>
+                                        <span className="block text-xs text-text-muted">{f.sub}</span>
                                     </div>
                                 </button>
                             ))}
                         </div>
 
-                        {!session?.user && (
+                        <div className="my-5 flex items-center gap-3">
+                            <div className="h-px flex-1 bg-white/10" />
+                            <span className="text-xs text-text-muted">Sign in for more</span>
+                            <div className="h-px flex-1 bg-white/10" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                            {SIGNED_IN_FEATURES.map((f) => (
+                                <button
+                                    key={f.label}
+                                    onClick={() => {
+                                        if (isSignedIn) {
+                                            go(f.action);
+                                        } else {
+                                            requireAuth(() => go(f.action));
+                                        }
+                                    }}
+                                    className="group flex items-start gap-3 text-left cursor-pointer"
+                                >
+                                    <GoldCheck dimmed={!isSignedIn} />
+                                    <div>
+                                        <span className={`text-sm font-semibold group-hover:underline underline-offset-2 transition-colors ${isSignedIn ? "text-white group-hover:text-accent-gold" : "text-white/50 group-hover:text-white/70"}`}>
+                                            {f.label}
+                                        </span>
+                                        <span className="block text-xs text-text-muted">{f.sub}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {!isSignedIn && (
                             <button
                                 onClick={() => { onClose(); setShowSignIn(true); }}
-                                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-accent-gold px-5 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-goldLight"
+                                className="mt-7 w-full rounded-xl bg-accent-gold px-6 py-3 font-bold text-black transition-colors hover:bg-accent-goldLight"
                             >
-                                Sign in to unlock everything
+                                Sign in to unlock
                             </button>
                         )}
                     </div>
@@ -210,7 +205,7 @@ export default function FeaturesShowcase({ isOpen, onClose }: FeaturesShowcasePr
             <SignInDialog
                 open={showSignIn}
                 onClose={() => setShowSignIn(false)}
-                context="Sign in to unlock your full experience — unlimited verdicts, synced watchlist, and personalized picks."
+                context="Sign in to unlock your full experience — synced watchlist, taste profile, and personalized picks."
             />
         </>
     );
