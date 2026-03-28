@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -11,6 +11,8 @@ const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
 import { useWatchlist } from "@/lib/useWatchlist";
 import AuthButton from "./AuthButton";
 import NotificationBell from "./NotificationBell";
+import SignInDialog from "./SignInDialog";
+import FeaturesShowcase from "./FeaturesShowcase";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 
@@ -96,9 +98,15 @@ export default function Navbar() {
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [exploreOpen, setExploreOpen] = useState(false);
+    const [exploreExpanded, setExploreExpanded] = useState(false);
+    const [showSignIn, setShowSignIn] = useState(false);
+    const [featuresOpen, setFeaturesOpen] = useState(false);
+    const exploreRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
     const router = useRouter();
     const { count } = useWatchlist();
+    const { data: session } = useSession();
 
     useEffect(() => {
         setMounted(true);
@@ -110,6 +118,16 @@ export default function Navbar() {
 
         window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (exploreRef.current && !exploreRef.current.contains(e.target as Node)) {
+                setExploreOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     // Lock body scroll when mobile menu is open
@@ -173,19 +191,12 @@ export default function Navbar() {
                             Discover
                         </Link>
 
-                        <Link
-                            href="/browse/mood/tired"
-                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest text-shadow-hero"
+                        <button
+                            onClick={() => setFeaturesOpen(true)}
+                            className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer text-shadow-hero"
                         >
-                            Mood Based
-                        </Link>
-
-                        <Link
-                            href="/versus"
-                            className="text-sm font-bold uppercase tracking-widest hover:opacity-80 transition-opacity text-shadow-hero"
-                        >
-                            <span className="text-accent-gold">Movie Battle</span>
-                        </Link>
+                            Features
+                        </button>
 
                         {/* Roulette Trigger */}
                         <button
@@ -207,6 +218,71 @@ export default function Navbar() {
                                 </span>
                             )}
                         </Link>
+
+                        {/* Explore Dropdown */}
+                        <div className="relative" ref={exploreRef}>
+                            <button
+                                onClick={() => setExploreOpen(!exploreOpen)}
+                                className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest cursor-pointer text-shadow-hero flex items-center gap-1.5"
+                            >
+                                Explore
+                                <svg
+                                    className={`w-3 h-3 transition-transform duration-200 ${exploreOpen ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2.5}
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            {exploreOpen && (
+                                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-surface-card border border-white/10 shadow-2xl py-2 z-50 animate-fade-in">
+                                    <Link
+                                        href="/browse/mood/tired"
+                                        onClick={() => setExploreOpen(false)}
+                                        className="block w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors"
+                                    >
+                                        <span className="text-sm text-text-secondary">Mood Based</span>
+                                        <span className="block text-[11px] text-text-muted mt-0.5">Pick a vibe, get a match</span>
+                                    </Link>
+                                    <Link
+                                        href="/versus"
+                                        onClick={() => setExploreOpen(false)}
+                                        className="block w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors"
+                                    >
+                                        <span className="text-sm text-text-secondary">Movie Battle</span>
+                                        <span className="block text-[11px] text-text-muted mt-0.5">Two movies enter, AI picks the winner</span>
+                                    </Link>
+
+                                    <div className="my-1 mx-3 border-t border-white/5" />
+
+                                    <button
+                                        onClick={() => {
+                                            setExploreOpen(false);
+                                            if (!session?.user) { setShowSignIn(true); return; }
+                                            router.push("/profile");
+                                        }}
+                                        className="block w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors"
+                                    >
+                                        <span className="text-sm text-text-secondary">Taste Profile</span>
+                                        <span className="block text-[11px] text-text-muted mt-0.5">Your stats, top genres, favorite eras, and recs</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setExploreOpen(false);
+                                            if (!session?.user) { setShowSignIn(true); return; }
+                                            router.push("/history");
+                                        }}
+                                        className="block w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors"
+                                    >
+                                        <span className="text-sm text-text-secondary">Watch History</span>
+                                        <span className="block text-[11px] text-text-muted mt-0.5">Everything you&apos;ve looked up</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Actions */}
@@ -290,20 +366,79 @@ export default function Navbar() {
                     >
                         Discover
                     </Link>
-                    <Link
-                        href="/browse/mood/tired"
-                        onClick={() => setMobileMenuOpen(false)}
+                    <button
+                        onClick={() => {
+                            setMobileMenuOpen(false);
+                            setFeaturesOpen(true);
+                        }}
                         className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
-                        Mood Based
-                    </Link>
-                    <Link
-                        href="/versus"
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
+                        Features
+                    </button>
+
+                    {/* Explore — collapsible accordion */}
+                    <div className="w-full border-b border-white/10">
+                        <button
+                            onClick={() => setExploreExpanded(!exploreExpanded)}
+                            className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors text-center flex items-center justify-center gap-2"
+                        >
+                            Explore
+                            <svg
+                                className={`w-3 h-3 transition-transform duration-200 ${exploreExpanded ? "rotate-180" : ""}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2.5}
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        {exploreExpanded && (
+                            <div className="animate-fade-in pb-3 flex flex-col items-center gap-0.5">
+                                <Link
+                                    href="/browse/mood/tired"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="w-full py-3 font-body text-xs font-medium uppercase tracking-widest text-text-secondary hover:text-accent-gold transition-colors text-center"
+                                >
+                                    Mood Based
+                                </Link>
+                                <Link
+                                    href="/versus"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="w-full py-3 font-body text-xs font-medium uppercase tracking-widest text-text-secondary hover:text-accent-gold transition-colors text-center"
+                                >
+                                    Movie Battle
+                                </Link>
+                                <button
+                                    onClick={() => {
+                                        setMobileMenuOpen(false);
+                                        if (!session?.user) { setShowSignIn(true); return; }
+                                        router.push("/profile");
+                                    }}
+                                    className="w-full py-3 font-body text-xs font-medium uppercase tracking-widest text-text-secondary hover:text-accent-gold transition-colors text-center"
+                                >
+                                    Taste Profile
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setMobileMenuOpen(false);
+                                        if (!session?.user) { setShowSignIn(true); return; }
+                                        router.push("/history");
+                                    }}
+                                    className="w-full py-3 font-body text-xs font-medium uppercase tracking-widest text-text-secondary hover:text-accent-gold transition-colors text-center"
+                                >
+                                    Watch History
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => { setMobileMenuOpen(false); setRouletteOpen(true); }}
+                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center border-b border-white/10"
                     >
-                        Movie Battle
-                    </Link>
+                        Can&apos;t Decide?
+                    </button>
                     <Link
                         href="/my-list"
                         onClick={() => setMobileMenuOpen(false)}
@@ -311,14 +446,8 @@ export default function Navbar() {
                     >
                         My List{mounted && count > 0 ? ` (${count})` : ""}
                     </Link>
-                    <button
-                        onClick={() => { setMobileMenuOpen(false); setRouletteOpen(true); }}
-                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center border-b border-white/10"
-                    >
-                        Can&apos;t Decide?
-                    </button>
 
-                    {/* Mobile Auth Section — inline, not dropdown */}
+                    {/* Mobile Auth Section */}
                     <div className="w-full">
                         <MobileAuthSection onClose={() => setMobileMenuOpen(false)} />
                     </div>
@@ -328,6 +457,15 @@ export default function Navbar() {
             <CinemaRoulette
                 isOpen={rouletteOpen}
                 onClose={() => setRouletteOpen(false)}
+            />
+            <SignInDialog
+                open={showSignIn}
+                onClose={() => setShowSignIn(false)}
+                context="Sign in to unlock your full experience — unlimited verdicts, synced watchlist, and personalized picks."
+            />
+            <FeaturesShowcase
+                isOpen={featuresOpen}
+                onClose={() => setFeaturesOpen(false)}
             />
         </>
     );

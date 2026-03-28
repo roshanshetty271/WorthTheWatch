@@ -111,6 +111,16 @@ body {
   }
 }
 
+@keyframes shimmer-once {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(200%);
+  }
+}
+
 .skeleton {
   @apply bg-surface-elevated rounded;
   background-image: linear-gradient(90deg,

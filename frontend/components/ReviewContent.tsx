@@ -1,15 +1,23 @@
 "use client";
 
+import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import type { Review } from "@/lib/api";
+import { useWatchlist } from "@/lib/useWatchlist";
+import { useSession } from "next-auth/react";
 import VerdictBadge from "./VerdictBadge";
 import SentimentBar from "./SentimentBar";
 import TrailerEmbed from "./TrailerEmbed";
 import ReviewFeedback from "./ReviewFeedback";
+import BookmarkButton from "./BookmarkButton";
 
 interface ReviewContentProps {
   review: Review;
   releaseDate?: string | null;
   tmdbId?: number;
+  onRefresh?: () => void;
+  movieTitle?: string;
+  posterPath?: string | null;
 }
 
 // Known allowed tags for splitting concatenated strings
@@ -129,9 +137,52 @@ const formatReviewText = (text: string) => {
   return finalParas;
 };
 
-export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewContentProps) {
+/**
+ * Parse [[Movie Title]] markers in review text into clickable links.
+ * Falls back to plain text if no markers are found (backward compatible).
+ */
+function parseMovieMentions(text: string): ReactNode[] {
+  const regex = /\[\[([^\]]+)\]\]/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const movieName = match[1];
+    parts.push(
+      <Link
+        key={`mention-${match.index}`}
+        href={`/search?q=${encodeURIComponent(movieName)}`}
+        className="text-accent-gold underline decoration-accent-gold/40 underline-offset-2 hover:text-accent-goldLight hover:decoration-accent-gold transition-colors duration-150"
+      >
+        {movieName}
+      </Link>
+    );
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
+export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, movieTitle, posterPath }: ReviewContentProps) {
   const paragraphs = formatReviewText(review.review_text);
   const tags = fixTags(review.tags);
+  const { data: session } = useSession();
+  const { isSaved, mounted: watchlistMounted } = useWatchlist();
+  const [showSaveCTA, setShowSaveCTA] = useState(false);
+
+  useEffect(() => {
+    if (watchlistMounted && tmdbId && session?.user) {
+      setShowSaveCTA(!isSaved(tmdbId));
+    }
+  }, [watchlistMounted, tmdbId, isSaved, session]);
 
   const daysSinceRelease = (() => {
     if (!releaseDate) return null;
@@ -182,9 +233,33 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
         </div>
       )}
 
-      {/* 2. VERDICT BADGE */}
-      <div className="flex justify-center items-center">
-        <VerdictBadge verdict={review.verdict} size="lg" />
+      {/* 2. VERDICT BADGE + REFRESH */}
+      <div className="flex flex-col items-center gap-3">
+        <div className="flex items-center gap-3">
+          <VerdictBadge verdict={review.verdict} size="lg" />
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-widest border border-white/10 bg-white/5 text-white/60 hover:text-accent-gold hover:border-accent-gold/30 hover:bg-accent-gold/10 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none group overflow-hidden"
+            >
+              <span className="absolute inset-0 -translate-x-full group-first-of-type:animate-[shimmer-once_1.5s_ease-out_0.5s_forwards] bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+              <svg
+                className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="hidden sm:inline">Refresh Verdict</span>
+              <span className="sm:hidden">Refresh</span>
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-white/30 tracking-wide">
+          AI-powered verdict — refreshes with the latest reviews
+        </p>
       </div>
 
       {/* 3. THE HOOK + Tags */}
@@ -224,21 +299,26 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
       {/* Main Review Text */}
       <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-base md:text-lg leading-relaxed text-text-secondary/90 text-justify hyphens-auto">
         {paragraphs.map((para, i) => {
+          const parsed = parseMovieMentions(para);
           if (i === 0 && para.length > 0) {
-            const firstLetter = para.charAt(0);
-            const restOfText = para.slice(1);
+            const firstChar = typeof parsed[0] === "string" ? parsed[0].charAt(0) : "";
+            const restOfFirst = typeof parsed[0] === "string" ? parsed[0].slice(1) : parsed[0];
+            const rest = parsed.slice(1);
             return (
               <p key={i}>
-                <span className="float-left mr-3 mt-[-4px] text-5xl sm:text-6xl font-display font-bold text-accent-gold leading-[0.8]">
-                  {firstLetter}
-                </span>
-                {restOfText}
+                {firstChar && (
+                  <span className="float-left mr-3 mt-[-4px] text-5xl sm:text-6xl font-display font-bold text-accent-gold leading-[0.8]">
+                    {firstChar}
+                  </span>
+                )}
+                {restOfFirst}
+                {rest}
               </p>
             );
           }
           return (
             <p key={i}>
-              {para}
+              {parsed}
             </p>
           );
         })}
@@ -285,6 +365,25 @@ export default function ReviewContent({ review, releaseDate, tmdbId }: ReviewCon
 
       {/* Feedback */}
       {tmdbId && <ReviewFeedback tmdbId={tmdbId} />}
+
+      {/* Save CTA — nudges users who haven't saved this movie */}
+      {showSaveCTA && tmdbId && movieTitle && (
+        <div className="animate-fade-in flex flex-col sm:flex-row items-center justify-center gap-3 py-5 px-5 rounded-xl border border-accent-gold/10 bg-accent-gold/[0.03]">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <span className="text-base" aria-hidden="true">🎬</span>
+            <p className="text-sm text-text-secondary">
+              Like this pick? Save it to your watchlist.
+            </p>
+          </div>
+          <BookmarkButton
+            tmdb_id={tmdbId}
+            title={movieTitle}
+            poster_path={posterPath || null}
+            verdict={review.verdict}
+            variant="page"
+          />
+        </div>
+      )}
 
       {/* Trailer Embed */}
       {review.trailer_url && (

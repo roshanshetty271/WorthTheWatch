@@ -134,6 +134,9 @@ class LLMReviewOutput(BaseModel):
     negative_pct: Optional[int] = None
     mixed_pct: Optional[int] = None
 
+    # Clickable movie mentions — titles wrapped in [[]] in review_text
+    mentioned_movies: list[str] = Field(default_factory=list, description="Other movie/show titles mentioned in the review")
+
     @field_validator('tags', mode='after')
     @classmethod
     def validate_tags(cls, v):

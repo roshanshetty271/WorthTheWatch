@@ -54,9 +54,10 @@ export default function BookmarkButton({
         setTimeout(() => setPop(false), 300);
     };
 
+    const iconSize = variant === "card" ? "w-4 h-4" : "w-5 h-5";
     const icon = (
         <svg
-            className={variant === "card" ? "w-4 h-4" : "w-4 h-4"}
+            className={iconSize}
             fill={saved ? "currentColor" : "none"}
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -101,16 +102,30 @@ export default function BookmarkButton({
             <button
                 onClick={handleClick}
                 className={`
-        inline-flex items-center gap-2 px-5 py-2 rounded-xl
-        text-base font-semibold transition-all duration-200
-        ${saved ? "bg-accent-gold/10 text-accent-gold border border-accent-gold/30" : "bg-black/30 backdrop-blur-sm text-white border border-white/10 hover:border-white/20"}
+        inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+        text-sm font-semibold transition-all duration-200
+        ${saved
+                        ? "bg-accent-gold/10 text-accent-gold border border-accent-gold/30"
+                        : "bg-white/10 backdrop-blur-sm text-white border border-white/20 hover:border-accent-gold/40 hover:bg-accent-gold/5 hover:text-accent-gold"
+                    }
         ${pop ? "scale-105" : "scale-100"}
         ${className}
       `}
                 aria-label={saved ? "Remove from watchlist" : "Add to watchlist"}
             >
-                {icon}
-                {saved ? "Saved" : "Save"}
+                {saved ? (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                ) : (
+                    <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        {icon}
+                    </>
+                )}
+                {saved ? "Saved to Watchlist" : "Add to Watchlist"}
             </button>
             <SignInDialog
                 open={showSignIn}

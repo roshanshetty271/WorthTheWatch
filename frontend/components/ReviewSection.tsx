@@ -318,25 +318,6 @@ export default function ReviewSection({
     if (review) {
         return (
             <div className="relative">
-                {/* Refresh Verdict — top right */}
-                <div className="flex items-center justify-end mb-3">
-                    <button
-                        onClick={handleRegenerate}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/50 hover:text-accent-gold hover:bg-accent-gold/10 uppercase tracking-widest transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none group"
-                    >
-                        <svg
-                            className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Refresh Verdict
-                    </button>
-                </div>
-
                 {rateLimitInfo && (
                     <div className="mb-4">
                         <RateLimitCard
@@ -349,7 +330,14 @@ export default function ReviewSection({
 
                 <h2 className="sr-only">Is {movieTitle} Worth Watching?</h2>
 
-                <ReviewContent review={review} releaseDate={releaseDate} tmdbId={tmdbId} />
+                <ReviewContent
+                    review={review}
+                    releaseDate={releaseDate}
+                    tmdbId={tmdbId}
+                    onRefresh={handleRegenerate}
+                    movieTitle={movieTitle}
+                    posterPath={posterPath}
+                />
 
                 <SignInDialog
                     open={showSignIn}
