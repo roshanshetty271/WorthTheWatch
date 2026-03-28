@@ -4,6 +4,7 @@ Endpoints for listing and retrieving movies with reviews.
 """
 
 import math
+import random as _random
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, desc, and_, or_, cast, String
@@ -189,7 +190,6 @@ async def list_movies(
         # ─── Mood Categories (Curated Lists) ─────────────────────────
         elif category.startswith("mood-"):
             from app.services.curated_moods import CURATED_MOODS
-            import random as _random
 
             mood = category.replace("mood-", "")
             curated_ids = CURATED_MOODS.get(mood, [])
@@ -303,10 +303,46 @@ async def get_random_movie_with_review(
         result = await db.execute(query)
         movie = result.unique().scalar_one_or_none()
 
-    if not movie:
-        raise HTTPException(status_code=404, detail="No reviewed movies found")
+    if movie:
+        return _format_movie_with_review(movie)
 
-    return _format_movie_with_review(movie)
+    # Fourth: TMDB discover fallback — pick a random well-rated movie
+    try:
+        page = _random.randint(1, 5)
+        data = await tmdb_service._get("/discover/movie", params={
+            "vote_average.gte": 7,
+            "vote_count.gte": 500,
+            "sort_by": "vote_average.desc",
+            "include_adult": "false",
+            "page": page,
+        })
+        candidates = [
+            r for r in data.get("results", [])
+            if r.get("poster_path") and is_safe_content(r)
+            and (not exclude or r.get("id") != exclude)
+        ]
+        if candidates:
+            pick = _random.choice(candidates)
+            movie_resp = MovieResponse(
+                id=0,
+                tmdb_id=pick["id"],
+                title=pick.get("title", "Unknown"),
+                media_type="movie",
+                overview=pick.get("overview"),
+                poster_path=pick.get("poster_path"),
+                backdrop_path=pick.get("backdrop_path"),
+                genres=[],
+                release_date=pick.get("release_date") or None,
+                tmdb_popularity=pick.get("popularity"),
+                tmdb_vote_average=pick.get("vote_average"),
+                poster_url=tmdb_service.get_poster_url(pick.get("poster_path")),
+                backdrop_url=tmdb_service.get_backdrop_url(pick.get("backdrop_path")),
+            )
+            return MovieWithReview(movie=movie_resp, review=None)
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=404, detail="No reviewed movies found")
 
 
 

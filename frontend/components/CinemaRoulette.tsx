@@ -462,7 +462,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                     transition={{ duration: 0.5, delay: 0.1 }}
                                     className={`px-5 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-sm ${verdictStyle(movie.review?.verdict)}`}
                                 >
-                                    {movie.review?.verdict || "WORTH IT"}
+                                    {movie.review?.verdict || "HIGHLY RATED"}
                                 </motion.div>
 
                                 <motion.p
@@ -499,7 +499,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                         onClick={handleViewReview}
                                         className="flex-1 py-3.5 bg-accent-gold text-black font-bold uppercase tracking-wider rounded-xl text-xs hover:brightness-110 active:scale-[0.98] transition-all"
                                     >
-                                        View Review
+                                        {movie.review ? "View Review" : "Get Verdict"}
                                     </button>
                                     <BookmarkButton
                                         tmdb_id={movie.movie.tmdb_id}
