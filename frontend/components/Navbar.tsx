@@ -376,6 +376,14 @@ export default function Navbar() {
                         Features
                     </button>
 
+                    <Link
+                        href="/my-list"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
+                    >
+                        My List{mounted && count > 0 ? ` (${count})` : ""}
+                    </Link>
+
                     {/* Explore — collapsible accordion */}
                     <div className="w-full border-b border-white/10">
                         <button
@@ -432,20 +440,6 @@ export default function Navbar() {
                             </div>
                         )}
                     </div>
-
-                    <button
-                        onClick={() => { setMobileMenuOpen(false); setRouletteOpen(true); }}
-                        className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-accent-gold hover:text-accent-goldLight transition-colors text-center border-b border-white/10"
-                    >
-                        Can&apos;t Decide?
-                    </button>
-                    <Link
-                        href="/my-list"
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
-                    >
-                        My List{mounted && count > 0 ? ` (${count})` : ""}
-                    </Link>
 
                     {/* Mobile Auth Section */}
                     <div className="w-full">
