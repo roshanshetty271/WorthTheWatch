@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Review } from "@/lib/api";
 import { useWatchlist } from "@/lib/useWatchlist";
@@ -137,11 +137,30 @@ const formatReviewText = (text: string) => {
   return finalParas;
 };
 
+interface ResolvedMovie {
+  tmdb_id: number;
+  media_type: string;
+}
+
+function extractMentionedTitles(text: string): string[] {
+  const regex = /\[\[([^\]]+)\]\]/g;
+  const titles: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (!titles.includes(match[1])) titles.push(match[1]);
+  }
+  return titles;
+}
+
 /**
  * Parse [[Movie Title]] markers in review text into clickable links.
- * Falls back to plain text if no markers are found (backward compatible).
+ * When resolvedMap has an entry, links go directly to the movie page.
+ * Otherwise falls back to /search?q=...
  */
-function parseMovieMentions(text: string): ReactNode[] {
+function parseMovieMentions(
+  text: string,
+  resolvedMap: Record<string, ResolvedMovie>
+): ReactNode[] {
   const regex = /\[\[([^\]]+)\]\]/g;
   const parts: ReactNode[] = [];
   let lastIndex = 0;
@@ -152,10 +171,14 @@ function parseMovieMentions(text: string): ReactNode[] {
       parts.push(text.slice(lastIndex, match.index));
     }
     const movieName = match[1];
+    const resolved = resolvedMap[movieName];
+    const href = resolved
+      ? `/movie/${resolved.tmdb_id}?type=${resolved.media_type}`
+      : `/search?q=${encodeURIComponent(movieName)}`;
     parts.push(
       <Link
         key={`mention-${match.index}`}
-        href={`/search?q=${encodeURIComponent(movieName)}`}
+        href={href}
         className="text-accent-gold underline decoration-accent-gold/40 underline-offset-2 hover:text-accent-goldLight hover:decoration-accent-gold transition-colors duration-150"
       >
         {movieName}
@@ -171,12 +194,48 @@ function parseMovieMentions(text: string): ReactNode[] {
   return parts.length > 0 ? parts : [text];
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, movieTitle, posterPath }: ReviewContentProps) {
   const paragraphs = formatReviewText(review.review_text);
   const tags = fixTags(review.tags);
   const { data: session } = useSession();
   const { isSaved, mounted: watchlistMounted } = useWatchlist();
   const [showSaveCTA, setShowSaveCTA] = useState(false);
+  const [resolvedMentions, setResolvedMentions] = useState<Record<string, ResolvedMovie>>({});
+
+  const mentionedTitles = useMemo(
+    () => extractMentionedTitles(review.review_text),
+    [review.review_text]
+  );
+
+  useEffect(() => {
+    if (mentionedTitles.length === 0) return;
+    let cancelled = false;
+
+    async function resolve() {
+      const map: Record<string, ResolvedMovie> = {};
+      await Promise.all(
+        mentionedTitles.map(async (title) => {
+          try {
+            const res = await fetch(
+              `${API_BASE}/api/search/quick?q=${encodeURIComponent(title)}`
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            const first = data.results?.[0];
+            if (first) {
+              map[title] = { tmdb_id: first.tmdb_id, media_type: first.media_type };
+            }
+          } catch { /* ignore - fallback link still works */ }
+        })
+      );
+      if (!cancelled) setResolvedMentions(map);
+    }
+
+    resolve();
+    return () => { cancelled = true; };
+  }, [mentionedTitles]);
 
   useEffect(() => {
     if (watchlistMounted && tmdbId && session?.user) {
@@ -296,7 +355,7 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
       {/* Main Review Text */}
       <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-base md:text-lg leading-relaxed text-text-secondary/90 text-justify hyphens-auto">
         {paragraphs.map((para, i) => {
-          const parsed = parseMovieMentions(para);
+          const parsed = parseMovieMentions(para, resolvedMentions);
           if (i === 0 && para.length > 0) {
             const firstChar = typeof parsed[0] === "string" ? parsed[0].charAt(0) : "";
             const restOfFirst = typeof parsed[0] === "string" ? parsed[0].slice(1) : parsed[0];

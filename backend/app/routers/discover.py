@@ -141,15 +141,16 @@ async def discover(
         if results:
             tmdb_ids = [r["tmdb_id"] for r in results]
             reviewed = await db.execute(
-                select(Movie.tmdb_id, Review.verdict)
+                select(Movie.tmdb_id, Movie.media_type, Review.verdict)
                 .join(Review, Review.movie_id == Movie.id)
                 .where(Movie.tmdb_id.in_(tmdb_ids))
             )
-            verdict_map = {row.tmdb_id: row.verdict for row in reviewed.all()}
+            verdict_map = {(row.tmdb_id, row.media_type): row.verdict for row in reviewed.all()}
 
             for r in results:
-                r["verdict"] = verdict_map.get(r["tmdb_id"])
-                r["has_review"] = r["tmdb_id"] in verdict_map
+                key = (r["tmdb_id"], media_type)
+                r["verdict"] = verdict_map.get(key)
+                r["has_review"] = key in verdict_map
 
         return {
             "results": results,

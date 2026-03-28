@@ -107,10 +107,8 @@ export default function SearchBar({
   // Highlight matching text (fuzzy-ish)
   const getHighlightedText = (text: string, highlight: string) => {
     if (!highlight.trim()) return text;
-    // Split query by space to highlight individual words if needed, 
-    // but for now simple case-insensitive match for the whole chunk or fallback
-    // We'll trust the browser's find logic style for now, but here we just regex replace
-    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+    const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
     return (
       <span>
         {parts.map((part, i) =>

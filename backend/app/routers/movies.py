@@ -539,14 +539,15 @@ async def get_recommendations(
         # Cross-reference with our review DB for verdicts
         if tmdb_ids:
             reviewed = await db.execute(
-                select(Movie.tmdb_id, Review.verdict)
+                select(Movie.tmdb_id, Movie.media_type, Review.verdict)
                 .join(Review, Review.movie_id == Movie.id)
                 .where(Movie.tmdb_id.in_(tmdb_ids))
             )
-            verdict_map = {row.tmdb_id: row.verdict for row in reviewed.all()}
+            verdict_map = {(row.tmdb_id, row.media_type): row.verdict for row in reviewed.all()}
             for r in results:
-                r["verdict"] = verdict_map.get(r["tmdb_id"])
-                r["has_review"] = r["tmdb_id"] in verdict_map
+                key = (r["tmdb_id"], r.get("media_type", "movie"))
+                r["verdict"] = verdict_map.get(key)
+                r["has_review"] = key in verdict_map
 
         return {"results": results}
     except Exception as e:

@@ -113,10 +113,12 @@ async def quick_search(
         
         if tmdb_id in db_movies_map:
             db_m = db_movies_map[tmdb_id]
-            if db_m.review:
-                has_review = True
-            if db_m.poster_path:
-                final_poster_url = tmdb_service.get_poster_url(db_m.poster_path)
+            result_media_type = normalized.get("media_type", "movie")
+            if db_m.media_type == result_media_type:
+                if db_m.review:
+                    has_review = True
+                if db_m.poster_path:
+                    final_poster_url = tmdb_service.get_poster_url(db_m.poster_path)
 
         results.append({
             **normalized,

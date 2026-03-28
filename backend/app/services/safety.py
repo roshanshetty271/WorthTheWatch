@@ -3,7 +3,21 @@ Worth the Watch? — Safety Service
 Centralized logic for filtering unsafe, softcore, and spam content.
 """
 
+import re
 from datetime import datetime, timedelta
+
+_HARD_BLOCKLIST = [
+    "erotic", "voyeur", "nude", "taboo", "incest", "rape",
+    "lust", "fetish", "orgy", "xxx", "porn",
+    "milf", "stepmom", "stepdad", "barely legal",
+    "unsimulated sex", "real sex", "sexual obsession",
+    "tinto brass", "brass tinto", "softcore", "pink film",
+    "sex", "step-",
+]
+_HARD_BLOCKLIST_PATTERNS = [
+    re.compile(r'\b' + re.escape(word.strip()), re.IGNORECASE)
+    for word in _HARD_BLOCKLIST
+]
 
 def is_safe_content(item: dict) -> bool:
     """
@@ -61,17 +75,11 @@ def is_safe_content(item: dict) -> bool:
                         return False
 
     # A3. The "Hard" Text Blocklist (Immediate Ban)
-    # These words almost never appear in safe, mainstream content contexts we care about.
-    hard_blocklist = [
-        "erotic", "voyeur", "nude", "taboo", "incest", "rape", 
-        "lust", "fetish", "orgy", "sex ", "xxx", "porn", 
-        "milf", "stepmom", "stepdad", "step-", "barely legal",
-        "unsimulated sex", "real sex", "sexual obsession",
-        "tinto brass", "brass tinto", "softcore", "pink film"
-    ]
-    
-    for word in hard_blocklist:
-        if word in text_to_check:
+    # Uses word-boundary matching (\b) to avoid false positives where
+    # blocklist words appear inside normal words (e.g. "scrapes" contains
+    # "rape", "illustrate" contains "lust", "grape" contains "rape").
+    for pattern in _HARD_BLOCKLIST_PATTERNS:
+        if pattern.search(text_to_check):
             return False
 
     # B. The "Risky" Multi-Hit Filter
