@@ -91,6 +91,12 @@ body {
   }
 }
 
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes progress {
   from {
     width: 0%;

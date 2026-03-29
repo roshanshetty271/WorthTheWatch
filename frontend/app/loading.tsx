@@ -1,6 +1,6 @@
 export default function HomeLoading() {
   return (
-    <div className="min-h-screen animate-pulse">
+    <div className="min-h-screen animate-pulse opacity-0" style={{ animation: "fadeIn 0.3s ease-in 1s forwards" }}>
       {/* Hero skeleton */}
       <div className="relative min-h-[80svh] md:min-h-[100svh] bg-white/5">
         <div className="absolute bottom-12 left-6 sm:left-12 space-y-3">

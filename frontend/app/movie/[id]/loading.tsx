@@ -1,6 +1,6 @@
 export default function MovieLoading() {
   return (
-    <div className="min-h-screen animate-pulse">
+    <div className="min-h-screen animate-pulse opacity-0" style={{ animation: "fadeIn 0.3s ease-in 1s forwards" }}>
       {/* Backdrop skeleton */}
       <div className="relative min-h-[50vh] md:min-h-[60vh] bg-white/5">
         {/* Back button */}

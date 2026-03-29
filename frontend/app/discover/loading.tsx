@@ -1,6 +1,6 @@
 export default function DiscoverLoading() {
   return (
-    <div className="min-h-screen animate-pulse pt-28 md:pt-32 px-4">
+    <div className="min-h-screen animate-pulse pt-28 md:pt-32 px-4 opacity-0" style={{ animation: "fadeIn 0.3s ease-in 1s forwards" }}>
       <div className="max-w-6xl mx-auto">
         <div className="h-10 w-48 bg-white/10 rounded-lg mb-2" />
         <div className="h-4 w-72 bg-white/5 rounded-lg mb-8" />
