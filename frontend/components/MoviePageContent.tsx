@@ -473,7 +473,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                                     onClick={() => setSelectedActor({ id: person.id, name: person.name, image: person.profile_url })}
                                     className="flex-shrink-0 w-20 text-center cursor-pointer group"
                                 >
-                                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border-2 border-accent-gold/30 group-hover:border-accent-gold/60 group-hover:scale-110 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_0_2px_rgba(196,167,107,0.15)] group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.6),0_0_0_3px_rgba(196,167,107,0.3)] mx-auto relative transition-all duration-200">
+                                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border-2 border-accent-gold/30 sm:group-hover:border-accent-gold/60 sm:group-hover:scale-110 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_0_2px_rgba(196,167,107,0.15)] sm:group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.6),0_0_0_3px_rgba(196,167,107,0.3)] mx-auto relative transition-all duration-200">
                                         {person.profile_url && !failedCastImages.has(person.id) ? (
                                             <Image
                                                 src={person.profile_url}
