@@ -170,7 +170,15 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
 
             if (!res.ok) {
                 if (res.status === 429) {
-                    setRouletteError("rate_limit");
+                    const detail = await res.json().catch(() => ({}));
+                    const limitType = detail?.detail?.type || detail?.type || "";
+                    const isGlobal = limitType.startsWith("global_");
+
+                    if (!isGlobal && !isSignedIn) {
+                        setShowSignIn(true);
+                    } else {
+                        setRouletteError("rate_limit");
+                    }
                     setPhase("prompt");
                     return;
                 }
@@ -203,7 +211,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
             console.error("Roulette fetch failed:", e);
             setPhase("prompt");
         }
-    }, [canRoulette, incrementRoulette]);
+    }, [canRoulette, incrementRoulette, isSignedIn]);
 
     const handleSpinComplete = useCallback(() => {
         setTimeout(() => setPhase("expanding"), 300);

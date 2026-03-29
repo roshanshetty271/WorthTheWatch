@@ -43,8 +43,10 @@ class Settings(BaseSettings):
     HOURLY_GLOBAL_LIMIT: int = 300
     ON_DEMAND_PER_IP_PER_HOUR: int = 3
     ON_DEMAND_PER_IP_PER_DAY: int = 3
-    BATTLE_PER_IP_PER_DAY: int = 3
-    ROULETTE_PER_IP_PER_DAY: int = 3
+    BATTLE_PER_IP_PER_HOUR: int = 50
+    BATTLE_PER_IP_PER_DAY: int = 100
+    ROULETTE_PER_IP_PER_HOUR: int = 50
+    ROULETTE_PER_IP_PER_DAY: int = 100
     RATE_LIMIT_WHITELIST: str = ""
 
     # Phase 2 APIs

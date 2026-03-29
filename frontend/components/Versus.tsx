@@ -289,7 +289,14 @@ export default function Versus() {
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
                     if (res.status === 429) {
-                        setBattleError("rate_limit");
+                        const limitType = err?.detail?.type || err?.type || "";
+                        const isGlobal = limitType.startsWith("global_");
+
+                        if (!isGlobal && !isSignedIn) {
+                            setShowSignIn(true);
+                        } else {
+                            setBattleError("rate_limit");
+                        }
                         setPhase("landing");
                         if (loadingInterval.current) clearInterval(loadingInterval.current);
                         return;

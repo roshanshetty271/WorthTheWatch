@@ -23,12 +23,12 @@ _LIMIT_MAP = {
         "counts_toward_daily_global": True,
     },
     "battle": {
-        "per_ip_per_hour": settings.BATTLE_PER_IP_PER_DAY,
+        "per_ip_per_hour": settings.BATTLE_PER_IP_PER_HOUR,
         "per_ip_per_day": settings.BATTLE_PER_IP_PER_DAY,
         "counts_toward_daily_global": True,
     },
     "roulette": {
-        "per_ip_per_hour": settings.ROULETTE_PER_IP_PER_DAY,
+        "per_ip_per_hour": settings.ROULETTE_PER_IP_PER_HOUR,
         "per_ip_per_day": settings.ROULETTE_PER_IP_PER_DAY,
         "counts_toward_daily_global": False,
     },
