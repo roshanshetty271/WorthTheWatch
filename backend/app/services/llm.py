@@ -6,6 +6,7 @@ Uses OpenAI SDK for both (DeepSeek is OpenAI-compatible).
 
 import json
 import logging
+import re
 from openai import AsyncOpenAI
 from app.config import get_settings
 from app.schemas import LLMReviewOutput, ALLOWED_TAGS
@@ -29,19 +30,34 @@ def _build_deepseek_client():
     return None, None
 
 
+def strip_double_brackets(text: str) -> str:
+    """Remove [[...]] brackets, keeping the inner text."""
+    if not text:
+        return text
+    return re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
+
+
+def strip_self_mentions(text: str, title: str) -> str:
+    """Remove [[Title]] brackets when Title matches the movie being reviewed."""
+    if not text or not title:
+        return text
+    pattern = re.compile(r'\[\[(' + re.escape(title) + r')\]\]', re.IGNORECASE)
+    return pattern.sub(r'\1', text)
+
+
 def sanitize_text(text: str) -> str:
     """Remove JSON artifacts and cleanup text."""
     if not text:
         return ""
     text = str(text).strip()
-    
+
     # Remove escaped quotes that might have slipped through double-encoding
     text = text.replace('\\"', '"').replace("\\'", "'")
-    
+
     # Recursively remove invalid starting/ending characters
     while text and (text.startswith(('"', "'", "`")) or text.endswith(('"', "'", "`"))):
         text = text.strip(" \"'`")
-        
+
     return text.strip()
 
 
@@ -170,6 +186,8 @@ ABSOLUTE RULES:
 - If critics and Reddit disagree, that IS the story. Lead with it.
 - In the "HOOK" sentence, refer to Reddit users as "audiences" or "viewers" instead of "Reddit users".
 - When you mention another movie or TV show by name in the review_text, wrap it in double brackets like [[The Dark Knight]] or [[Breaking Bad]]. This will become a clickable link. Only wrap the title, not the surrounding text.
+- NEVER use [[]] brackets in the hook, vibe, praise_points, criticism_points, or best_quote fields. ONLY use them in review_text.
+- NEVER wrap the movie you are currently reviewing in [[]] brackets. Only wrap OTHER movies or shows you reference.
 
 OUTPUT FORMAT (strict JSON, no markdown fences):
 {
@@ -390,10 +408,23 @@ MANDATORY INSTRUCTIONS:
         if "review_text" in data: data["review_text"] = sanitize_text(data["review_text"])
         if "hook" in data: data["hook"] = sanitize_text(data["hook"])
         if "best_quote" in data: data["best_quote"] = sanitize_text(data["best_quote"])
-        if "praise_points" in data: 
+        if "praise_points" in data:
             data["praise_points"] = [sanitize_text(p) for p in data["praise_points"]]
-        if "criticism_points" in data: 
+        if "criticism_points" in data:
             data["criticism_points"] = [sanitize_text(p) for p in data["criticism_points"]]
+
+        # Strip [[]] brackets from non-review fields (LLM sometimes ignores instructions)
+        if "hook" in data: data["hook"] = strip_double_brackets(data["hook"])
+        if "vibe" in data: data["vibe"] = strip_double_brackets(data["vibe"])
+        if "best_quote" in data: data["best_quote"] = strip_double_brackets(data["best_quote"])
+        if "praise_points" in data:
+            data["praise_points"] = [strip_double_brackets(p) for p in data["praise_points"]]
+        if "criticism_points" in data:
+            data["criticism_points"] = [strip_double_brackets(p) for p in data["criticism_points"]]
+
+        # Strip self-referential [[Title]] from review_text
+        if "review_text" in data:
+            data["review_text"] = strip_self_mentions(data["review_text"], title)
         
         # Fix concatenated tags: if any tag contains multiple tag names without separator
         if "tags" in data and isinstance(data["tags"], list):
