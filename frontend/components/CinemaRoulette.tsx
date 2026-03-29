@@ -519,9 +519,9 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                     />
                                     <button
                                         onClick={handleSpinAgain}
-                                        className="flex-1 py-3.5 bg-white/10 text-white font-bold uppercase tracking-wider rounded-xl text-xs hover:bg-white/20 active:scale-95 transition-all"
+                                        className="flex-1 py-3.5 bg-accent-gold text-black font-bold uppercase tracking-wider rounded-xl text-xs hover:brightness-110 active:scale-[0.98] transition-all"
                                     >
-                                        Spin Again
+                                        Spin<br />Again
                                     </button>
                                 </motion.div>
                             </div>
