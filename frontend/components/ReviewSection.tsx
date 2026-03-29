@@ -131,10 +131,25 @@ export default function ReviewSection({
     }
 
     // ─── Polling Fallback ──────────────────────────────────
+    const pollCountRef = useRef(0);
+    const MAX_POLL_RETRIES = 60; // 2 minutes at 2s intervals
+
     function startPolling() {
         if (pollRef.current) clearInterval(pollRef.current);
+        pollCountRef.current = 0;
 
         pollRef.current = setInterval(async () => {
+            pollCountRef.current += 1;
+
+            if (pollCountRef.current > MAX_POLL_RETRIES) {
+                if (pollRef.current) clearInterval(pollRef.current);
+                sessionStorage.removeItem(SESSION_KEY);
+                setGenerating(false);
+                setRegenerating(false);
+                setError("Generation timed out. Please try again.");
+                return;
+            }
+
             try {
                 const res = await fetch(`${API_BASE}/api/search/status/${tmdbId}`);
                 if (res.ok) {

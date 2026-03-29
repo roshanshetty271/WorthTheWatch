@@ -143,7 +143,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { id } = await params;
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const res = await fetch(`${API_URL}/api/movies/${id}`, {
-      next: { revalidate: 3600 }
+      next: { revalidate: 600 }
     });
     if (!res.ok) return { title: 'Worth the Watch?' };
     const data: MovieWithReview = await res.json();
