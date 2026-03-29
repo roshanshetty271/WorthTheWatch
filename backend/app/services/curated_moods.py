@@ -1,6 +1,6 @@
 """
 Worth the Watch? — Curated Mood Lists
-25 iconic picks + 25 underrated gems per mood = 50 total.
+45 iconic picks + 45 underrated gems per mood = 90 total.
 Interleaved so users see a mix of known and unknown.
 
 Sources: Rotten Tomatoes, Ranker, IMDb, Collider, IndieWire,
@@ -24,7 +24,7 @@ def _interleave(iconic: list[int], underrated: list[int]) -> list[int]:
             u += 1
         if i >= len(iconic) and u >= len(underrated):
             break
-    return result[:50]
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -57,6 +57,27 @@ TIRED_ICONIC = [
     607,      # Men in Black
     9806,     # The Incredibles
     22,       # Pirates of the Caribbean
+    # ── New additions ──
+    129,      # Spirited Away
+    4935,     # Howl's Moving Castle
+    16859,    # Kiki's Delivery Service
+    354912,   # Coco
+    150540,   # Inside Out
+    509,      # Notting Hill
+    161,      # Ocean's Eleven
+    587,      # Big Fish
+    773,      # Little Miss Sunshine
+    515001,   # Jojo Rabbit
+    10315,    # Fantastic Mr. Fox
+    550988,   # Free Guy
+    346648,   # Paddington 2
+    508965,   # The Mitchells vs. the Machines
+    4951,     # 10 Things I Hate About You
+    11970,    # The Holiday
+    315162,   # Puss in Boots: The Last Wish
+    24803,    # Julie & Julia
+    872,      # Singin' in the Rain
+    8835,     # Legally Blonde
 ]
 
 TIRED_UNDERRATED = [
@@ -85,6 +106,27 @@ TIRED_UNDERRATED = [
     11257,    # A Room with a View
     81,       # Nausicaa of the Valley of the Wind
     489,      # Good Will Hunting
+    # ── New additions ──
+    371645,   # Hunt for the Wilderpeople
+    228194,   # The Hundred-Foot Journey
+    463257,   # The Peanut Butter Falcon
+    198277,   # Begin Again
+    369557,   # Sing Street
+    13156,    # Secondhand Lions
+    2270,     # Stardust
+    245,      # About a Boy
+    77338,    # The Intouchables
+    4476,     # Chocolat
+    9428,     # The Royal Tenenbaums
+    283366,   # Brooklyn
+    7340,     # Lars and the Real Girl
+    97051,    # The Best Exotic Marigold Hotel
+    1262,     # Stranger Than Fiction
+    455661,   # In the Heights
+    22881,    # The Blind Side
+    4247,     # Elf
+    14550,    # The Station Agent
+    438631,   # Dumplin'
 ]
 
 
@@ -118,6 +160,27 @@ PUMPED_ICONIC = [
     807,      # Se7en
     85,       # Raiders of the Lost Ark
     244786,   # Whiplash
+    # ── New additions ──
+    949,      # Heat
+    137113,   # Edge of Tomorrow
+    1271,     # 300
+    273481,   # Sicario
+    324786,   # Hacksaw Ridge
+    558449,   # Gladiator II
+    560016,   # Monkey Man
+    603692,   # John Wick: Chapter 4
+    615457,   # Nobody
+    59440,    # Warrior
+    1089,     # Point Break
+    13373,    # Ip Man
+    180299,   # The Raid 2
+    8681,     # Taken
+    752,      # V for Vendetta
+    27586,    # The Town
+    64690,    # Drive
+    84185,    # Snowpiercer
+    339403,   # Baby Driver
+    242582,   # Nightcrawler
 ]
 
 PUMPED_UNDERRATED = [
@@ -146,6 +209,27 @@ PUMPED_UNDERRATED = [
     119450,   # Dawn of the Planet of the Apes
     557,      # Spider-Man (2002)
     823464,   # Godzilla x Kong
+    # ── New additions ──
+    500664,   # Upgrade
+    49049,    # Dredd
+    341013,   # Atomic Blonde
+    1029575,  # Rebel Ridge
+    221981,   # The Guest
+    310133,   # Green Room
+    634528,   # Wrath of Man
+    474335,   # Triple Frontier
+    670,      # Oldboy (2003)
+    44943,    # 13 Assassins
+    11517,    # Ong-Bak
+    38579,    # The Man from Nowhere
+    37850,    # I Saw the Devil
+    91344,    # Headhunters
+    396535,   # Train to Busan
+    18693,    # A Bittersweet Life
+    359410,   # Road House (2024)
+    156022,   # The Equalizer
+    9312,     # Crank
+    10999,    # Unleashed (Danny the Dog)
 ]
 
 
@@ -179,6 +263,27 @@ EMOTIONAL_ICONIC = [
     152601,   # Her
     313369,   # La La Land
     492188,   # Marriage Story
+    # ── New additions ──
+    376867,   # Moonlight
+    264644,   # Room (2015)
+    666277,   # Past Lives
+    258230,   # A Monster Calls
+    641,      # Requiem for a Dream
+    454983,   # The Farewell
+    354912,   # Coco
+    44826,    # The Help
+    1585,     # Mystic River
+    13223,    # Gran Torino
+    152532,   # Dallas Buyers Club
+    359940,   # Three Billboards Outside Ebbing, Missouri
+    419704,   # Lady Bird
+    11202,    # The Curious Case of Benjamin Button
+    177572,   # Big Hero 6
+    508439,   # Onward
+    515001,   # Jojo Rabbit
+    587,      # Big Fish
+    77338,    # The Intouchables
+    150540,   # Inside Out
 ]
 
 EMOTIONAL_UNDERRATED = [
@@ -207,6 +312,27 @@ EMOTIONAL_UNDERRATED = [
     153,      # Lost in Translation
     120467,   # The Grand Budapest Hotel
     508442,   # Soul
+    # ── New additions ──
+    916405,   # The Quiet Girl
+    533444,   # Waves
+    1443,     # The Virgin Suicides
+    7326,     # Juno
+    19913,    # Beasts of the Southern Wild
+    7549,     # The Diving Bell and the Butterfly
+    810693,   # Anatomy of a Fall
+    945961,   # Killers of the Flower Moon
+    429764,   # Minari
+    613504,   # After Yang
+    4538,     # The Painted Veil
+    11377,    # Hachi: A Dog's Tale
+    9836,     # The Perks of Being a Wallflower
+    283366,   # Brooklyn
+    463257,   # The Peanut Butter Falcon
+    369557,   # Sing Street
+    198277,   # Begin Again
+    371645,   # Hunt for the Wilderpeople
+    4476,     # Chocolat
+    9428,     # The Royal Tenenbaums
 ]
 
 
@@ -240,6 +366,27 @@ CEREBRAL_ICONIC = [
     286217,   # The Martian
     14,       # American Beauty
     489,      # Good Will Hunting
+    # ── New additions ──
+    300668,   # Annihilation
+    503919,   # The Lighthouse
+    146233,   # Prisoners
+    1949,     # Zodiac
+    242582,   # Nightcrawler
+    4553,     # The Machinist
+    545611,   # Everything Everywhere All at Once
+    670,      # Oldboy (2003)
+    335984,   # Blade Runner 2049
+    945961,   # Killers of the Flower Moon
+    1422,     # The Departed
+    389,      # 12 Angry Men
+    97370,    # Under the Skin
+    181886,   # Enemy
+    666277,   # Past Lives
+    810693,   # Anatomy of a Fall
+    641,      # Requiem for a Dream
+    10494,    # Perfect Blue
+    949,      # Heat
+    64690,    # Drive
 ]
 
 CEREBRAL_UNDERRATED = [
@@ -268,6 +415,27 @@ CEREBRAL_UNDERRATED = [
     106646,   # The Wolf of Wall Street
     640,      # Catch Me If You Can
     76600,    # Avatar: The Way of Water
+    # ── New additions ──
+    1398,     # Stalker (1979)
+    9426,     # The Conversation
+    9603,     # Caché (Hidden)
+    23128,    # Synecdoche, New York
+    10948,    # Waking Life
+    128,      # Princess Mononoke
+    747803,   # Civil War (2024)
+    68734,    # Compliance
+    11104,    # A Scanner Darkly
+    4960,     # The Fountain
+    4348,     # A Clockwork Orange
+    935,      # Dr. Strangelove
+    510,      # One Flew Over the Cuckoo's Nest
+    627,      # Trainspotting
+    10533,    # Brazil
+    813,      # Taxi Driver
+    1091,     # The Thing
+    1933,     # eXistenZ
+    475,      # Vertigo
+    1480,     # The Game
 ]
 
 
@@ -301,6 +469,27 @@ FUN_ICONIC = [
     8587,     # The Lion King
     137,      # Groundhog Day
     607,      # Men in Black
+    # ── New additions ──
+    746036,   # The Fall Guy (2024)
+    493529,   # Dungeons & Dragons: Honor Among Thieves
+    546554,   # Knives Out
+    290250,   # The Nice Guys
+    445571,   # Game Night
+    4638,     # Hot Fuzz
+    8363,     # Superbad
+    550988,   # Free Guy
+    354912,   # Coco
+    515001,   # Jojo Rabbit
+    545611,   # Everything Everywhere All at Once
+    150540,   # Inside Out
+    161,      # Ocean's Eleven
+    129,      # Spirited Away
+    346648,   # Paddington 2
+    315162,   # Puss in Boots: The Last Wish
+    508965,   # The Mitchells vs. the Machines
+    339403,   # Baby Driver
+    137113,   # Edge of Tomorrow
+    177572,   # Big Hero 6
 ]
 
 FUN_UNDERRATED = [
@@ -329,6 +518,27 @@ FUN_UNDERRATED = [
     95,       # Armageddon
     2062,     # Ratatouille
     1895,     # Star Wars: Return of the Jedi
+    # ── New additions ──
+    371645,   # Hunt for the Wilderpeople
+    369557,   # Sing Street
+    2270,     # Stardust
+    463257,   # The Peanut Butter Falcon
+    91344,    # Headhunters
+    396535,   # Train to Busan
+    77338,    # The Intouchables
+    455661,   # In the Heights
+    9428,     # The Royal Tenenbaums
+    4247,     # Elf
+    1262,     # Stranger Than Fiction
+    228194,   # The Hundred-Foot Journey
+    97051,    # The Best Exotic Marigold Hotel
+    283366,   # Brooklyn
+    245,      # About a Boy
+    438631,   # Dumplin'
+    198277,   # Begin Again
+    4476,     # Chocolat
+    13156,    # Secondhand Lions
+    7340,     # Lars and the Real Girl
 ]
 
 

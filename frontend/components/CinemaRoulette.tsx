@@ -507,7 +507,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                                         poster_path={movie.movie.poster_path || null}
                                         verdict={movie.review?.verdict || null}
                                         variant="page"
-                                        className="!py-3.5 !rounded-xl !text-xs !tracking-wider !uppercase !font-bold"
+                                        className="!py-3.5 !rounded-xl !text-xs !tracking-wider !uppercase !font-bold !flex-1"
                                     />
                                     <button
                                         onClick={handleSpinAgain}
