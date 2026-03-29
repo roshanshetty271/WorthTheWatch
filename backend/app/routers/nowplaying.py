@@ -14,7 +14,12 @@ accurate results every time.
 
 import logging
 from datetime import date, timedelta
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.models import Movie, Review
 from app.services.tmdb import tmdb_service
 from app.services.safety import is_safe_content
 
@@ -49,10 +54,45 @@ def _format_result(item: dict, media_type: str) -> dict:
     }
 
 
+async def _enrich_with_reviews(results: list[dict], media_type: str, db: AsyncSession):
+    """Cross-reference TMDB results with our review database to attach verdicts + scores."""
+    if not results:
+        return
+    tmdb_ids = [r["tmdb_id"] for r in results]
+    rows = await db.execute(
+        select(
+            Movie.tmdb_id, Movie.media_type,
+            Review.verdict, Review.imdb_score,
+            Review.rt_critic_score, Review.rt_audience_score,
+        )
+        .join(Review, Review.movie_id == Movie.id)
+        .where(Movie.tmdb_id.in_(tmdb_ids))
+    )
+    review_map = {
+        (row.tmdb_id, row.media_type): row
+        for row in rows.all()
+    }
+    for r in results:
+        match = review_map.get((r["tmdb_id"], media_type))
+        if match:
+            r["verdict"] = match.verdict
+            r["has_review"] = True
+            r["imdb_score"] = match.imdb_score
+            r["rt_critic_score"] = match.rt_critic_score
+            r["rt_audience_score"] = match.rt_audience_score
+        else:
+            r["verdict"] = None
+            r["has_review"] = False
+            r["imdb_score"] = None
+            r["rt_critic_score"] = None
+            r["rt_audience_score"] = None
+
+
 @router.get("/theaters")
 async def now_in_theaters(
     region: str = Query("US", description="ISO 3166-1 country code"),
     page: int = Query(1, ge=1, le=5),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Movies currently in theaters.
@@ -80,10 +120,12 @@ async def now_in_theaters(
 
         results = data.get("results", [])
         movies = [_format_result(m, "movie") for m in results if m.get("poster_path") and is_safe_content(m)]
+        movies = movies[:20]
+        await _enrich_with_reviews(movies, "movie", db)
 
         return {
             "section": "In Theaters",
-            "results": movies[:20],
+            "results": movies,
             "total": data.get("total_results", 0),
             "page": page,
         }
@@ -95,6 +137,7 @@ async def now_in_theaters(
 @router.get("/streaming")
 async def new_on_streaming(
     page: int = Query(1, ge=1, le=5),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     New TV shows that started airing recently (last 90 days).
@@ -120,10 +163,12 @@ async def new_on_streaming(
 
         results = data.get("results", [])
         shows = [_format_result(s, "tv") for s in results if s.get("poster_path") and is_safe_content(s)]
+        shows = shows[:20]
+        await _enrich_with_reviews(shows, "tv", db)
 
         return {
             "section": "New on Streaming",
-            "results": shows[:20],
+            "results": shows,
             "total": data.get("total_results", 0),
             "page": page,
         }
@@ -136,6 +181,7 @@ async def new_on_streaming(
 async def upcoming_movies(
     region: str = Query("US", description="ISO 3166-1 country code"),
     page: int = Query(1, ge=1, le=5),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Movies coming soon — release date is in the future.
@@ -163,10 +209,12 @@ async def upcoming_movies(
 
         results = data.get("results", [])
         movies = [_format_result(m, "movie") for m in results if m.get("poster_path") and is_safe_content(m)]
+        movies = movies[:20]
+        await _enrich_with_reviews(movies, "movie", db)
 
         return {
             "section": "Coming Soon",
-            "results": movies[:20],
+            "results": movies,
             "total": data.get("total_results", 0),
             "page": page,
         }

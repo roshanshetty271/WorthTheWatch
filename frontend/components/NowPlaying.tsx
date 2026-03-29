@@ -13,7 +13,38 @@ interface NowPlayingItem {
     release_date: string;
     poster_url: string | null;
     tmdb_vote_average: number | null;
+    verdict?: string | null;
+    has_review?: boolean;
+    imdb_score?: number | null;
+    rt_critic_score?: number | null;
+    rt_audience_score?: number | null;
 }
+
+const VERDICT_STYLES: Record<string, {
+    borderColor: string;
+    textColor: string;
+    label: string;
+    bgColor: string;
+}> = {
+    "WORTH IT": {
+        borderColor: "border-emerald-500/50",
+        textColor: "text-emerald-200",
+        bgColor: "bg-emerald-500/30",
+        label: "Worth It",
+    },
+    "NOT WORTH IT": {
+        borderColor: "border-rose-500/50",
+        textColor: "text-rose-200",
+        bgColor: "bg-rose-500/30",
+        label: "Skip",
+    },
+    "MIXED BAG": {
+        borderColor: "border-amber-500/50",
+        textColor: "text-amber-200",
+        bgColor: "bg-amber-500/30",
+        label: "Mixed",
+    },
+};
 
 type Tab = "theaters" | "streaming" | "upcoming";
 
@@ -136,26 +167,49 @@ export default function NowPlaying() {
                             href={`/movie/${item.tmdb_id}?type=${item.media_type}`}
                             className="snap-start shrink-0 w-[140px] sm:w-[170px] md:w-[200px] group"
                         >
-                            <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
+                            <div className={`relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border group-hover:border-accent-gold/30 transition-all ${
+                                item.verdict && VERDICT_STYLES[item.verdict]
+                                    ? VERDICT_STYLES[item.verdict].borderColor
+                                    : "border-white/10"
+                            }`}>
                                 <PosterImage src={item.poster_url} alt={item.title} />
 
-                                {/* Rating badge */}
-                                {item.tmdb_vote_average && item.tmdb_vote_average > 0 && (
-                                    <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-accent-gold z-10">
-                                        ★ {item.tmdb_vote_average.toFixed(1)}
-                                    </div>
-                                )}
+                                {/* Rating badge — prefer IMDb when available */}
+                                {(() => {
+                                    const score = item.imdb_score
+                                        ? { value: item.imdb_score.toString(), label: "IMDb" }
+                                        : item.tmdb_vote_average && item.tmdb_vote_average > 0
+                                            ? { value: item.tmdb_vote_average.toFixed(1), label: "TMDB" }
+                                            : null;
+                                    return score ? (
+                                        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-accent-gold z-10">
+                                            ★ {score.value}
+                                        </div>
+                                    ) : null;
+                                })()}
 
-                                {/* Tab-specific badge */}
+                                {/* Verdict badge (top-left) — replaces tab badge when review exists */}
                                 <div className="absolute top-2 left-2 z-10">
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm ${tab === "theaters"
-                                            ? "bg-red-500/20 text-red-300 border border-red-500/30"
-                                            : tab === "streaming"
-                                                ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                                                : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                        }`}>
-                                        {tab === "theaters" ? "IN THEATERS" : tab === "streaming" ? "NEW" : "SOON"}
-                                    </span>
+                                    {item.verdict && VERDICT_STYLES[item.verdict] ? (
+                                        <span className={`
+                                            inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5
+                                            backdrop-blur-md ${VERDICT_STYLES[item.verdict].borderColor} ${VERDICT_STYLES[item.verdict].bgColor}
+                                        `}>
+                                            <span className={`h-1.5 w-1.5 rounded-full ${VERDICT_STYLES[item.verdict].textColor.replace("text-", "bg-")}`} />
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${VERDICT_STYLES[item.verdict].textColor}`}>
+                                                {VERDICT_STYLES[item.verdict].label}
+                                            </span>
+                                        </span>
+                                    ) : (
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm ${tab === "theaters"
+                                                ? "bg-red-500/20 text-red-300 border border-red-500/30"
+                                                : tab === "streaming"
+                                                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                                                    : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                            }`}>
+                                            {tab === "theaters" ? "IN THEATERS" : tab === "streaming" ? "NEW" : "SOON"}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
