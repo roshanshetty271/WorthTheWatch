@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface RateLimitCardProps {
   type: string;
   message: string;
   retryAfter?: number;
   onDismiss?: () => void;
+  onExpire?: () => void;
 }
 
 function ClockIcon() {
@@ -83,9 +84,11 @@ function formatCountdown(seconds: number): string {
   return `${s}s`;
 }
 
-export default function RateLimitCard({ type, message, retryAfter = 0, onDismiss }: RateLimitCardProps) {
+export default function RateLimitCard({ type, message, retryAfter = 0, onDismiss, onExpire }: RateLimitCardProps) {
   const [remaining, setRemaining] = useState(retryAfter);
   const variant = getVariant(type);
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
 
   useEffect(() => {
     setRemaining(retryAfter);
@@ -97,6 +100,7 @@ export default function RateLimitCard({ type, message, retryAfter = 0, onDismiss
       setRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          onExpireRef.current?.();
           return 0;
         }
         return prev - 1;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import TriviaLoader from "./TriviaLoader";
 import ReviewContent from "./ReviewContent";
 import ErrorState from "./ErrorState";
@@ -12,6 +13,9 @@ import type { Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const SESSION_KEY = "wtw_pending_gen";
+const RL_STORAGE_KEY = "wtw_generation_rate_limit";
+
+const PER_IP_LIMIT_TYPES = new Set(["ip_hourly_limit", "ip_daily_limit"]);
 
 interface ReviewSectionProps {
     tmdbId: number;
@@ -33,6 +37,8 @@ export default function ReviewSection({
     posterPath,
 }: ReviewSectionProps) {
     const router = useRouter();
+    const { data: session } = useSession();
+    const isSignedIn = !!session?.user;
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState("Preparing...");
@@ -45,6 +51,36 @@ export default function ReviewSection({
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
     const isUnreleased = releaseDate ? new Date(releaseDate) > new Date() : false;
+
+    const persistRateLimit = useCallback((info: { type: string; message: string; retryAfter: number; limitType: string }) => {
+        if (info.retryAfter > 0) {
+            try {
+                localStorage.setItem(RL_STORAGE_KEY, JSON.stringify({
+                    ...info,
+                    expiresAt: Date.now() + info.retryAfter * 1000,
+                }));
+            } catch { /* storage full or unavailable */ }
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(RL_STORAGE_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                const remaining = Math.ceil((parsed.expiresAt - Date.now()) / 1000);
+                if (remaining > 0) {
+                    if (!isSignedIn && PER_IP_LIMIT_TYPES.has(parsed.type)) {
+                        setShowSignIn(true);
+                    } else {
+                        setRateLimitInfo({ ...parsed, retryAfter: remaining });
+                    }
+                } else {
+                    localStorage.removeItem(RL_STORAGE_KEY);
+                }
+            }
+        } catch { /* ignore parse errors */ }
+    }, [isSignedIn]);
 
     // ─── SSE Streaming ─────────────────────────────────────
     function startSSEStream() {
@@ -184,13 +220,21 @@ export default function ReviewSection({
                 }
 
                 if (res.status === 429) {
-                    if (detail && typeof detail === "object" && detail.type) {
-                        setRateLimitInfo({
+                    const limitType = detail?.type || "capacity";
+                    if (!isSignedIn && PER_IP_LIMIT_TYPES.has(limitType)) {
+                        setShowSignIn(true);
+                        if (detail?.retry_after_seconds) {
+                            persistRateLimit({ type: limitType, message: detail.message || "", retryAfter: detail.retry_after_seconds, limitType: detail.limit_type || "generation" });
+                        }
+                    } else if (detail && typeof detail === "object" && detail.type) {
+                        const info = {
                             type: detail.type,
                             message: detail.message || "Our servers are busy. Try again shortly.",
                             retryAfter: detail.retry_after_seconds || 0,
                             limitType: detail.limit_type || "generation",
-                        });
+                        };
+                        setRateLimitInfo(info);
+                        persistRateLimit(info);
                     } else {
                         setRateLimitInfo({
                             type: "capacity",
@@ -272,13 +316,21 @@ export default function ReviewSection({
                 }
 
                 if (res.status === 429) {
-                    if (detail && typeof detail === "object" && detail.type) {
-                        setRateLimitInfo({
+                    const limitType = detail?.type || "capacity";
+                    if (!isSignedIn && PER_IP_LIMIT_TYPES.has(limitType)) {
+                        setShowSignIn(true);
+                        if (detail?.retry_after_seconds) {
+                            persistRateLimit({ type: limitType, message: detail.message || "", retryAfter: detail.retry_after_seconds, limitType: detail.limit_type || "generation" });
+                        }
+                    } else if (detail && typeof detail === "object" && detail.type) {
+                        const info = {
                             type: detail.type,
                             message: detail.message || "Our servers are busy. Try again shortly.",
                             retryAfter: detail.retry_after_seconds || 0,
                             limitType: detail.limit_type || "generation",
-                        });
+                        };
+                        setRateLimitInfo(info);
+                        persistRateLimit(info);
                     } else {
                         setRateLimitInfo({
                             type: "capacity",
@@ -314,6 +366,11 @@ export default function ReviewSection({
         }
     }
 
+    const handleRateLimitExpire = useCallback(() => {
+        localStorage.removeItem(RL_STORAGE_KEY);
+        setRateLimitInfo(null);
+    }, []);
+
     // ─── STATE 1: Has review ───────────────────────────────
     if (review) {
         return (
@@ -324,6 +381,7 @@ export default function ReviewSection({
                             type={rateLimitInfo.type}
                             message={rateLimitInfo.message}
                             retryAfter={rateLimitInfo.retryAfter}
+                            onExpire={handleRateLimitExpire}
                         />
                     </div>
                 )}
@@ -416,6 +474,7 @@ export default function ReviewSection({
                         type={rateLimitInfo.type}
                         message={rateLimitInfo.message}
                         retryAfter={rateLimitInfo.retryAfter}
+                        onExpire={handleRateLimitExpire}
                     />
                 </div>
             )}
