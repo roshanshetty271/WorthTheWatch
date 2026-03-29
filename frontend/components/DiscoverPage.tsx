@@ -71,21 +71,36 @@ function PosterImage({ src, alt, sizes = "200px" }: { src: string | null; alt: s
     );
 }
 
+function loadSessionFilters() {
+    if (typeof window === "undefined") return null;
+    try {
+        const saved = sessionStorage.getItem("discover_filters");
+        return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+}
+
 export default function DiscoverPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
+    // Restore from sessionStorage first, fall back to URL params
+    const saved = loadSessionFilters();
+
     const [mediaType, setMediaType] = useState<"movie" | "tv">(
-        (searchParams.get("type") as "movie" | "tv") || "movie"
+        saved?.mediaType || (searchParams.get("type") as "movie" | "tv") || "movie"
     );
-    const [genre, setGenre] = useState<string | null>(searchParams.get("genre"));
+    const [genre, setGenre] = useState<string | null>(
+        saved?.genre ?? searchParams.get("genre")
+    );
     const [year, setYear] = useState<number | null>(
-        searchParams.get("year") ? parseInt(searchParams.get("year")!) : null
+        saved?.year ?? (searchParams.get("year") ? parseInt(searchParams.get("year")!) : null)
     );
     const [minRating, setMinRating] = useState<number | null>(
-        searchParams.get("rating") ? parseFloat(searchParams.get("rating")!) : null
+        saved?.minRating ?? (searchParams.get("rating") ? parseFloat(searchParams.get("rating")!) : null)
     );
-    const [sort, setSort] = useState(searchParams.get("sort") || "popular");
+    const [sort, setSort] = useState(
+        saved?.sort || searchParams.get("sort") || "popular"
+    );
 
     const [results, setResults] = useState<DiscoverResult[]>([]);
     const [loading, setLoading] = useState(false);
@@ -137,6 +152,13 @@ export default function DiscoverPage() {
         if (minRating) params.set("rating", String(minRating));
         if (sort !== "popular") params.set("sort", sort);
         router.replace(`/discover?${params.toString()}`, { scroll: false });
+
+        // Persist filters in sessionStorage so back button restores them
+        try {
+            sessionStorage.setItem("discover_filters", JSON.stringify({
+                mediaType, genre, year, minRating, sort,
+            }));
+        } catch {}
     }, [mediaType, genre, year, minRating, sort, router]);
 
     const clearFilters = () => {

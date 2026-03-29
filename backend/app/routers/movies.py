@@ -377,6 +377,7 @@ async def get_movie(
     # the user navigates to that hasn't been reviewed yet.
     import logging
     _logger = logging.getLogger(__name__)
+    from app.services.safety import get_block_reason
 
     try:
         tmdb_data = None
@@ -392,10 +393,26 @@ async def get_movie(
                 detected_type = "tv"
 
         if not tmdb_data or not tmdb_data.get("id"):
+            _logger.warning(f"🚫 TMDB fallback: no data for tmdb_id={tmdb_id}")
             raise HTTPException(status_code=404, detail="Movie not found")
 
-        if not is_safe_content(tmdb_data):
+        _logger.info(f"📡 TMDB fallback fetched: '{tmdb_data.get('title') or tmdb_data.get('name')}' (tmdb_id={tmdb_id})")
+
+        # Only block adult/erotica content — skip vote-count spam filters
+        # since user explicitly navigated to this movie (not a search result)
+        if tmdb_data.get("adult", False):
+            _logger.warning(f"🚫 TMDB fallback BLOCKED: tmdb_id={tmdb_id}, reason=adult content")
             raise HTTPException(status_code=404, detail="Movie not found (blocked)")
+
+        text_to_check = " ".join([
+            tmdb_data.get("title", ""), tmdb_data.get("name", ""),
+            tmdb_data.get("original_title", ""), tmdb_data.get("overview", "")
+        ]).lower()
+        from app.services.safety import _HARD_BLOCKLIST_PATTERNS
+        for pattern in _HARD_BLOCKLIST_PATTERNS:
+            if pattern.search(text_to_check):
+                _logger.warning(f"🚫 TMDB fallback BLOCKED: tmdb_id={tmdb_id}, reason=blocklist '{pattern.pattern}'")
+                raise HTTPException(status_code=404, detail="Movie not found (blocked)")
 
         tmdb_data["media_type"] = detected_type
 
@@ -504,6 +521,51 @@ async def get_streaming_availability(
         "flatrate": flatrate, "rent": rent, "buy": buy, "free": free,
         "justwatch_link": providers.get("link", ""),
     }
+
+
+@router.get("/person/{person_id}")
+async def get_person(
+    person_id: int,
+    exclude_tmdb_id: int = Query(None, description="Exclude this movie from filmography (the one user is viewing)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get actor details + filmography with WTW verdict enrichment."""
+    person_data = await tmdb_service.get_person_with_credits(person_id)
+    filmography = person_data.get("filmography", [])
+
+    # Exclude the current movie if specified
+    if exclude_tmdb_id:
+        filmography = [f for f in filmography if f["tmdb_id"] != exclude_tmdb_id]
+
+    # Filter out adult/blocklist content only (not spam scores — these are real actor credits)
+    from app.services.safety import _HARD_BLOCKLIST_PATTERNS
+    def _is_filmography_safe(item: dict) -> bool:
+        title = (item.get("title") or "").lower()
+        for pattern in _HARD_BLOCKLIST_PATTERNS:
+            if pattern.search(title):
+                return False
+        return True
+    filmography = [f for f in filmography if _is_filmography_safe(f)]
+
+    # Enrich with WTW verdicts
+    if filmography:
+        tmdb_ids = [f["tmdb_id"] for f in filmography]
+        rows = await db.execute(
+            select(Movie.tmdb_id, Movie.media_type, Review.verdict)
+            .join(Review, Review.movie_id == Movie.id)
+            .where(Movie.tmdb_id.in_(tmdb_ids))
+        )
+        review_map = {
+            (row.tmdb_id, row.media_type): row.verdict
+            for row in rows.all()
+        }
+        for f in filmography:
+            verdict = review_map.get((f["tmdb_id"], f["media_type"]))
+            f["has_review"] = verdict is not None
+            f["verdict"] = verdict
+
+    person_data["filmography"] = filmography
+    return person_data
 
 
 @router.get("/{tmdb_id}/credits")

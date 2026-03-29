@@ -4,7 +4,10 @@ Centralized logic for filtering unsafe, softcore, and spam content.
 """
 
 import re
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 _HARD_BLOCKLIST = [
     "erotic", "voyeur", "nude", "taboo", "incest", "rape",
@@ -153,3 +156,59 @@ def is_safe_content(item: dict) -> bool:
             pass # Ignore date parse errors
 
     return True
+
+
+def get_block_reason(item: dict) -> str | None:
+    """Returns the reason a movie was blocked, or None if safe."""
+    if item.get("adult", False):
+        return "adult flag set"
+
+    BANNED_IDS = {11634, 12551, 34094, 34091, 31203, 33763, 82506, 2567, 3014, 560057}
+    if item.get("id") in BANNED_IDS:
+        return f"banned ID {item.get('id')}"
+
+    text_to_check = " ".join([
+        item.get("title", ""), item.get("name", ""),
+        item.get("original_title", ""), item.get("original_name", ""),
+        item.get("overview", "")
+    ]).lower()
+
+    for pattern in _HARD_BLOCKLIST_PATTERNS:
+        if pattern.search(text_to_check):
+            return f"hard blocklist match: '{pattern.pattern}' in text"
+
+    risky_keywords = [
+        "passion", "desire", "affair", "intimacy", "seduction",
+        "submission", "dominant", "sexual", "sexuality",
+        "proclivities", "decadence", "perversion", "cheated"
+    ]
+    vote_count = item.get("vote_count", 0)
+    risky_hit_count = sum(1 for word in risky_keywords if word in text_to_check)
+    if risky_hit_count >= 2 and vote_count < 500:
+        return f"risky multi-hit ({risky_hit_count} words, {vote_count} votes)"
+
+    media_type = item.get("media_type", "movie")
+    if media_type != "person":
+        has_poster = bool(item.get("poster_path"))
+        if not has_poster and vote_count == 0:
+            return "ghost entry (no poster, no votes)"
+        has_overview = bool(item.get("overview", "").strip())
+        if not has_poster and not has_overview and vote_count < 50:
+            return f"junk entry (no poster, no overview, {vote_count} votes)"
+
+    if media_type == "person":
+        return None
+
+    release_date_str = item.get("release_date") or item.get("first_air_date", "")
+    if release_date_str:
+        try:
+            release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
+            days_old = (datetime.now() - release_date).days
+            if days_old > 90 and vote_count < 10:
+                return f"recent junk ({days_old} days old, {vote_count} votes)"
+            if days_old > 365 and vote_count < 20:
+                return f"old junk ({days_old} days old, {vote_count} votes)"
+        except ValueError:
+            pass
+
+    return None

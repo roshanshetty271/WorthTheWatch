@@ -45,6 +45,15 @@ def strip_self_mentions(text: str, title: str) -> str:
     return pattern.sub(r'\1', text)
 
 
+def fix_paragraph_quotes(text: str) -> str:
+    """Strip leading quote marks from paragraph starts (LLM sometimes ignores the prompt rule)."""
+    if not text:
+        return text
+    # Fix paragraphs that start with " or '
+    text = re.sub(r'(?:^|\n\n)\s*["\']', lambda m: m.group().rstrip('"\''), text)
+    return text
+
+
 def sanitize_text(text: str) -> str:
     """Remove JSON artifacts and cleanup text."""
     if not text:
@@ -124,12 +133,14 @@ SOURCE ATTRIBUTION RULES:
 
 SPOILER POLICY (STRICTLY ENFORCED):
 - NEVER reveal plot twists, surprise deaths, endings, or major reveals.
-- You may reference character names, actors, and general premise (first act setup only).
+- NEVER describe what happens in the movie, even basic plot beats or premise progression. Do NOT summarize the plot in any way.
+- You may reference character names, actors, and the movie's genre/tone, but NOT what they do in the story.
 - You may say "there is a twist" or "the ending is divisive" but NEVER say what it is.
-- Focus on quality (acting, direction, pacing, tone, vibe) not plot details.
+- Focus ONLY on quality (acting, direction, pacing, tone, vibe, choreography) not plot details.
 - If the internet is discussing a spoiler, describe the REACTION without the spoiler:
   GOOD: "Reddit is split on a major third-act reveal"
   BAD: "Reddit is split on the main character dying at the end"
+  BAD: "The protagonist finds gold and then Nazis show up" (this describes plot events)
 - When in doubt, leave it out. The user hasn't seen the movie yet.
 
 STRUCTURE (guideline, not rigid sections — weave these naturally):
@@ -425,6 +436,7 @@ MANDATORY INSTRUCTIONS:
         # Strip self-referential [[Title]] from review_text
         if "review_text" in data:
             data["review_text"] = strip_self_mentions(data["review_text"], title)
+            data["review_text"] = fix_paragraph_quotes(data["review_text"])
         
         # Fix concatenated tags: if any tag contains multiple tag names without separator
         if "tags" in data and isinstance(data["tags"], list):

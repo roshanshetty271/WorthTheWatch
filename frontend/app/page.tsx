@@ -35,8 +35,8 @@ const HERO_FALLBACK_MOVIE: MovieWithReview = {
 // ─── Section Configuration ─────────────────────────────────────
 const SECTIONS = [
   { id: "latest", title: "Latest Reviews" },
-  { id: "worth-it", title: "Certified Worth It" },
   { id: "trending", title: "Trending Now" },
+  { id: "worth-it", title: "Certified Worth It" },
   { id: "hidden-gems", title: "Hidden Gems" },
   { id: "skip-these", title: "Skip These" },
   { id: "tv-shows", title: "Binge-Worthy TV" },
@@ -45,6 +45,9 @@ const SECTIONS = [
 
 // ─── Data Fetching ─────────────────────────────────────────────
 async function getSectionMovies(category: string): Promise<MovieWithReview[]> {
+  // Trending uses live TMDB data instead of stale DB
+  if (category === "trending") return getTrendingMovies();
+
   try {
     const res = await fetch(
       `${API_BASE}/api/movies?category=${category}&limit=8`,
@@ -53,6 +56,52 @@ async function getSectionMovies(category: string): Promise<MovieWithReview[]> {
     if (!res.ok) return [];
     const data: PaginatedMovies = await res.json();
     return data.movies || [];
+  } catch {
+    return [];
+  }
+}
+
+async function getTrendingMovies(): Promise<MovieWithReview[]> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/nowplaying/trending`,
+      { next: { revalidate: 86400 } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    // Convert NowPlaying shape → MovieWithReview shape for HorizontalSection
+    return (data.results || []).slice(0, 8).map((item: any) => ({
+      movie: {
+        id: 0,
+        tmdb_id: item.tmdb_id,
+        title: item.title,
+        media_type: item.media_type || "movie",
+        overview: item.overview || "",
+        poster_path: item.poster_path,
+        backdrop_path: item.backdrop_path,
+        genres: [],
+        release_date: item.release_date,
+        tmdb_popularity: null,
+        tmdb_vote_average: item.tmdb_vote_average,
+        poster_url: item.poster_url,
+        backdrop_url: item.backdrop_url,
+      },
+      review: item.verdict ? {
+        verdict: item.verdict,
+        review_text: "",
+        praise_points: null,
+        criticism_points: null,
+        vibe: null,
+        confidence: null,
+        sources_count: null,
+        generated_at: null,
+        last_refreshed_at: null,
+        imdb_score: item.imdb_score || null,
+        rt_critic_score: item.rt_critic_score || null,
+        rt_audience_score: item.rt_audience_score || null,
+        metascore: null,
+      } : null,
+    }));
   } catch {
     return [];
   }

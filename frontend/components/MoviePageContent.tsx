@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import ReviewSection from "@/components/ReviewSection";
@@ -9,6 +9,7 @@ import StreamingAvailability from "@/components/StreamingAvailability";
 import BookmarkButton from "@/components/BookmarkButton";
 import SimilarMovies from "@/components/SimilarMovies";
 import CinemaRoulette from "@/components/CinemaRoulette";
+import ActorModal from "@/components/ActorModal";
 import { logActivity } from "@/lib/logActivity";
 import type { MovieWithReview, Review } from "@/lib/api";
 
@@ -36,6 +37,11 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
     const [rouletteOpen, setRouletteOpen] = useState(false);
+    const [selectedActor, setSelectedActor] = useState<{ id: number; name: string; image: string | null } | null>(null);
+    const [actorCache] = useState(() => new Map());
+    const handleActorCacheUpdate = useCallback((id: number, data: any) => {
+        actorCache.set(id, data);
+    }, [actorCache]);
     useEffect(() => {
         logActivity({
             activity_type: "view",
@@ -169,8 +175,14 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                 {/* Back Button */}
                 <div className="relative z-30 pt-20 px-4 sm:px-6 md:pt-24">
                     <div className="mx-auto max-w-7xl">
-                        <Link
-                            href="/"
+                        <button
+                            onClick={() => {
+                                if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.href = "/";
+                                }
+                            }}
                             className="group inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-colors duration-200 hover:bg-black/60 hover:text-white hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
                             aria-label="Go back"
                         >
@@ -188,7 +200,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                                     d="M15 19l-7-7 7-7"
                                 />
                             </svg>
-                        </Link>
+                        </button>
                     </div>
                 </div>
 
@@ -453,13 +465,15 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                         </svg>
                     </button>
                     {castOpen && (
-                        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+                        <>
+                        <div className="flex gap-4 overflow-x-auto pt-2 pb-4 scrollbar-hide -mx-1 px-1">
                             {cast.map((person) => (
-                                <div
+                                <button
                                     key={person.id}
-                                    className="flex-shrink-0 w-20 text-center"
+                                    onClick={() => setSelectedActor({ id: person.id, name: person.name, image: person.profile_url })}
+                                    className="flex-shrink-0 w-20 text-center cursor-pointer group"
                                 >
-                                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border border-white/10 mx-auto relative">
+                                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white/5 border-2 border-accent-gold/30 group-hover:border-accent-gold/60 group-hover:scale-110 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_0_2px_rgba(196,167,107,0.15)] group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.6),0_0_0_3px_rgba(196,167,107,0.3)] mx-auto relative transition-all duration-200">
                                         {person.profile_url && !failedCastImages.has(person.id) ? (
                                             <Image
                                                 src={person.profile_url}
@@ -477,15 +491,17 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                                             </div>
                                         )}
                                     </div>
-                                    <p className="mt-2 text-[11px] font-medium text-white/80 truncate">
+                                    <p className="mt-2 text-[11px] font-medium text-white/80 truncate group-hover:text-accent-gold transition-colors">
                                         {person.name}
                                     </p>
                                     <p className="text-[10px] text-white/40 truncate">
                                         {person.character}
                                     </p>
-                                </div>
+                                </button>
                             ))}
                         </div>
+                        <p className="text-xs text-white/40 text-center mt-1 mb-1 tracking-wide">Tap any cast member to see their full filmography</p>
+                        </>
                     )}
                 </div>
             )}
@@ -562,6 +578,17 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                 <CinemaRoulette isOpen={rouletteOpen} onClose={() => setRouletteOpen(false)} />
             </div>
 
+            {/* Actor Filmography Modal */}
+            <ActorModal
+                open={!!selectedActor}
+                onClose={() => setSelectedActor(null)}
+                personId={selectedActor?.id ?? null}
+                actorName={selectedActor?.name ?? ""}
+                actorImage={selectedActor?.image ?? null}
+                excludeTmdbId={movie.tmdb_id}
+                cache={actorCache}
+                onCacheUpdate={handleActorCacheUpdate}
+            />
         </div>
     );
 }

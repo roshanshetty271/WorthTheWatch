@@ -155,6 +155,51 @@ class TMDBService:
         /tv/{id} doesn't return imdb_id by default (movies do)."""
         return await self._get(f"/{media_type}/{tmdb_id}/external_ids")
 
+    async def get_person_with_credits(self, person_id: int) -> dict:
+        """Get person details + combined credits (movies + TV)."""
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                person_resp, credits_resp = await asyncio.gather(
+                    client.get(f"{self.base}/person/{person_id}", headers=TMDB_HEADERS),
+                    client.get(f"{self.base}/person/{person_id}/combined_credits", headers=TMDB_HEADERS),
+                )
+                person = person_resp.json() if person_resp.status_code == 200 else {}
+                credits = credits_resp.json() if credits_resp.status_code == 200 else {}
+
+                profile_path = person.get("profile_path")
+                filmography = []
+                seen = set()
+                for item in credits.get("cast", []):
+                    tmdb_id = item.get("id")
+                    if not tmdb_id or tmdb_id in seen or not item.get("poster_path"):
+                        continue
+                    seen.add(tmdb_id)
+                    media_type = item.get("media_type", "movie")
+                    release = item.get("release_date") or item.get("first_air_date") or ""
+                    filmography.append({
+                        "tmdb_id": tmdb_id,
+                        "title": item.get("title") or item.get("name") or "",
+                        "media_type": media_type,
+                        "poster_url": f"https://image.tmdb.org/t/p/w500{item['poster_path']}",
+                        "release_date": release,
+                        "character": item.get("character") or "",
+                        "vote_average": item.get("vote_average") or 0,
+                    })
+
+                # Sort by release date descending, newest first
+                filmography.sort(key=lambda x: x["release_date"] or "", reverse=True)
+                filmography = filmography[:30]
+
+                return {
+                    "id": person_id,
+                    "name": person.get("name", ""),
+                    "profile_url": f"https://image.tmdb.org/t/p/w185{profile_path}" if profile_path else None,
+                    "filmography": filmography,
+                }
+        except Exception as e:
+            logger.error(f"Failed to fetch person {person_id}: {e}")
+            return {"id": person_id, "name": "", "profile_url": None, "filmography": []}
+
     async def get_movie_credits(self, movie_id: int) -> dict:
         """Get credits (cast + crew) for a movie."""
         try:

@@ -88,6 +88,71 @@ async def _enrich_with_reviews(results: list[dict], media_type: str, db: AsyncSe
             r["rt_audience_score"] = None
 
 
+async def _enrich_with_reviews_mixed(results: list[dict], db: AsyncSession):
+    """Like _enrich_with_reviews but matches per-item media_type (for mixed movie+tv results)."""
+    if not results:
+        return
+    tmdb_ids = [r["tmdb_id"] for r in results]
+    rows = await db.execute(
+        select(
+            Movie.tmdb_id, Movie.media_type,
+            Review.verdict, Review.imdb_score,
+            Review.rt_critic_score, Review.rt_audience_score,
+        )
+        .join(Review, Review.movie_id == Movie.id)
+        .where(Movie.tmdb_id.in_(tmdb_ids))
+    )
+    review_map = {
+        (row.tmdb_id, row.media_type): row
+        for row in rows.all()
+    }
+    for r in results:
+        match = review_map.get((r["tmdb_id"], r["media_type"]))
+        if match:
+            r["verdict"] = match.verdict
+            r["has_review"] = True
+            r["imdb_score"] = match.imdb_score
+            r["rt_critic_score"] = match.rt_critic_score
+            r["rt_audience_score"] = match.rt_audience_score
+        else:
+            r["verdict"] = None
+            r["has_review"] = False
+            r["imdb_score"] = None
+            r["rt_critic_score"] = None
+            r["rt_audience_score"] = None
+
+
+@router.get("/trending")
+async def trending_now(
+    page: int = Query(1, ge=1, le=5),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    What's trending this week — live from TMDB.
+    Returns mixed movie + TV results sorted by popularity.
+    """
+    try:
+        results = await tmdb_service.get_trending(media_type="all", time_window="week", page=page)
+        items = []
+        for m in results:
+            if not m.get("poster_path") or not is_safe_content(m):
+                continue
+            media_type = m.get("media_type", "movie")
+            items.append(_format_result(m, media_type))
+        items = items[:20]
+        await _enrich_with_reviews_mixed(items, db)
+
+        return {
+            "section": "Trending Now",
+            "results": items,
+            "total": len(items),
+            "page": page,
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch trending: {e}")
+        return {"section": "Trending Now", "results": [], "total": 0, "page": 1}
+
+
 @router.get("/theaters")
 async def now_in_theaters(
     region: str = Query("US", description="ISO 3166-1 country code"),
