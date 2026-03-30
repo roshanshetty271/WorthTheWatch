@@ -95,7 +95,7 @@ export default function ProfilePage() {
                     {[
                         { label: "Movies Explored", value: profile.stats.views, icon: "👁" },
                         { label: "Verdicts Generated", value: profile.stats.generations, icon: "⚡" },
-                        { label: "Battles Won", value: profile.stats.battles, icon: "⚔️" },
+                        { label: "Battles Played", value: profile.stats.battles, icon: "⚔️" },
                         { label: "Roulette Spins", value: profile.stats.rouletteSpins, icon: "🎰" },
                     ].map((stat) => (
                         <div
