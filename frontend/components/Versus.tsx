@@ -306,11 +306,13 @@ export default function Versus() {
 
                 incrementBattle();
                 const result: BattleResult = await res.json();
+                const winnerMovie = result.winner_title === result.movie_a.title ? result.movie_a : result.movie_b;
                 logActivity({
                     activity_type: "battle",
                     tmdb_id: movieAId,
                     media_type: movieAType,
                     title: result.winner_title,
+                    poster_path: winnerMovie.poster_path,
                 });
                 setBattleResult(result);
 
