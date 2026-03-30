@@ -8,8 +8,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { neon } from "@neondatabase/serverless";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 function getSQL() {
     return neon(process.env.DATABASE_URL!);
 }
@@ -53,52 +51,44 @@ export async function GET() {
             allTmdbIds.add(item.tmdb_id as number);
         }
 
-        // Fetch genre data from the backend for these movies
+        // Fetch genre + decade data directly from DB (1 query instead of 50 API calls)
         const genreCounts: Record<string, number> = {};
         const decadeCounts: Record<string, number> = {};
         let totalMovies = 0;
         let totalTv = 0;
 
-        // Batch fetch movie data (limit to 50 to avoid hammering the API)
-        const idsToFetch = Array.from(allTmdbIds).slice(0, 50);
-        const movieDataPromises = idsToFetch.map(async (tmdbId) => {
-            try {
-                const res = await fetch(`${API_BASE}/api/movies/${tmdbId}`, {
-                    next: { revalidate: 3600 },
-                });
-                if (!res.ok) return null;
-                return await res.json();
-            } catch {
-                return null;
-            }
-        });
+        const idsArray = Array.from(allTmdbIds);
+        if (idsArray.length > 0) {
+            const movieRows = await sql`
+                SELECT tmdb_id, media_type, genres, release_date
+                FROM movies
+                WHERE tmdb_id = ANY(${idsArray})
+            `;
 
-        const movieResults = await Promise.all(movieDataPromises);
+            for (const row of movieRows) {
+                // Count media types
+                if (row.media_type === "tv") totalTv++;
+                else totalMovies++;
 
-        for (const data of movieResults) {
-            if (!data?.movie) continue;
-
-            const movie = data.movie;
-
-            // Count media types
-            if (movie.media_type === "tv") totalTv++;
-            else totalMovies++;
-
-            // Count genres
-            if (movie.genres && Array.isArray(movie.genres)) {
-                for (const genre of movie.genres) {
-                    const name = genre.name || genre;
-                    if (typeof name === "string") {
-                        genreCounts[name] = (genreCounts[name] || 0) + 1;
+                // Count genres
+                const genres = row.genres;
+                if (Array.isArray(genres)) {
+                    for (const genre of genres) {
+                        const name = typeof genre === "string" ? genre : genre?.name;
+                        if (typeof name === "string" && name) {
+                            genreCounts[name] = (genreCounts[name] || 0) + 1;
+                        }
                     }
                 }
-            }
 
-            // Count decades
-            if (movie.release_date) {
-                const year = new Date(movie.release_date).getFullYear();
-                const decade = `${Math.floor(year / 10) * 10}s`;
-                decadeCounts[decade] = (decadeCounts[decade] || 0) + 1;
+                // Count decades
+                if (row.release_date) {
+                    const year = new Date(row.release_date).getFullYear();
+                    if (!isNaN(year)) {
+                        const decade = `${Math.floor(year / 10) * 10}s`;
+                        decadeCounts[decade] = (decadeCounts[decade] || 0) + 1;
+                    }
+                }
             }
         }
 
