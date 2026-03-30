@@ -281,7 +281,7 @@ export default function Versus() {
                 const [res] = await Promise.all([
                     fetch(
                         `${API_BASE}/api/versus/battle?movie_a_id=${movieAId}&movie_b_id=${movieBId}&movie_a_type=${movieAType}&movie_b_type=${movieBType}`,
-                        { method: "POST" }
+                        { method: "POST", credentials: "include" }
                     ),
                     minLoadingTime
                 ]);

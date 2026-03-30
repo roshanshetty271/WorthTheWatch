@@ -11,7 +11,7 @@ interface SignInDialogProps {
 }
 
 const INCENTIVES = [
-  "Unlimited verdicts, battles, and spins",
+  "Unlock more verdicts, battles, and spins",
   "Save movies and sync across devices",
   "Mark movies as watched or skipped",
   "Your personal review history",

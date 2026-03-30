@@ -168,6 +168,95 @@ IP_ABUSE_WINDOW_MINUTES = 60
 IP_ABUSE_THRESHOLD = 100
 IP_DAILY_CAP = 500
 
+# Hybrid limits: per-actor (not IP) for roulette + battle
+_HYBRID_LIMITS = {
+    "roulette": {"user_per_day": 50, "anon_per_day": 5},
+    "battle": {"user_per_day": 50, "anon_per_day": 5},
+}
+
+
+def _get_actor_from_request(request: Request) -> tuple[str | None, str | None]:
+    """Extract actor identity from request. Returns (actor_type, actor_id)."""
+    # Check for proxy headers (signed-in users via Vercel proxy)
+    proxy_secret = request.headers.get("x-wtw-proxy-secret")
+    if proxy_secret and proxy_secret == getattr(settings, "INTERNAL_PROXY_SECRET", ""):
+        actor_type = request.headers.get("x-wtw-actor-type")
+        actor_id = request.headers.get("x-wtw-actor-id")
+        if actor_type and actor_id:
+            return actor_type, actor_id
+
+    # Check for wtw_anon_id cookie (anonymous browser token)
+    anon_token = request.cookies.get("wtw_anon_id")
+    if anon_token:
+        return "anon", anon_token
+
+    return None, None
+
+
+async def check_rate_limit_hybrid(request: Request, limit_type: str):
+    """Hybrid rate limit: user ID > browser token > IP ceiling."""
+    import logging
+    log = logging.getLogger("app.rate_limit")
+
+    raw_ip = _get_client_ip(request)
+    if _is_whitelisted(raw_ip):
+        return
+
+    hashed_ip = _hash_ip(raw_ip)
+    now = datetime.utcnow()
+    actor_type, actor_id = _get_actor_from_request(request)
+    hybrid_config = _HYBRID_LIMITS.get(limit_type)
+
+    # If we have actor identity, check actor-based limit
+    if actor_type and actor_id and hybrid_config:
+        if actor_type == "user":
+            limit = hybrid_config["user_per_day"]
+        else:
+            limit = hybrid_config["anon_per_day"]
+
+        day_ago = now - timedelta(hours=24)
+        async with async_session() as db:
+            actor_count = (await db.execute(
+                select(func.count()).select_from(RateLimitEntry).where(
+                    RateLimitEntry.ip_hash == actor_id[:16],  # reuse ip_hash column for actor
+                    RateLimitEntry.limit_type == limit_type,
+                    RateLimitEntry.created_at > day_ago,
+                )
+            )).scalar() or 0
+
+            log.info(
+                f"🔒 Hybrid check: {actor_type}={actor_id[:8]}..., "
+                f"type={limit_type}, used={actor_count}/{limit}"
+            )
+
+            if actor_count >= limit:
+                msg = (
+                    "Daily limit reached. Try again tomorrow."
+                    if actor_type == "user"
+                    else "Sign in for more spins and battles!"
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "type": f"{actor_type}_daily_limit",
+                        "message": msg,
+                        "retry_after_seconds": 3600,
+                        "limit_type": limit_type,
+                    },
+                )
+
+            # Record using actor_id as key
+            db.add(RateLimitEntry(
+                ip_hash=actor_id[:16],
+                limit_type=limit_type,
+                created_at=now,
+            ))
+            await db.commit()
+        return
+
+    # Fallback: IP-based ceiling (no actor identity — bot protection)
+    await check_rate_limit(request, limit_type)
+
 logger = __import__("logging").getLogger("app.quota")
 
 

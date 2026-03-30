@@ -162,7 +162,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
                 : `${API_BASE}/api/movies/random`;
 
             const [res] = await Promise.all([
-                fetch(url, { signal: controller.signal }),
+                fetch(url, { signal: controller.signal, credentials: "include" }),
                 new Promise((r) => setTimeout(r, 350)),
             ]);
 

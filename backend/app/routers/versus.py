@@ -13,7 +13,7 @@ from sqlalchemy.orm import joinedload
 from app.database import get_db
 from app.models import Movie, Review, BattleCache
 from app.services.tmdb import tmdb_service
-from app.middleware.rate_limit import check_rate_limit
+from app.middleware.rate_limit import check_rate_limit, check_rate_limit_hybrid
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +228,7 @@ async def battle(
         return cached_battle.result_json
     
     # Rate limit only for uncached battles (these cost API credits)
-    await check_rate_limit(request, limit_type="battle")
+    await check_rate_limit_hybrid(request, limit_type="battle")
     
     # ── Fetch both movies' data with correct media types ──
     movie_a_data, review_a = await _get_movie_data(db, movie_a_id, movie_a_type)
