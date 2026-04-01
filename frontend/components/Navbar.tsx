@@ -25,7 +25,7 @@ function MobileAuthSection({ onClose }: { onClose: () => void }) {
     if (!session) {
         return (
             <button
-                onClick={() => { onClose(); signIn("google", { callbackUrl: window.location.href }); }}
+                onClick={() => { onClose(); sessionStorage.setItem("wtw_just_signed_in", "1"); signIn("google", { callbackUrl: window.location.href }); }}
                 className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors text-center border-b border-white/10"
             >
                 Sign In

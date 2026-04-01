@@ -177,8 +177,11 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                     <div className="mx-auto max-w-7xl">
                         <button
                             onClick={() => {
-                                const referrer = document.referrer || "";
-                                if (referrer.includes("/api/auth") || referrer.includes("/auth/") || window.history.length <= 1) {
+                                const justSignedIn = sessionStorage.getItem("wtw_just_signed_in");
+                                if (justSignedIn) {
+                                    sessionStorage.removeItem("wtw_just_signed_in");
+                                    window.location.href = "/";
+                                } else if (window.history.length <= 1) {
                                     window.location.href = "/";
                                 } else {
                                     window.history.back();

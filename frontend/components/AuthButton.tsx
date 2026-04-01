@@ -33,7 +33,7 @@ export default function AuthButton() {
     if (!session) {
         return (
             <button
-                onClick={() => signIn("google", { callbackUrl: window.location.href })}
+                onClick={() => { sessionStorage.setItem("wtw_just_signed_in", "1"); signIn("google", { callbackUrl: window.location.href }); }}
                 className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold 
                    transition-colors uppercase tracking-widest"
                 aria-label="Sign in with Google"

@@ -33,7 +33,7 @@ function SignInContent() {
 
                 {/* Google Sign In */}
                 <button
-                    onClick={() => signIn("google", { callbackUrl })}
+                    onClick={() => { sessionStorage.setItem("wtw_just_signed_in", "1"); signIn("google", { callbackUrl }); }}
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl 
                      bg-white text-gray-800 font-medium text-sm
                      hover:bg-gray-100 transition-colors duration-200

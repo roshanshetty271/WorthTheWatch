@@ -46,11 +46,15 @@ def strip_self_mentions(text: str, title: str) -> str:
 
 
 def fix_paragraph_quotes(text: str) -> str:
-    """Strip leading quote marks from paragraph starts (LLM sometimes ignores the prompt rule)."""
+    """Strip stray quote marks from paragraph/sentence starts."""
     if not text:
         return text
     # Fix paragraphs that start with " or '
     text = re.sub(r'(?:^|\n\n)\s*["\']', lambda m: m.group().rstrip('"\''), text)
+    # Fix stray quotes at sentence starts: ". ' However" → ". However"
+    text = re.sub(r'(?<=\. )["\'](?=\s*[A-Z])', '', text)
+    # Fix stray quote at very start of text
+    text = re.sub(r'^["\'](?=\s*[A-Z])', '', text)
     return text
 
 
