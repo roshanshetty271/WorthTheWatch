@@ -100,9 +100,11 @@ async def discover(
         "vote_count.gte": min_votes,
     }
 
-    # Sort
+    # Sort — boost min_votes for rating sort to filter manipulated scores
     sort_key = SORT_OPTIONS.get(sort, "popularity.desc")
     params["sort_by"] = sort_key
+    if sort == "rating" and min_votes < 1000:
+        params["vote_count.gte"] = 1000
 
     # Genre
     if genre:

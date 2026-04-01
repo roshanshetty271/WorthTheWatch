@@ -115,7 +115,7 @@ export default function DiscoverPage() {
             params.set("media_type", mediaType);
             params.set("sort", sort);
             params.set("page", String(pageNum));
-            params.set("min_votes", "100");
+            params.set("min_votes", "500");
             if (genre) params.set("genre", genre.toLowerCase());
             if (year) params.set("year", String(year));
             if (minRating) params.set("min_rating", String(minRating));
