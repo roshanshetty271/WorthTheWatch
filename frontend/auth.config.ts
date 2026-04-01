@@ -8,6 +8,7 @@ import type { NextAuthConfig } from "next-auth";
 export const authConfig = {
     pages: {
         signIn: "/auth/signin",
+        error: "/auth/error",
     },
     providers: [], // Configured in auth.ts (not here — edge can't import adapters)
     callbacks: {

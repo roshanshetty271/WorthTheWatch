@@ -351,7 +351,7 @@ export default function MyListPage() {
                         <p className="text-sm text-text-secondary">
                             Your list is saved locally.
                             <button
-                                onClick={() => signIn("google")}
+                                onClick={() => signIn("google", { callbackUrl: window.location.href })}
                                 className="text-accent-gold hover:text-accent-goldLight font-medium ml-1 underline underline-offset-2"
                             >
                                 Sign in
@@ -374,7 +374,7 @@ export default function MyListPage() {
                                 <>
                                     {" "}
                                     <button
-                                        onClick={() => signIn("google")}
+                                        onClick={() => signIn("google", { callbackUrl: window.location.href })}
                                         className="text-accent-gold hover:text-accent-goldLight font-medium underline underline-offset-2"
                                     >
                                         Sign in

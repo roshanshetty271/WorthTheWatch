@@ -177,10 +177,11 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                     <div className="mx-auto max-w-7xl">
                         <button
                             onClick={() => {
-                                if (window.history.length > 1) {
-                                    window.history.back();
-                                } else {
+                                const referrer = document.referrer || "";
+                                if (referrer.includes("/api/auth") || referrer.includes("/auth/") || window.history.length <= 1) {
                                     window.location.href = "/";
+                                } else {
+                                    window.history.back();
                                 }
                             }}
                             className="group inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 transition-colors duration-200 hover:bg-black/60 hover:text-white hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none"
