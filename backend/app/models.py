@@ -183,3 +183,47 @@ class ReviewFeedback(Base):
         UniqueConstraint("review_id", "ip_hash", name="uq_feedback_review_ip"),
     )
 
+
+class WatchmodeQuota(Base):
+    """Tracks Watchmode API calls for monthly quota (1000/month free tier)."""
+    __tablename__ = "watchmode_quota"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class StreamingDeeplink(Base):
+    """Cached deep links from Watchmode for streaming providers."""
+    __tablename__ = "streaming_deeplinks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tmdb_id = Column(Integer, nullable=False)
+    media_type = Column(String(10), nullable=False)
+    provider_id = Column(Integer, nullable=False)
+    provider_name = Column(String(100), nullable=False)
+    source_type = Column(String(20), nullable=False)
+    web_url = Column(String(1000), nullable=True)
+    fetched_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tmdb_id", "media_type", "provider_id", "source_type",
+                         name="uq_deeplink_provider"),
+        Index("idx_deeplinks_tmdb", "tmdb_id", "media_type"),
+    )
+
+
+class WatchmodeFetchState(Base):
+    """Tracks whether Watchmode was checked for a title (including negative cache)."""
+    __tablename__ = "watchmode_fetch_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tmdb_id = Column(Integer, nullable=False)
+    media_type = Column(String(10), nullable=False)
+    fetched_at = Column(DateTime, nullable=False)
+    had_matches = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        UniqueConstraint("tmdb_id", "media_type", name="uq_fetch_state_tmdb"),
+        Index("idx_fetch_state_tmdb", "tmdb_id", "media_type"),
+    )
+

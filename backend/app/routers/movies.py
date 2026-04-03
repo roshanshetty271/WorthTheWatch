@@ -495,13 +495,19 @@ async def get_movie(
 @router.get("/{tmdb_id}/streaming")
 async def get_streaming_availability(
     tmdb_id: int,
+    media_type: str = Query("movie", pattern="^(movie|tv)$"),
     region: str = Query("US", max_length=2),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
-    movie = result.scalar_one_or_none()
-    media_type = movie.media_type if movie else "movie"
-    providers = await tmdb_service.get_watch_providers(tmdb_id, media_type, region)
+    # If media_type not provided, try to detect from DB
+    if not media_type or media_type == "movie":
+        result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
+        movie = result.scalar_one_or_none()
+        if movie:
+            media_type = movie.media_type
+
+    # v1: Hardcode US for both TMDB and Watchmode
+    providers = await tmdb_service.get_watch_providers(tmdb_id, media_type, "US")
 
     def format_provider(p: dict) -> dict:
         logo_path = p.get("logo_path", "")
@@ -515,6 +521,16 @@ async def get_streaming_availability(
     rent = [format_provider(p) for p in providers.get("rent", [])]
     buy = [format_provider(p) for p in providers.get("buy", [])]
     free = [format_provider(p) for p in (providers.get("free", []) + providers.get("ads", []))]
+
+    # Merge Watchmode deep links (v1: flatrate + free only)
+    from app.services.watchmode import get_deeplinks_for_movie
+    deeplinks = await get_deeplinks_for_movie(tmdb_id, media_type)
+    for provider in flatrate + free:
+        pid = provider.get("provider_id")
+        if pid and pid in deeplinks:
+            provider["web_url"] = deeplinks[pid]
+        else:
+            provider["web_url"] = None
 
     return {
         "available": bool(flatrate or rent or buy or free),

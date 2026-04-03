@@ -345,12 +345,12 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                                         </svg>
                                         Trailer
                                     </button>
-                                    <StreamingAvailability tmdbId={movie.tmdb_id} initialData={initialStreaming} />
+                                    <StreamingAvailability tmdbId={movie.tmdb_id} mediaType={movie.media_type || "movie"} initialData={initialStreaming} />
                                 </div>
                                 )}
                                 {review && !review?.trailer_url && (
                                     <div className="mt-6 empty:hidden">
-                                        <StreamingAvailability tmdbId={movie.tmdb_id} initialData={initialStreaming} />
+                                        <StreamingAvailability tmdbId={movie.tmdb_id} mediaType={movie.media_type || "movie"} initialData={initialStreaming} />
                                     </div>
                                 )}
                             </div>

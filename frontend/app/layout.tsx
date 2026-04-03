@@ -86,6 +86,8 @@ export default function RootLayout({
                   <Link href="/versus" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">Movie Battle</Link>
                   <Link href="/my-list" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">My List</Link>
                   <CantDecideFooterLink />
+                  <Link href="/contact" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">Contact</Link>
+                  <Link href="/privacy" className="text-text-secondary hover:text-accent-gold active:text-accent-gold transition-colors duration-200">Privacy Policy</Link>
                 </nav>
               </div>
             </div>

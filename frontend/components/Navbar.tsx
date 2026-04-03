@@ -280,6 +280,17 @@ export default function Navbar() {
                                         <span className="text-sm text-text-secondary">Watch History</span>
                                         <span className="block text-[11px] text-text-muted mt-0.5">Everything you&apos;ve looked up</span>
                                     </button>
+
+                                    <div className="my-1 mx-3 border-t border-white/5" />
+
+                                    <Link
+                                        href="/contact"
+                                        onClick={() => setExploreOpen(false)}
+                                        className="block w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors"
+                                    >
+                                        <span className="text-sm text-text-secondary">Contact Us</span>
+                                        <span className="block text-[11px] text-text-muted mt-0.5">Bug reports, feedback, or just say hi</span>
+                                    </Link>
                                 </div>
                             )}
                         </div>

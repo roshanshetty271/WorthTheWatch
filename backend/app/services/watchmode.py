@@ -1,147 +1,139 @@
 """
 Worth the Watch? — Watchmode API Service
-Fetches streaming availability (Netflix, Prime, Hulu, etc.) for movies and TV shows.
+Fetches streaming deep links (Netflix, Prime, Hulu, etc.) for movies and TV shows.
 Free tier: 1000 requests/month.
 
-API Docs: https://api.watchmode.com/docs/
+v1: US-only, web_url only, flatrate+free only.
+Lazy cache with 30-day inline refresh. Falls back to JustWatch if quota exhausted.
 """
 
 import httpx
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
+
+from sqlalchemy import select, func, delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from app.config import get_settings
-from app.services.retry import with_retry
+from app.database import async_session
+from app.models import WatchmodeQuota, StreamingDeeplink, WatchmodeFetchState
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
+# ─── Watchmode name → TMDB provider_id map ─────────────────────
+# Single direction. Match Watchmode response names to TMDB provider IDs.
+WATCHMODE_TO_TMDB_PROVIDER = {
+    "netflix": 8,
+    "amazon prime video": 9,
+    "prime video": 9,
+    "amazon video": 10,
+    "disney plus": 337,
+    "disney+": 337,
+    "hulu": 15,
+    "hbo max": 1899,
+    "max": 1899,
+    "apple tv plus": 350,
+    "apple tv+": 350,
+    "apple tv": 2,
+    "peacock": 386,
+    "peacock premium": 386,
+    "crunchyroll": 283,
+    "paramount plus": 531,
+    "paramount+": 531,
+    "google play movies": 3,
+    "youtube": 192,
+    "tubi": 73,
+    "pluto tv": 300,
+}
+
+
+# ─── Quota Tracking ─────────────────────────────────────────────
+
+async def _check_watchmode_quota() -> bool:
+    """Returns True if under 898 calls this calendar month (reserves 2 for next pair)."""
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    async with async_session() as db:
+        count = (await db.execute(
+            select(func.count()).select_from(WatchmodeQuota).where(
+                WatchmodeQuota.created_at >= month_start,
+            )
+        )).scalar() or 0
+    if count >= 800:
+        logger.warning(f"⚠️ Watchmode quota approaching: {count}/900")
+    return count < 898
+
+
+async def _record_watchmode_call():
+    """Record a single Watchmode API call. Called right before outbound HTTP request."""
+    async with async_session() as db:
+        db.add(WatchmodeQuota(created_at=datetime.utcnow()))
+        await db.commit()
+
+
+# ─── Watchmode API Methods (structured results) ────────────────
+
 class StreamingSource:
     """Container for a streaming source."""
-    
-    def __init__(
-        self,
-        source_id: int,
-        name: str,
-        source_type: str,  # "sub" (subscription), "rent", "buy", "free"
-        region: str = "US",
-        web_url: Optional[str] = None,
-        ios_url: Optional[str] = None,
-        android_url: Optional[str] = None,
-        price: Optional[str] = None,
-        format: Optional[str] = None,  # "HD", "4K", etc.
-    ):
+    def __init__(self, source_id, name, source_type, web_url=None, **kwargs):
         self.source_id = source_id
         self.name = name
         self.source_type = source_type
-        self.region = region
         self.web_url = web_url
-        self.ios_url = ios_url
-        self.android_url = android_url
-        self.price = price
-        self.format = format
-
-    def to_dict(self) -> dict:
-        return {
-            "source_id": self.source_id,
-            "name": self.name,
-            "type": self.source_type,
-            "region": self.region,
-            "web_url": self.web_url,
-            "price": self.price,
-            "format": self.format,
-        }
 
 
 class WatchmodeService:
-    """Watchmode API client for streaming availability.
-    
-    Supports 200+ streaming services across 50+ countries.
-    """
-    
     BASE_URL = "https://api.watchmode.com/v1"
 
     def __init__(self):
         self.api_key = getattr(settings, "WATCHMODE_API_KEY", "")
 
-    @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
-    async def get_title_id_by_tmdb(
-        self, tmdb_id: int, media_type: str = "movie"
-    ) -> Optional[int]:
+    async def get_title_id_by_tmdb(self, tmdb_id: int, media_type: str = "movie") -> dict:
         """
         Look up Watchmode title ID using TMDB ID.
-        
-        Args:
-            tmdb_id: TMDB movie/TV ID
-            media_type: 'movie' or 'tv'
-            
-        Returns:
-            Watchmode title_id or None
+        Returns {"ok": True, "title_id": int|None} or {"ok": False, "error": str}
+        Does NOT fall back to first result if media_type doesn't match.
         """
         if not self.api_key:
-            return None
+            return {"ok": False, "error": "no_api_key"}
 
-        # Watchmode uses "movie" or "tv_series"
         wm_type = "tv_series" if media_type == "tv" else "movie"
-        
-        params = {
-            "apiKey": self.api_key,
-            "source_id": tmdb_id,
-            "source": "tmdb",
-        }
+        params = {"apiKey": self.api_key, "source_id": tmdb_id, "source": "tmdb"}
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"{self.BASE_URL}/search/",
-                    params=params,
-                )
+                await _record_watchmode_call()
+                resp = await client.get(f"{self.BASE_URL}/search/", params=params)
                 resp.raise_for_status()
                 data = resp.json()
 
-            # Find matching result by type
             for result in data.get("title_results", []):
                 if result.get("type") == wm_type:
-                    return result.get("id")
-            
-            # Return first result if no type match
-            if data.get("title_results"):
-                return data["title_results"][0].get("id")
-            
-            return None
+                    return {"ok": True, "title_id": result.get("id")}
 
-        except httpx.HTTPStatusError:
-            return None
+            # No type match — return None (not found), don't fall back to wrong type
+            return {"ok": True, "title_id": None}
+
         except Exception as e:
-            logger.warning(f"Watchmode lookup failed: {e}")
-            return None
+            logger.warning(f"Watchmode lookup failed for tmdb_id={tmdb_id}: {e}")
+            return {"ok": False, "error": str(e)}
 
-    @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
-    async def get_streaming_sources(
-        self,
-        title_id: int,
-        region: str = "US",
-    ) -> list[StreamingSource]:
+    async def get_streaming_sources(self, title_id: int, region: str = "US") -> dict:
         """
-        Get streaming sources for a title.
-        
-        Args:
-            title_id: Watchmode title ID
-            region: ISO country code (default: US)
-            
-        Returns:
-            List of StreamingSource objects
+        Get streaming sources for a Watchmode title ID.
+        Returns {"ok": True, "sources": list} or {"ok": False, "error": str}
         """
         if not self.api_key:
-            return []
+            return {"ok": False, "error": "no_api_key"}
 
-        params = {
-            "apiKey": self.api_key,
-            "regions": region,
-        }
+        params = {"apiKey": self.api_key, "regions": region}
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:
+                await _record_watchmode_call()
                 resp = await client.get(
                     f"{self.BASE_URL}/title/{title_id}/sources/",
                     params=params,
@@ -150,117 +142,139 @@ class WatchmodeService:
                 data = resp.json()
 
             sources = []
-            for item in data:
-                source = StreamingSource(
+            for item in data if isinstance(data, list) else []:
+                sources.append(StreamingSource(
                     source_id=item.get("source_id", 0),
                     name=item.get("name", ""),
                     source_type=item.get("type", ""),
-                    region=item.get("region", region),
                     web_url=item.get("web_url"),
-                    ios_url=item.get("ios_deeplink"),
-                    android_url=item.get("android_deeplink"),
-                    price=item.get("price"),
-                    format=item.get("format"),
-                )
-                sources.append(source)
+                ))
+            return {"ok": True, "sources": sources}
 
-            return sources
-
-        except httpx.HTTPStatusError:
-            return []
         except Exception as e:
-            logger.warning(f"Watchmode sources failed: {e}")
-            return []
-
-    async def get_streaming_for_tmdb(
-        self,
-        tmdb_id: int,
-        media_type: str = "movie",
-        region: str = "US",
-    ) -> list[StreamingSource]:
-        """
-        Convenience method: Get streaming sources directly from TMDB ID.
-        
-        Args:
-            tmdb_id: TMDB movie/TV ID
-            media_type: 'movie' or 'tv'
-            region: ISO country code
-            
-        Returns:
-            List of StreamingSource objects
-        """
-        title_id = await self.get_title_id_by_tmdb(tmdb_id, media_type)
-        if not title_id:
-            return []
-        return await self.get_streaming_sources(title_id, region)
-
-    @with_retry(max_retries=2, base_delay=1.0, timeout=10.0)
-    async def get_all_sources(self, region: str = "US") -> list[dict]:
-        """
-        Get list of all supported streaming services.
-        
-        Returns:
-            List of source metadata dicts
-        """
-        if not self.api_key:
-            return []
-
-        params = {
-            "apiKey": self.api_key,
-            "regions": region,
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(f"{self.BASE_URL}/sources/", params=params)
-                resp.raise_for_status()
-                return resp.json()
-        except Exception:
-            return []
+            logger.warning(f"Watchmode sources failed for title_id={title_id}: {e}")
+            return {"ok": False, "error": str(e)}
 
 
-def format_streaming_summary(sources: list[StreamingSource]) -> dict:
+# ─── Cache Logic ────────────────────────────────────────────────
+
+async def _get_fetch_state(tmdb_id: int, media_type: str) -> Optional[dict]:
+    async with async_session() as db:
+        row = (await db.execute(
+            select(WatchmodeFetchState).where(
+                WatchmodeFetchState.tmdb_id == tmdb_id,
+                WatchmodeFetchState.media_type == media_type,
+            )
+        )).scalar_one_or_none()
+        if row:
+            return {"fetched_at": row.fetched_at, "had_matches": row.had_matches}
+    return None
+
+
+async def _get_cached_deeplinks(tmdb_id: int, media_type: str) -> dict:
+    """Returns {provider_id: web_url} from cache, or empty dict."""
+    async with async_session() as db:
+        rows = (await db.execute(
+            select(StreamingDeeplink).where(
+                StreamingDeeplink.tmdb_id == tmdb_id,
+                StreamingDeeplink.media_type == media_type,
+            )
+        )).scalars().all()
+    if rows:
+        return {row.provider_id: row.web_url for row in rows if row.web_url}
+    return {}
+
+
+async def get_deeplinks_for_movie(tmdb_id: int, media_type: str) -> dict:
     """
-    Format streaming sources into a user-friendly summary.
-    
-    Returns:
-        {
-            "subscription": ["Netflix", "Prime Video"],
-            "rent": [{"name": "Apple TV", "price": "$3.99"}],
-            "buy": [{"name": "Apple TV", "price": "$14.99"}],
-            "free": ["Peacock", "Tubi"]
-        }
+    Returns {tmdb_provider_id: web_url} for this movie.
+    Checks cache first, fetches from Watchmode if stale/missing.
+    Only caches "sub" and "free" source types (v1 scope).
     """
-    summary = {
-        "subscription": [],
-        "rent": [],
-        "buy": [],
-        "free": [],
-    }
-    
-    seen = set()
+    now = datetime.utcnow()
+
+    # 1. Check fetch state (includes negative cache)
+    fetch_state = await _get_fetch_state(tmdb_id, media_type)
+    if fetch_state and fetch_state["fetched_at"] > (now - timedelta(days=30)):
+        if not fetch_state["had_matches"]:
+            return {}
+        cached = await _get_cached_deeplinks(tmdb_id, media_type)
+        if cached:
+            return cached
+        # had_matches=True but rows missing — fall through to refetch
+
+    # 2. Check quota
+    if not await _check_watchmode_quota():
+        logger.info(f"⏸️ Watchmode quota exhausted, using fallback for tmdb_id={tmdb_id}")
+        return await _get_cached_deeplinks(tmdb_id, media_type)
+
+    # 3. Fetch from Watchmode
+    wm = watchmode_service
+    lookup = await wm.get_title_id_by_tmdb(tmdb_id, media_type)
+    if not lookup["ok"]:
+        # API failure — preserve existing cache
+        return await _get_cached_deeplinks(tmdb_id, media_type)
+
+    if lookup["title_id"] is None:
+        sources = []
+    else:
+        result = await wm.get_streaming_sources(lookup["title_id"], region="US")
+        if not result["ok"]:
+            return await _get_cached_deeplinks(tmdb_id, media_type)
+        sources = result["sources"]
+
+    # 4. Build matched rows — dedupe by (provider_id, source_type)
+    matched_rows = {}
     for source in sources:
-        key = f"{source.name}_{source.source_type}"
-        if key in seen:
+        if source.source_type not in ("sub", "free"):
             continue
-        seen.add(key)
-        
-        if source.source_type == "sub":
-            summary["subscription"].append(source.name)
-        elif source.source_type == "rent":
-            summary["rent"].append({
-                "name": source.name,
-                "price": source.price,
-            })
-        elif source.source_type == "buy":
-            summary["buy"].append({
-                "name": source.name,
-                "price": source.price,
-            })
-        elif source.source_type == "free":
-            summary["free"].append(source.name)
-    
-    return summary
+        name_lower = source.name.lower().strip()
+        tmdb_pid = WATCHMODE_TO_TMDB_PROVIDER.get(name_lower)
+        if tmdb_pid and source.web_url:
+            key = (tmdb_pid, source.source_type)
+            if key not in matched_rows:
+                matched_rows[key] = {
+                    "provider_id": tmdb_pid,
+                    "provider_name": source.name,
+                    "source_type": source.source_type,
+                    "web_url": source.web_url,
+                }
+
+    # 5. Atomic transaction: delete old + insert fresh + upsert fetch state
+    links = {}
+    rows = list(matched_rows.values())
+    async with async_session() as db:
+        await db.execute(
+            delete(StreamingDeeplink).where(
+                StreamingDeeplink.tmdb_id == tmdb_id,
+                StreamingDeeplink.media_type == media_type,
+            )
+        )
+        for row in rows:
+            links[row["provider_id"]] = row["web_url"]
+            db.add(StreamingDeeplink(
+                tmdb_id=tmdb_id,
+                media_type=media_type,
+                provider_id=row["provider_id"],
+                provider_name=row["provider_name"],
+                source_type=row["source_type"],
+                web_url=row["web_url"],
+                fetched_at=now,
+            ))
+        stmt = pg_insert(WatchmodeFetchState).values(
+            tmdb_id=tmdb_id,
+            media_type=media_type,
+            fetched_at=now,
+            had_matches=bool(rows),
+        ).on_conflict_do_update(
+            index_elements=["tmdb_id", "media_type"],
+            set_={"fetched_at": now, "had_matches": bool(rows)},
+        )
+        await db.execute(stmt)
+        await db.commit()
+
+    logger.info(f"🔗 Watchmode cached {len(rows)} deeplinks for tmdb_id={tmdb_id} ({media_type})")
+    return links
 
 
 # Global service instance

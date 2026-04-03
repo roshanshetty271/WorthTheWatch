@@ -30,9 +30,11 @@ async function getMovie(tmdbId: string, mediaType?: string): Promise<MovieWithRe
   }
 }
 
-async function getStreaming(tmdbId: string) {
+async function getStreaming(tmdbId: string, mediaType?: string) {
   try {
-    const res = await fetch(`${API_BASE}/api/movies/${tmdbId}/streaming`, {
+    const url = new URL(`${API_BASE}/api/movies/${tmdbId}/streaming`);
+    if (mediaType) url.searchParams.set("media_type", mediaType);
+    const res = await fetch(url.toString(), {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return null;
@@ -138,11 +140,16 @@ function generateBreadcrumbJsonLd(movie: MovieWithReview) {
   };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   try {
     const { id } = await params;
+    const sParams = await searchParams;
+    const mediaType = sParams?.type;
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    const res = await fetch(`${API_URL}/api/movies/${id}`, {
+    const url = mediaType
+      ? `${API_URL}/api/movies/${id}?media_type=${mediaType}`
+      : `${API_URL}/api/movies/${id}`;
+    const res = await fetch(url, {
       next: { revalidate: 600 }
     });
     if (!res.ok) return { title: 'Worth the Watch?' };
@@ -171,7 +178,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: pageTitle,
       description: description,
       alternates: {
-        canonical: `${SITE_URL}/movie/${id}`,
+        canonical: mediaType === "tv" ? `${SITE_URL}/movie/${id}?type=tv` : `${SITE_URL}/movie/${id}`,
       },
       openGraph: {
         title: ogTitle,
@@ -201,7 +208,7 @@ export default async function MoviePage({ params, searchParams }: Props) {
   const mediaType = sParams?.type;
   const [data, streaming] = await Promise.all([
     getMovie(id, mediaType),
-    getStreaming(id),
+    getStreaming(id, mediaType),
   ]);
   if (!data) notFound();
 
