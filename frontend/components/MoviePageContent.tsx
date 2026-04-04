@@ -410,12 +410,6 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             </div>
             )}
 
-            {/* ═══════════════════════════════════════════════════════════════════
-            WHERE TO WATCH — Prominent standalone section
-            ═══════════════════════════════════════════════════════════════════ */}
-            <div className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6">
-                <StreamingAvailability tmdbId={movie.tmdb_id} mediaType={movie.media_type || "movie"} initialData={initialStreaming} />
-            </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
             AWARDS & OVERVIEW
