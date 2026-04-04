@@ -24,27 +24,18 @@ export default function AuthButton({ onSignInClick }: { onSignInClick?: () => vo
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // After OAuth redirect, show avatar placeholder instead of "Sign In"
-    const justSignedIn = status === "loading" && typeof window !== "undefined" && sessionStorage.getItem("wtw_just_signed_in") === "1";
-
-    if (justSignedIn) {
-        return (
-            <div className="h-8 w-8 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-sm font-bold animate-pulse">
-                ?
-            </div>
-        );
+    // Don't show anything while loading — prevents flash
+    if (status === "loading") {
+        return <div className="h-8 w-8" />;
     }
 
-    // Show "Sign In" during loading AND when not signed in — no layout shift
-    if (status === "loading" || !session) {
+    // Not signed in
+    if (!session) {
         return (
             <button
-                onClick={() => {
-                    if (status === "loading") return;
-                    onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href });
-                }}
-                className={`text-base md:text-sm font-medium text-white/80 hover:text-accent-gold
-                   transition-colors uppercase tracking-widest ${status === "loading" ? "pointer-events-none" : ""}`}
+                onClick={() => onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href })}
+                className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold
+                   transition-colors uppercase tracking-widest"
                 aria-label="Sign in with Google"
             >
                 Sign In
