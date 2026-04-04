@@ -4,11 +4,13 @@ Fetches streaming deep links (Netflix, Prime, Hulu, etc.) for movies and TV show
 Free tier: 1000 requests/month.
 
 v1: US-only, web_url only, flatrate+free only.
-Lazy cache with 30-day inline refresh. Falls back to JustWatch if quota exhausted.
+Lazy cache with 30-day inline refresh. Falls back to provider homepages when
+direct deep links are unavailable.
 """
 
 import httpx
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -31,23 +33,76 @@ WATCHMODE_TO_TMDB_PROVIDER = {
     "prime video": 9,
     "amazon video": 10,
     "disney plus": 337,
-    "disney+": 337,
     "hulu": 15,
     "hbo max": 1899,
     "max": 1899,
     "apple tv plus": 350,
-    "apple tv+": 350,
     "apple tv": 2,
     "peacock": 386,
     "peacock premium": 386,
     "crunchyroll": 283,
     "paramount plus": 531,
-    "paramount+": 531,
     "google play movies": 3,
     "youtube": 192,
     "tubi": 73,
     "pluto tv": 300,
 }
+
+PROVIDER_FALLBACK_URLS = {
+    2: "https://tv.apple.com/",
+    3: "https://play.google.com/store/movies",
+    8: "https://www.netflix.com/",
+    9: "https://www.primevideo.com/",
+    10: "https://www.amazon.com/gp/video/storefront/",
+    15: "https://www.hulu.com/",
+    73: "https://tubitv.com/",
+    192: "https://www.youtube.com/movies",
+    283: "https://www.crunchyroll.com/",
+    300: "https://pluto.tv/",
+    337: "https://www.disneyplus.com/",
+    350: "https://tv.apple.com/",
+    386: "https://www.peacocktv.com/",
+    531: "https://www.paramountplus.com/",
+    1899: "https://www.max.com/",
+}
+
+
+def _normalize_provider_name(name: str) -> str:
+    normalized = (name or "").lower().strip()
+    normalized = normalized.replace("&", " and ").replace("+", " plus ")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _match_tmdb_provider_id(name: str) -> Optional[int]:
+    normalized_name = _normalize_provider_name(name)
+    if not normalized_name:
+        return None
+
+    direct_match = WATCHMODE_TO_TMDB_PROVIDER.get(normalized_name)
+    if direct_match:
+        return direct_match
+
+    for alias, provider_id in WATCHMODE_TO_TMDB_PROVIDER.items():
+        if (
+            normalized_name.startswith(f"{alias} ")
+            or normalized_name.endswith(f" {alias}")
+            or f" {alias} " in normalized_name
+        ):
+            return provider_id
+
+    return None
+
+
+def get_provider_fallback_url(provider_id: Optional[int], provider_name: str = "") -> Optional[str]:
+    if provider_id and provider_id in PROVIDER_FALLBACK_URLS:
+        return PROVIDER_FALLBACK_URLS[provider_id]
+
+    matched_provider_id = _match_tmdb_provider_id(provider_name)
+    if matched_provider_id:
+        return PROVIDER_FALLBACK_URLS.get(matched_provider_id)
+
+    return None
 
 
 # ─── Quota Tracking ─────────────────────────────────────────────
@@ -225,20 +280,36 @@ async def get_deeplinks_for_movie(tmdb_id: int, media_type: str) -> dict:
 
     # 4. Build matched rows — dedupe by (provider_id, source_type)
     matched_rows = {}
+    unmatched_sources = set()
     for source in sources:
         if source.source_type not in ("sub", "free"):
             continue
-        name_lower = source.name.lower().strip()
-        tmdb_pid = WATCHMODE_TO_TMDB_PROVIDER.get(name_lower)
-        if tmdb_pid and source.web_url:
-            key = (tmdb_pid, source.source_type)
-            if key not in matched_rows:
-                matched_rows[key] = {
-                    "provider_id": tmdb_pid,
-                    "provider_name": source.name,
-                    "source_type": source.source_type,
-                    "web_url": source.web_url,
-                }
+        if not source.web_url:
+            continue
+
+        tmdb_pid = _match_tmdb_provider_id(source.name)
+        if not tmdb_pid:
+            normalized_name = _normalize_provider_name(source.name)
+            if normalized_name:
+                unmatched_sources.add(normalized_name)
+            continue
+
+        key = (tmdb_pid, source.source_type)
+        if key not in matched_rows:
+            matched_rows[key] = {
+                "provider_id": tmdb_pid,
+                "provider_name": source.name,
+                "source_type": source.source_type,
+                "web_url": source.web_url,
+            }
+
+    if unmatched_sources:
+        logger.info(
+            "Watchmode unmatched providers for tmdb_id=%s (%s): %s",
+            tmdb_id,
+            media_type,
+            ", ".join(sorted(unmatched_sources)),
+        )
 
     # 5. Atomic transaction: delete old + insert fresh + upsert fetch state
     links = {}

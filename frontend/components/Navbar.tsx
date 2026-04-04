@@ -448,6 +448,13 @@ export default function Navbar() {
                                 >
                                     Watch History
                                 </button>
+                                <Link
+                                    href="/contact"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="w-full py-3 font-body text-xs font-medium uppercase tracking-widest text-text-secondary hover:text-accent-gold transition-colors text-center"
+                                >
+                                    Contact Us
+                                </Link>
                             </div>
                         )}
                     </div>

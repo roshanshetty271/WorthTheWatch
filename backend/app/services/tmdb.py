@@ -348,7 +348,7 @@ class TMDBService:
                 "buy": region_data.get("buy", []),            # Purchase options
                 "free": region_data.get("free", []),          # Free with ads (Tubi, etc)
                 "ads": region_data.get("ads", []),            # Free with ads
-                "link": region_data.get("link", ""),          # JustWatch link
+                "link": region_data.get("link", ""),          # TMDB watch page link
             }
         except Exception:
             return {"flatrate": [], "rent": [], "buy": [], "free": [], "ads": [], "link": ""}

@@ -1,0 +1,47 @@
+# Worth the Watch?
+
+> AI-powered movie and TV show verdicts based on critic reviews, Reddit discussions, and audience scores. No spoilers, just the truth.
+
+## What this site does
+
+Worth the Watch aggregates opinions from professional critics, Reddit communities, and real viewers to generate instant verdicts on whether a movie or TV show is worth your time. Each title receives a clear verdict: WORTH IT, NOT WORTH IT, or MIXED BAG — along with specific praise points, criticism points, and aggregated scores from IMDb, Rotten Tomatoes, and Metacritic.
+
+## How to find reviews
+
+Every reviewed title has a dedicated page at:
+
+    https://worth-the-watch.vercel.app/movie/{tmdb_id}
+
+For TV shows, append `?type=tv`:
+
+    https://worth-the-watch.vercel.app/movie/{tmdb_id}?type=tv
+
+The TMDB ID is from The Movie Database (themoviedb.org).
+
+## Browse categories
+
+- Worth It picks: https://worth-the-watch.vercel.app/browse/worth-it
+- Skip These: https://worth-the-watch.vercel.app/browse/skip-these
+- Mixed Bag: https://worth-the-watch.vercel.app/browse/mixed-bag
+- Hidden Gems: https://worth-the-watch.vercel.app/browse/hidden-gems
+- Latest reviews: https://worth-the-watch.vercel.app/browse/latest
+- Trending: https://worth-the-watch.vercel.app/browse/trending
+- TV Shows: https://worth-the-watch.vercel.app/browse/tv-shows
+- Advanced filtering: https://worth-the-watch.vercel.app/discover
+
+## Available data per review
+
+- Verdict: WORTH IT, NOT WORTH IT, or MIXED BAG
+- Review summary: 150-250 words, conversational, no spoilers
+- Hook: one-sentence summary of the verdict
+- Praise points: 2-3 specific things the title does well
+- Criticism points: 2-3 specific weaknesses
+- Tags: mood/style descriptors (e.g., Cerebral, Feel-Good, Slow-Burn, Action-Packed)
+- Scores: IMDb, Rotten Tomatoes, Metacritic (when available)
+- Confidence level: HIGH, MEDIUM, or LOW based on source availability
+- Critic vs audience sentiment comparison
+- Streaming availability (US)
+
+## About
+
+Worth the Watch is an independent project. Reviews are synthesized from multiple public sources using AI, not written by a single critic. The goal is to answer one question clearly: "Is this worth my time?"

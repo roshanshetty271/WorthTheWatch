@@ -523,14 +523,14 @@ async def get_streaming_availability(
     free = [format_provider(p) for p in (providers.get("free", []) + providers.get("ads", []))]
 
     # Merge Watchmode deep links (v1: flatrate + free only)
-    from app.services.watchmode import get_deeplinks_for_movie
+    from app.services.watchmode import get_deeplinks_for_movie, get_provider_fallback_url
     deeplinks = await get_deeplinks_for_movie(tmdb_id, media_type)
     for provider in flatrate + free:
         pid = provider.get("provider_id")
-        if pid and pid in deeplinks:
-            provider["web_url"] = deeplinks[pid]
-        else:
-            provider["web_url"] = None
+        provider["web_url"] = deeplinks.get(pid) or get_provider_fallback_url(
+            pid,
+            provider.get("name", ""),
+        )
 
     return {
         "available": bool(flatrate or rent or buy or free),

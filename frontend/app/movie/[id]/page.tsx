@@ -111,6 +111,28 @@ function generateFaqJsonLd(movie: MovieWithReview) {
     });
   }
 
+  if (r) {
+    const goodBad = r.verdict === "WORTH IT" ? "good" : r.verdict === "NOT WORTH IT" ? "not great" : "a mixed bag";
+    faqs.push({
+      question: `Should I watch ${m.title}?`,
+      answer: `${r.verdict === "WORTH IT" ? "Yes" : r.verdict === "NOT WORTH IT" ? "Probably not" : "It depends on your taste"} — ${r.vibe || r.hook || r.review_text?.slice(0, 150) || "See the full verdict on Worth the Watch."}`,
+    });
+
+    faqs.push({
+      question: `Is ${m.title}${year} good or bad?`,
+      answer: `${m.title} is ${goodBad}. ${r.hook || r.review_text?.slice(0, 150) || ""}`.trim(),
+    });
+
+    if (r.praise_points?.length && r.criticism_points?.length) {
+      const pros = r.praise_points.slice(0, 2).join('; ');
+      const cons = r.criticism_points.slice(0, 2).join('; ');
+      faqs.push({
+        question: `What are the pros and cons of ${m.title}?`,
+        answer: `Pros: ${pros}. Cons: ${cons}.`,
+      });
+    }
+  }
+
   faqs.push({
     question: `Where can I watch ${m.title}?`,
     answer: `Check streaming availability for ${m.title} on Worth the Watch to see which platforms have it.`,

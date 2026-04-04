@@ -119,7 +119,8 @@ export default function StreamingAvailability({ tmdbId, mediaType = "movie", ini
             <span className="text-sm font-semibold uppercase tracking-wider text-accent-gold/80">Watch On</span>
             <div className="flex items-center gap-2">
                 {streamingOptions.map((provider) => {
-                    const href = provider.web_url || justwatch_link;
+                    // Deep link > provider homepage > TMDB/JustWatch watch page > non-clickable
+                    const href = provider.web_url || justwatch_link || null;
                     const Wrapper = href ? "a" : "div";
                     const linkProps = href ? { href, target: "_blank", rel: "noopener noreferrer" } : {};
                     return (
