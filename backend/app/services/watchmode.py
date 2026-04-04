@@ -13,6 +13,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import quote
 
 from sqlalchemy import select, func, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -66,6 +67,26 @@ PROVIDER_FALLBACK_URLS = {
     1899: "https://www.max.com/",
 }
 
+# Search URL templates — used when a movie title is available but no Watchmode
+# deep link exists. {title} is replaced with the URL-encoded movie title.
+PROVIDER_SEARCH_TEMPLATES = {
+    2: "https://tv.apple.com/search?term={title}",
+    3: "https://play.google.com/store/search?q={title}&c=movies",
+    8: "https://www.netflix.com/search?q={title}",
+    9: "https://www.primevideo.com/search/ref=atv_nb_sr?phrase={title}",
+    10: "https://www.amazon.com/s?k={title}&i=instant-video",
+    15: "https://www.hulu.com/search?q={title}",
+    73: "https://tubitv.com/search/{title}",
+    192: "https://www.youtube.com/results?search_query={title}",
+    283: "https://www.crunchyroll.com/search?q={title}",
+    300: "https://pluto.tv/search/details?query={title}",
+    337: "https://www.disneyplus.com/search?q={title}",
+    350: "https://tv.apple.com/search?term={title}",
+    386: "https://www.peacocktv.com/search?q={title}",
+    531: "https://www.paramountplus.com/search/?q={title}",
+    1899: "https://www.max.com/search?q={title}",
+}
+
 
 def _normalize_provider_name(name: str) -> str:
     normalized = (name or "").lower().strip()
@@ -94,15 +115,27 @@ def _match_tmdb_provider_id(name: str) -> Optional[int]:
     return None
 
 
-def get_provider_fallback_url(provider_id: Optional[int], provider_name: str = "") -> Optional[str]:
-    if provider_id and provider_id in PROVIDER_FALLBACK_URLS:
-        return PROVIDER_FALLBACK_URLS[provider_id]
+def get_provider_fallback_url(
+    provider_id: Optional[int],
+    provider_name: str = "",
+    title: str = "",
+) -> Optional[str]:
+    # Resolve to a known provider ID (direct match first, then name-based)
+    resolved_id = provider_id if (provider_id and provider_id in PROVIDER_FALLBACK_URLS) else None
+    if not resolved_id:
+        resolved_id = _match_tmdb_provider_id(provider_name)
 
-    matched_provider_id = _match_tmdb_provider_id(provider_name)
-    if matched_provider_id:
-        return PROVIDER_FALLBACK_URLS.get(matched_provider_id)
+    if not resolved_id:
+        return None
 
-    return None
+    # If we have a title, return a search URL so users land on the right page
+    # (and mobile universal links can trigger the native app)
+    if title and resolved_id in PROVIDER_SEARCH_TEMPLATES:
+        encoded = quote(title, safe="")
+        return PROVIDER_SEARCH_TEMPLATES[resolved_id].replace("{title}", encoded)
+
+    # No title — fall back to provider homepage
+    return PROVIDER_FALLBACK_URLS.get(resolved_id)
 
 
 # ─── Quota Tracking ─────────────────────────────────────────────

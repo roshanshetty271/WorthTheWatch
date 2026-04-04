@@ -500,11 +500,24 @@ async def get_streaming_availability(
     db: AsyncSession = Depends(get_db),
 ):
     # If media_type not provided, try to detect from DB
+    movie = None
     if not media_type or media_type == "movie":
         result = await db.execute(select(Movie).where(Movie.tmdb_id == tmdb_id))
         movie = result.scalar_one_or_none()
         if movie:
             media_type = movie.media_type
+
+    # Resolve movie title for search-based fallback URLs
+    movie_title = movie.title if movie else ""
+    if not movie_title:
+        try:
+            if media_type == "tv":
+                details = await tmdb_service.get_tv_details(tmdb_id)
+            else:
+                details = await tmdb_service.get_movie_details(tmdb_id)
+            movie_title = details.get("title") or details.get("name") or ""
+        except Exception:
+            movie_title = ""
 
     # v1: Hardcode US for both TMDB and Watchmode
     providers = await tmdb_service.get_watch_providers(tmdb_id, media_type, "US")
@@ -530,6 +543,7 @@ async def get_streaming_availability(
         provider["web_url"] = deeplinks.get(pid) or get_provider_fallback_url(
             pid,
             provider.get("name", ""),
+            movie_title,
         )
 
     return {
