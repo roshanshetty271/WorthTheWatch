@@ -6,11 +6,19 @@ import { Suspense } from "react";
 import DiscoverPage from "@/components/DiscoverPage";
 
 export const metadata = {
-    title: "Discover — Worth the Watch?",
+    title: "Discover",
     description: "Find exactly what you want to watch. Filter by genre, year, rating, and more.",
+    alternates: { canonical: "https://worth-the-watch.com/discover" },
     openGraph: {
         title: "Discover — Worth the Watch?",
         description: "Find exactly what you want to watch. Filter by genre, year, rating, and more.",
+        images: ["/twitter-share.jpg"],
+    },
+    twitter: {
+        card: "summary_large_image" as const,
+        title: "Discover — Worth the Watch?",
+        description: "Find exactly what you want to watch. Filter by genre, year, rating, and more.",
+        images: ["/twitter-share.jpg"],
     },
 };
 

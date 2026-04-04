@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Privacy Policy | Worth the Watch?",
+    title: "Privacy Policy",
     description: "How Worth the Watch? handles your data.",
+    alternates: { canonical: "https://worth-the-watch.com/privacy" },
 };
 
 export default function PrivacyPage() {

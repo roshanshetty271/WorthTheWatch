@@ -206,8 +206,25 @@ export default async function HomePage() {
   // Check if any section has data
   const hasAnySections = sectionsWithData.some((s) => s.movies.length > 0);
 
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Worth the Watch?",
+    url: "https://worth-the-watch.com",
+    description: "Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://worth-the-watch.com/search?q={search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  };
+
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd).replace(/</g, '\\u003c') }}
+      />
       {/* ═══════════════════════════════════════════════════════════════════
           HERO — Full Screen & Immersive
           ═══════════════════════════════════════════════════════════════════ */}

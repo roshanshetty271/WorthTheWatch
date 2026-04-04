@@ -46,13 +46,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         return { title: "List Not Found | Worth the Watch?" };
     }
 
-    const title = `${list.name} — ${list.itemCount} picks | Worth the Watch?`;
+    const title = `${list.name} — ${list.itemCount} picks`;
     const description = list.description
         || `A curated watchlist of ${list.itemCount} movies and shows on Worth the Watch.`;
 
     return {
         title,
         description,
+        robots: { index: false, follow: true },
         openGraph: {
             title: list.name,
             description,

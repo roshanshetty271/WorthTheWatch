@@ -6,11 +6,19 @@ import { Suspense } from "react";
 import Versus from "@/components/Versus";
 
 export const metadata = {
-    title: "Versus — Worth the Watch?",
+    title: "Versus — Movie Battles",
     description: "Two movies enter. One leaves victorious. AI-powered movie battles with devastating wit.",
+    alternates: { canonical: "https://worth-the-watch.com/versus" },
     openGraph: {
         title: "Versus — Worth the Watch?",
         description: "Two movies enter. One leaves victorious. AI-powered movie battles with devastating wit.",
+        images: ["/twitter-share.jpg"],
+    },
+    twitter: {
+        card: "summary_large_image" as const,
+        title: "Versus — Worth the Watch?",
+        description: "Two movies enter. One leaves victorious. AI-powered movie battles with devastating wit.",
+        images: ["/twitter-share.jpg"],
     },
 };
 

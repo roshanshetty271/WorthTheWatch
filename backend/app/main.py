@@ -103,13 +103,18 @@ app.include_router(feedback.router, prefix="/api/reviews", tags=["feedback"])
 async def get_sitemap_data(db: AsyncSession = Depends(get_db)):
     """Returns all reviewed movie IDs for sitemap generation."""
     result = await db.execute(
-        select(Movie.tmdb_id, Movie.title, Review.generated_at)
+        select(Movie.tmdb_id, Movie.title, Movie.media_type, Review.generated_at)
         .join(Review)
         .order_by(desc(Review.generated_at))
     )
     rows = result.all()
     return [
-        {"tmdb_id": r.tmdb_id, "title": r.title, "updated_at": r.generated_at.isoformat()}
+        {
+            "tmdb_id": r.tmdb_id,
+            "title": r.title,
+            "media_type": r.media_type or "movie",
+            "updated_at": r.generated_at.isoformat(),
+        }
         for r in rows
     ]
 

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import ContactForm from "./ContactForm";
 
 export const metadata: Metadata = {
-    title: "Contact Us | Worth the Watch?",
+    title: "Contact Us",
     description: "Get in touch with the Worth the Watch? team.",
+    alternates: { canonical: "https://worth-the-watch.com/contact" },
 };
 
 export default function ContactPage() {

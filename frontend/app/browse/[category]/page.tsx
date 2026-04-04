@@ -23,19 +23,28 @@ const VALID_CATEGORIES = Object.keys(CATEGORY_META);
 // ─── SEO Metadata ──────────────────────────────────────────────
 export async function generateMetadata({
     params,
+    searchParams,
 }: {
     params: Promise<{ category: string }>;
+    searchParams: Promise<{ page?: string }>;
 }): Promise<Metadata> {
     const { category } = await params;
+    const { page } = await searchParams;
     const meta = CATEGORY_META[category];
 
     if (!meta) {
         return { title: "Not Found | Worth the Watch?" };
     }
 
+    const pageNum = parseInt(page || "1", 10);
+    const canonical = pageNum > 1
+        ? `https://worth-the-watch.com/browse/${category}?page=${pageNum}`
+        : `https://worth-the-watch.com/browse/${category}`;
+
     return {
-        title: `${meta.emoji} ${meta.title} | Worth the Watch?`,
+        title: `${meta.emoji} ${meta.title}`,
         description: meta.description,
+        alternates: { canonical },
         openGraph: {
             title: `${meta.title} | Worth the Watch?`,
             description: meta.description,

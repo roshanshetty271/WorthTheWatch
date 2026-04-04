@@ -24,6 +24,17 @@ export default function AuthButton({ onSignInClick }: { onSignInClick?: () => vo
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // After OAuth redirect, show avatar placeholder instead of "Sign In"
+    const justSignedIn = status === "loading" && typeof window !== "undefined" && sessionStorage.getItem("wtw_just_signed_in") === "1";
+
+    if (justSignedIn) {
+        return (
+            <div className="h-8 w-8 rounded-full bg-accent-gold/20 flex items-center justify-center text-accent-gold text-sm font-bold animate-pulse">
+                ?
+            </div>
+        );
+    }
+
     // Show "Sign In" during loading AND when not signed in — no layout shift
     if (status === "loading" || !session) {
         return (

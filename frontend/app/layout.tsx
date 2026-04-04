@@ -31,13 +31,22 @@ const lora = Lora({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://worth-the-watch.com'),
-  title: 'Worth the Watch? — Don\'t watch another bad movie.',
+  title: {
+    default: 'Worth the Watch? — Don\'t watch another bad movie.',
+    template: '%s | Worth the Watch?',
+  },
   description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
+  keywords: [
+    'movie reviews', 'is it worth watching', 'movie verdict',
+    'AI movie reviews', 'Reddit movie opinions', 'should I watch',
+    'movie recommendations', 'what to watch tonight',
+  ],
   openGraph: {
     title: 'Worth the Watch? — Don\'t watch another bad movie.',
     description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
     siteName: 'Worth the Watch?',
     images: [{ url: '/twitter-share.jpg', width: 1200, height: 630 }],
+    locale: 'en_US',
     type: 'website',
   },
   twitter: {
@@ -45,6 +54,7 @@ export const metadata: Metadata = {
     title: 'Worth the Watch? — Don\'t watch another bad movie.',
     description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
     images: ['/twitter-share.jpg'],
+    creator: '@MFamily72657',
   },
   verification: {
     google: 'jQOk60O_Ce2dQkhWwkVnKLkl-aPksftS0VkCG6SnJjw',
@@ -61,6 +71,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://image.tmdb.org" />
         <link rel="dns-prefetch" href="https://image.tmdb.org" />
+        <meta name="theme-color" content="#d4a843" />
       </head>
       <body className={`${dmSans.variable} ${dmSerif.variable} ${lora.variable} min-h-screen bg-surface`}>
         <AuthProvider>
