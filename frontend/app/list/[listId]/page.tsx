@@ -3,7 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { auth } from "@/auth";
 import PublicListPage from "@/components/PublicListPage";
 
-const SITE_URL = "https://worth-the-watch.vercel.app";
+const SITE_URL = "https://worth-the-watch.com";
 
 interface Props {
     params: Promise<{ listId: string }>;

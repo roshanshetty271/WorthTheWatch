@@ -10,24 +10,24 @@ Worth the Watch aggregates opinions from professional critics, Reddit communitie
 
 Every reviewed title has a dedicated page at:
 
-    https://worth-the-watch.vercel.app/movie/{tmdb_id}
+    https://worth-the-watch.com/movie/{tmdb_id}
 
 For TV shows, append `?type=tv`:
 
-    https://worth-the-watch.vercel.app/movie/{tmdb_id}?type=tv
+    https://worth-the-watch.com/movie/{tmdb_id}?type=tv
 
 The TMDB ID is from The Movie Database (themoviedb.org).
 
 ## Browse categories
 
-- Worth It picks: https://worth-the-watch.vercel.app/browse/worth-it
-- Skip These: https://worth-the-watch.vercel.app/browse/skip-these
-- Mixed Bag: https://worth-the-watch.vercel.app/browse/mixed-bag
-- Hidden Gems: https://worth-the-watch.vercel.app/browse/hidden-gems
-- Latest reviews: https://worth-the-watch.vercel.app/browse/latest
-- Trending: https://worth-the-watch.vercel.app/browse/trending
-- TV Shows: https://worth-the-watch.vercel.app/browse/tv-shows
-- Advanced filtering: https://worth-the-watch.vercel.app/discover
+- Worth It picks: https://worth-the-watch.com/browse/worth-it
+- Skip These: https://worth-the-watch.com/browse/skip-these
+- Mixed Bag: https://worth-the-watch.com/browse/mixed-bag
+- Hidden Gems: https://worth-the-watch.com/browse/hidden-gems
+- Latest reviews: https://worth-the-watch.com/browse/latest
+- Trending: https://worth-the-watch.com/browse/trending
+- TV Shows: https://worth-the-watch.com/browse/tv-shows
+- Advanced filtering: https://worth-the-watch.com/discover
 
 ## Available data per review
 

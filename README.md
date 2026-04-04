@@ -2,7 +2,7 @@
 **Should I stream this? The internet decides.**
 
 Built by **Roshan Shetty** — [Portfolio](https://www.roshanshetty.dev/) | [LinkedIn](https://www.linkedin.com/in/roshanshetty271/)  
-Live App: [worth-the-watch.vercel.app](https://worth-the-watch.vercel.app/)
+Live App: [worth-the-watch.com](https://worth-the-watch.com/)
 
 ---
 

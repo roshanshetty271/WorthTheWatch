@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Worth the Watch?"
     ENVIRONMENT: str = "development"  # "development" or "production"
     DEBUG: bool = False
-    ALLOWED_ORIGINS: str = "http://localhost:3000,https://worth-the-watch.vercel.app"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,https://worth-the-watch.com,https://worth-the-watch.vercel.app"
 
     # Database (Neon PostgreSQL)
     DATABASE_URL: str

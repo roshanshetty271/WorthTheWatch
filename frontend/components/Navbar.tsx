@@ -16,7 +16,7 @@ import FeaturesShowcase from "./FeaturesShowcase";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 
-function MobileAuthSection({ onClose }: { onClose: () => void }) {
+function MobileAuthSection({ onClose, onSignInClick }: { onClose: () => void; onSignInClick: () => void }) {
     const { data: session, status } = useSession();
     const [confirmSignOut, setConfirmSignOut] = useState(false);
 
@@ -25,7 +25,7 @@ function MobileAuthSection({ onClose }: { onClose: () => void }) {
     if (!session) {
         return (
             <button
-                onClick={() => { onClose(); sessionStorage.setItem("wtw_just_signed_in", "1"); signIn("google", { callbackUrl: window.location.href }); }}
+                onClick={() => { onClose(); onSignInClick(); }}
                 className="w-full py-5 font-body text-sm font-bold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors text-center border-b border-white/10"
             >
                 Sign In
@@ -320,7 +320,7 @@ export default function Navbar() {
                         </button>
 
                         <div className="hidden md:block">
-                            <AuthButton />
+                            <AuthButton onSignInClick={() => setShowSignIn(true)} />
                         </div>
 
                         {/* Mobile Menu Toggle */}
@@ -461,7 +461,7 @@ export default function Navbar() {
 
                     {/* Mobile Auth Section */}
                     <div className="w-full">
-                        <MobileAuthSection onClose={() => setMobileMenuOpen(false)} />
+                        <MobileAuthSection onClose={() => setMobileMenuOpen(false)} onSignInClick={() => setShowSignIn(true)} />
                     </div>
                 </nav>
             </div>

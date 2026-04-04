@@ -30,7 +30,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://worth-the-watch.vercel.app'),
+  metadataBase: new URL('https://worth-the-watch.com'),
   title: 'Worth the Watch? — Don\'t watch another bad movie.',
   description: 'Search any title to get an instant, AI-powered verdict from fans and critics. No spoilers, just the truth.',
   openGraph: {

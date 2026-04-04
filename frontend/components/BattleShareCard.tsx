@@ -144,7 +144,7 @@ export default function BattleShareCard({
             console.error("Share failed:", err);
             // Final fallback: copy text
             try {
-                const text = `🏆 ${winnerTitle} DEFEATS ${loserTitle}\n\n"${killReason}"\n\n⚔️ worth-the-watch.vercel.app/versus`;
+                const text = `🏆 ${winnerTitle} DEFEATS ${loserTitle}\n\n"${killReason}"\n\n⚔️ worth-the-watch.com/versus`;
                 await navigator.clipboard.writeText(text);
                 alert(
                     "Image generation failed — verdict copied to clipboard instead!"
@@ -493,7 +493,7 @@ export default function BattleShareCard({
                                 textShadow: "0 2px 10px rgba(0,0,0,0.5)", // Added shadow for readability
                             }}
                         >
-                            worth-the-watch.vercel.app
+                            worth-the-watch.com
                         </div>
                     </div>
                 </div>

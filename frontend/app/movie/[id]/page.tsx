@@ -44,7 +44,7 @@ async function getStreaming(tmdbId: string, mediaType?: string) {
   }
 }
 
-const SITE_URL = 'https://worth-the-watch.vercel.app';
+const SITE_URL = 'https://worth-the-watch.com';
 
 function generateJsonLd(movie: MovieWithReview) {
   const { movie: m, review: r } = movie;

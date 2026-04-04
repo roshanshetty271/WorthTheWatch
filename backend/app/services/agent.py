@@ -343,18 +343,23 @@ async def enrich_data(state: AgentState) -> dict:
     except Exception as e:
         logger.warning(f"KinoCheck fetch failed: {e}")
     
-    # TMDB fallback for trailer
+    # TMDB fallback for trailer — prefer Trailer > Teaser > Clip > Featurette > any
     if not trailer_url:
         try:
             from app.services.tmdb import tmdb_service
             videos = await tmdb_service.get_videos(movie.tmdb_id, movie.media_type or "movie")
             if videos:
-                for v in videos:
-                    if v.get("site") == "YouTube" and v.get("type") == "Trailer":
-                        trailer_url = youtube_embed_url(v["key"])
+                yt_videos = [v for v in videos if v.get("site") == "YouTube" and v.get("key")]
+                type_priority = ["Trailer", "Teaser", "Clip", "Featurette"]
+                for vtype in type_priority:
+                    for v in yt_videos:
+                        if v.get("type") == vtype:
+                            trailer_url = youtube_embed_url(v["key"])
+                            break
+                    if trailer_url:
                         break
-                if not trailer_url and videos:
-                    trailer_url = youtube_embed_url(videos[0]["key"])
+                if not trailer_url and yt_videos:
+                    trailer_url = youtube_embed_url(yt_videos[0]["key"])
         except Exception:
             pass
     

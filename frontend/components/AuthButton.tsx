@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 
-export default function AuthButton() {
+export default function AuthButton({ onSignInClick }: { onSignInClick?: () => void } = {}) {
     const { data: session, status } = useSession();
     const [showMenu, setShowMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -33,8 +33,8 @@ export default function AuthButton() {
     if (!session) {
         return (
             <button
-                onClick={() => { sessionStorage.setItem("wtw_just_signed_in", "1"); signIn("google", { callbackUrl: window.location.href }); }}
-                className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold 
+                onClick={() => onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href })}
+                className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold
                    transition-colors uppercase tracking-widest"
                 aria-label="Sign in with Google"
             >
@@ -106,7 +106,7 @@ export default function AuthButton() {
                     {!confirmSignOut ? (
                         <button
                             onClick={() => setConfirmSignOut(true)}
-                            className="w-full text-left px-4 py-2.5 text-sm text-text-secondary 
+                            className="w-full text-left px-4 py-2.5 text-sm text-text-secondary
                hover:text-white hover:bg-white/5 transition-colors"
                         >
                             Sign Out
@@ -123,16 +123,16 @@ export default function AuthButton() {
                                         setConfirmSignOut(false);
                                         signOut({ callbackUrl: "/" });
                                     }}
-                                    className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg 
-                   bg-stone-500/20 text-stone-300 hover:bg-white/10 
+                                    className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                   bg-stone-500/20 text-stone-300 hover:bg-white/10
                    transition-colors"
                                 >
                                     Sign Out
                                 </button>
                                 <button
                                     onClick={() => setConfirmSignOut(false)}
-                                    className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg 
-                   bg-white/5 text-text-secondary hover:bg-white/10 
+                                    className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                   bg-white/5 text-text-secondary hover:bg-white/10
                    transition-colors"
                                 >
                                     Cancel
@@ -140,6 +140,7 @@ export default function AuthButton() {
                             </div>
                         </div>
                     )}
+
                 </div>
             )}
         </div>

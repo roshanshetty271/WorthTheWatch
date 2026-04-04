@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -238,7 +238,62 @@ export default function ProfilePage() {
                         </div>
                     </div>
                 )}
+
+                {/* Danger Zone */}
+                <DangerZone />
             </div>
+        </div>
+    );
+}
+
+function DangerZone() {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    return (
+        <div className="mt-12 border-t border-red-500/10 pt-8">
+            <h3 className="text-sm font-semibold uppercase tracking-widest text-red-400/60 mb-4">Danger Zone</h3>
+            {!confirmDelete ? (
+                <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="px-5 py-2.5 rounded-xl text-sm font-medium border border-red-500/20 text-red-400/70 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-colors"
+                >
+                    Delete Account
+                </button>
+            ) : (
+                <div className="max-w-md space-y-4 p-4 rounded-xl border border-red-500/20 bg-red-500/5">
+                    <p className="text-sm text-red-300/80">
+                        This will permanently delete your account, watchlist, lists, and all activity. This cannot be undone.
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={async () => {
+                                setDeleting(true);
+                                try {
+                                    const res = await fetch("/api/account/delete", { method: "DELETE" });
+                                    if (res.ok) {
+                                        signOut({ callbackUrl: "/" });
+                                    }
+                                } catch {
+                                    // user can retry
+                                } finally {
+                                    setDeleting(false);
+                                }
+                            }}
+                            disabled={deleting}
+                            className="px-5 py-2 text-xs font-bold rounded-xl bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                        >
+                            {deleting ? "Deleting..." : "Delete Forever"}
+                        </button>
+                        <button
+                            onClick={() => setConfirmDelete(false)}
+                            className="px-5 py-2 text-xs font-medium rounded-xl bg-white/5 text-text-secondary hover:bg-white/10 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

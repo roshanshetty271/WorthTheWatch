@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
                 disallow: ['/api/', '/auth/', '/my-list', '/profile', '/history'],
             },
         ],
-        sitemap: 'https://worth-the-watch.vercel.app/sitemap.xml',
+        sitemap: 'https://worth-the-watch.com/sitemap.xml',
     };
 }
