@@ -5,6 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 
+const desktopAuthSlotClassName = "relative flex min-w-[4.5rem] justify-end";
+const authTriggerClassName = "text-base md:text-sm font-medium text-white/80 hover:text-accent-gold transition-colors uppercase tracking-widest";
+
 export default function AuthButton({ onSignInClick }: { onSignInClick?: () => void } = {}) {
     const { data: session, status } = useSession();
     const [showMenu, setShowMenu] = useState(false);
@@ -24,35 +27,42 @@ export default function AuthButton({ onSignInClick }: { onSignInClick?: () => vo
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Don't show anything while loading — prevents flash
+    // Reserve the desktop auth slot so the navbar doesn't shift during auth hydration.
     if (status === "loading") {
-        return <div className="h-8 w-8" />;
+        return (
+            <div className={desktopAuthSlotClassName} aria-hidden="true">
+                <span className={`${authTriggerClassName} pointer-events-none select-none opacity-0`}>
+                    Sign In
+                </span>
+            </div>
+        );
     }
 
     // Not signed in
     if (!session) {
         return (
-            <button
-                onClick={() => onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href })}
-                className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold
-                   transition-colors uppercase tracking-widest"
-                aria-label="Sign in with Google"
-            >
-                Sign In
-            </button>
+            <div className={desktopAuthSlotClassName}>
+                <button
+                    onClick={() => onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href })}
+                    className={authTriggerClassName}
+                    aria-label="Sign in with Google"
+                >
+                    Sign In
+                </button>
+            </div>
         );
     }
 
     // Signed in — show avatar with dropdown
     return (
-        <div className="relative" ref={menuRef}>
+        <div className={desktopAuthSlotClassName} ref={menuRef}>
             <button
                 onClick={() => setShowMenu(!showMenu)}
                 className="flex items-center gap-2 group p-1"
                 aria-label="Account menu"
             >
                 {session.user?.image ? (
-                    <img
+                    <Image
                         src={session.user.image}
                         alt={session.user.name || "User"}
                         width={32}

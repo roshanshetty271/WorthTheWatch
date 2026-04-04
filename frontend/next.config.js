@@ -55,6 +55,22 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com', // GitHub avatars
+      },
+      {
+        protocol: 'https',
+        hostname: '*.githubusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'platform-lookaside.fbsbx.com', // Facebook avatars
+      },
+      {
+        protocol: 'https',
+        hostname: 'pbs.twimg.com', // Twitter/X avatars
+      },
     ],
   },
 };

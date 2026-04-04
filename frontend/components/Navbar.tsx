@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -10,11 +10,9 @@ const CinemaRoulette = dynamic(() => import("./CinemaRoulette"), {
 });
 import { useWatchlist } from "@/lib/useWatchlist";
 import AuthButton from "./AuthButton";
-import NotificationBell from "./NotificationBell";
 import SignInDialog from "./SignInDialog";
 import FeaturesShowcase from "./FeaturesShowcase";
-import { useSession, signIn, signOut } from "next-auth/react";
-import Image from "next/image";
+import { useSession, signOut } from "next-auth/react";
 
 function MobileAuthSection({ onClose, onSignInClick }: { onClose: () => void; onSignInClick: () => void }) {
     const { data: session, status } = useSession();
@@ -97,7 +95,6 @@ export default function Navbar() {
     const [rouletteOpen, setRouletteOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
     const [exploreOpen, setExploreOpen] = useState(false);
     const [exploreExpanded, setExploreExpanded] = useState(false);
     const [showSignIn, setShowSignIn] = useState(false);
@@ -107,9 +104,9 @@ export default function Navbar() {
     const router = useRouter();
     const { count } = useWatchlist();
     const { data: session } = useSession();
+    const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
 
     useEffect(() => {
-        setMounted(true);
         const handleScroll = () => {
             requestAnimationFrame(() => {
                 setScrolled(window.scrollY > 10);
@@ -304,10 +301,6 @@ export default function Navbar() {
                         >
                             Can&apos;t Decide?
                         </button>
-
-                        <div className="hidden md:block">
-                            <NotificationBell />
-                        </div>
 
                         <button
                             onClick={handleSearchClick}
