@@ -189,7 +189,8 @@ class WatchmodeService:
             return {"ok": False, "error": "no_api_key"}
 
         wm_type = "tv_series" if media_type == "tv" else "movie"
-        params = {"apiKey": self.api_key, "source_id": tmdb_id, "source": "tmdb"}
+        search_field = "tmdb_tv_id" if media_type == "tv" else "tmdb_movie_id"
+        params = {"apiKey": self.api_key, "search_field": search_field, "search_value": str(tmdb_id)}
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:

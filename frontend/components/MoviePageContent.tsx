@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { FastAverageColor } from "fast-average-color";
 import ReviewSection from "@/components/ReviewSection";
 import VerdictBadge from "@/components/VerdictBadge";
 import StreamingAvailability from "@/components/StreamingAvailability";
@@ -14,6 +15,42 @@ import { logActivity } from "@/lib/logActivity";
 import type { MovieWithReview, Review } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/** Clamp a hex color's HSL lightness to maxL (0–1) so it looks good on dark UI. */
+function darkenColor(hex: string, maxL = 0.35): string {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (l <= maxL) return hex;
+
+    let h = 0, s = 0;
+    const d = max - min;
+    s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    if (d !== 0) {
+        if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        else if (max === g) h = ((b - r) / d + 2) / 6;
+        else h = ((r - g) / d + 4) / 6;
+    }
+
+    // Rebuild with clamped lightness
+    const newL = maxL;
+    const c = (1 - Math.abs(2 * newL - 1)) * s;
+    const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+    const m = newL - c / 2;
+    let r1 = 0, g1 = 0, b1 = 0;
+    const sector = Math.floor(h * 6);
+    if (sector === 0 || sector === 6) { r1 = c; g1 = x; }
+    else if (sector === 1) { r1 = x; g1 = c; }
+    else if (sector === 2) { g1 = c; b1 = x; }
+    else if (sector === 3) { g1 = x; b1 = c; }
+    else if (sector === 4) { r1 = x; b1 = c; }
+    else { r1 = c; b1 = x; }
+
+    const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+    return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
+}
 
 interface CastMember {
     id: number;
@@ -63,6 +100,28 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             setBackdropSrc(null);
         }
     };
+
+    // Dynamic theme-color: extract dominant color from backdrop and apply to mobile browser chrome
+    useEffect(() => {
+        if (!backdropSrc) return;
+
+        const fac = new FastAverageColor();
+        const meta = document.querySelector('meta[name="theme-color"]');
+        const original = meta?.getAttribute("content") || "#d4a843";
+
+        fac.getColorAsync(backdropSrc, { algorithm: "dominant", crossOrigin: "anonymous" })
+            .then((color) => {
+                if (meta) {
+                    meta.setAttribute("content", darkenColor(color.hex));
+                }
+            })
+            .catch(() => {});
+
+        return () => {
+            if (meta) meta.setAttribute("content", original);
+            fac.destroy();
+        };
+    }, [backdropSrc]);
 
     const year = movie.release_date
         ? new Date(movie.release_date).getFullYear()
