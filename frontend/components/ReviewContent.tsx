@@ -201,7 +201,7 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
   const tags = fixTags(review.tags);
   const { data: session } = useSession();
   const { isSaved, mounted: watchlistMounted } = useWatchlist();
-  const [showSaveCTA, setShowSaveCTA] = useState(false);
+  const showSaveCTA = watchlistMounted && !!tmdbId && !!session?.user && !isSaved(tmdbId);
   const [showMethodology, setShowMethodology] = useState(false);
   const [resolvedMentions, setResolvedMentions] = useState<Record<string, ResolvedMovie>>({});
 
@@ -238,11 +238,6 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
     return () => { cancelled = true; };
   }, [mentionedTitles]);
 
-  useEffect(() => {
-    if (watchlistMounted && tmdbId && session?.user) {
-      setShowSaveCTA(!isSaved(tmdbId));
-    }
-  }, [watchlistMounted, tmdbId, isSaved, session]);
 
   const daysSinceRelease = (() => {
     if (!releaseDate) return null;
