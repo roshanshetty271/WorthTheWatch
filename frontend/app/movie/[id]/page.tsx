@@ -6,9 +6,10 @@ import TrailerEmbed from "@/components/TrailerEmbed";
 import VerdictBadge from "@/components/VerdictBadge";
 import StreamingAvailability from "@/components/StreamingAvailability";
 import type { MovieWithReview } from "@/lib/api";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const DEFAULT_THEME_COLOR = "#d4a843";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -44,7 +45,103 @@ async function getStreaming(tmdbId: string, mediaType?: string) {
   }
 }
 
+function clampThemeColor(r: number, g: number, b: number, maxL = 0.35): string {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+
+  if (l <= maxL) {
+    return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  let h = 0;
+  let s = 0;
+  const d = max - min;
+  s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+    else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+    else h = ((rn - gn) / d + 4) / 6;
+  }
+
+  const newL = maxL;
+  const c = (1 - Math.abs(2 * newL - 1)) * s;
+  const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+  const m = newL - c / 2;
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+  const sector = Math.floor(h * 6);
+
+  if (sector === 0 || sector === 6) {
+    r1 = c;
+    g1 = x;
+  } else if (sector === 1) {
+    r1 = x;
+    g1 = c;
+  } else if (sector === 2) {
+    g1 = c;
+    b1 = x;
+  } else if (sector === 3) {
+    g1 = x;
+    b1 = c;
+  } else if (sector === 4) {
+    r1 = x;
+    b1 = c;
+  } else {
+    r1 = c;
+    b1 = x;
+  }
+
+  const toHex = (value: number) =>
+    Math.round((value + m) * 255).toString(16).padStart(2, "0");
+
+  return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
+}
+
+async function getMovieThemeColor(imageUrl?: string | null): Promise<string> {
+  if (!imageUrl) return DEFAULT_THEME_COLOR;
+
+  try {
+    const response = await fetch(imageUrl, {
+      next: { revalidate: 86400 },
+    });
+
+    if (!response.ok) return DEFAULT_THEME_COLOR;
+
+    const sharp = (await import("sharp")).default;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const { data } = await sharp(buffer)
+      .resize(1, 1, { fit: "fill" })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    return clampThemeColor(data[0], data[1], data[2]);
+  } catch {
+    return DEFAULT_THEME_COLOR;
+  }
+}
+
 const SITE_URL = 'https://worth-the-watch.com';
+
+export async function generateViewport({ params, searchParams }: Props): Promise<Viewport> {
+  const { id } = await params;
+  const sParams = await searchParams;
+  const mediaType = sParams?.type;
+  const movie = await getMovie(id, mediaType);
+  const themeColor = await getMovieThemeColor(
+    movie?.movie.backdrop_url || movie?.movie.poster_url
+  );
+
+  return {
+    themeColor,
+  };
+}
 
 function generateJsonLd(movie: MovieWithReview) {
   const { movie: m, review: r } = movie;

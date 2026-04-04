@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -62,6 +62,10 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#d4a843",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -72,7 +76,6 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://image.tmdb.org" />
         <link rel="dns-prefetch" href="https://image.tmdb.org" />
-        <meta name="theme-color" content="#d4a843" />
       </head>
       <body className={`${dmSans.variable} ${dmSerif.variable} ${lora.variable} min-h-screen bg-surface`}>
         <AuthProvider>

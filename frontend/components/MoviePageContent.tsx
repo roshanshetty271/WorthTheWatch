@@ -91,6 +91,11 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
     const [isPosterFallback, setIsPosterFallback] = useState<boolean>(!movie.backdrop_url && !!movie.poster_url);
+    const themeColorSource = backdropSrc
+        ? (backdropSrc.startsWith("http")
+            ? `/api/image-proxy?url=${encodeURIComponent(backdropSrc)}`
+            : backdropSrc)
+        : null;
 
     const handleImageError = () => {
         if (backdropSrc === movie.backdrop_url && movie.poster_url) {
@@ -103,17 +108,20 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
 
     // Dynamic theme-color: extract dominant color from backdrop and apply to mobile browser chrome
     useEffect(() => {
-        if (!backdropSrc) return;
+        if (!themeColorSource) return;
 
         const fac = new FastAverageColor();
-        const meta = document.querySelector('meta[name="theme-color"]');
-        const original = meta?.getAttribute("content") || "#d4a843";
+        let meta = document.querySelector('meta[name="theme-color"]');
+        if (!meta) {
+            meta = document.createElement("meta");
+            meta.setAttribute("name", "theme-color");
+            document.head.appendChild(meta);
+        }
+        const original = meta.getAttribute("content") || "#d4a843";
 
-        fac.getColorAsync(backdropSrc, { algorithm: "dominant", crossOrigin: "anonymous" })
+        fac.getColorAsync(themeColorSource, { algorithm: "dominant" })
             .then((color) => {
-                if (meta) {
-                    meta.setAttribute("content", darkenColor(color.hex));
-                }
+                meta?.setAttribute("content", darkenColor(color.hex));
             })
             .catch(() => {});
 
@@ -121,7 +129,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             if (meta) meta.setAttribute("content", original);
             fac.destroy();
         };
-    }, [backdropSrc]);
+    }, [themeColorSource]);
 
     const year = movie.release_date
         ? new Date(movie.release_date).getFullYear()
