@@ -24,18 +24,16 @@ export default function AuthButton({ onSignInClick }: { onSignInClick?: () => vo
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Don't show anything while loading — prevents flash
-    if (status === "loading") {
-        return <div className="h-8 w-8" />;
-    }
-
-    // Not signed in
-    if (!session) {
+    // Show "Sign In" during loading AND when not signed in — no layout shift
+    if (status === "loading" || !session) {
         return (
             <button
-                onClick={() => onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href })}
-                className="text-base md:text-sm font-medium text-white/80 hover:text-accent-gold
-                   transition-colors uppercase tracking-widest"
+                onClick={() => {
+                    if (status === "loading") return;
+                    onSignInClick ? onSignInClick() : signIn("google", { callbackUrl: window.location.href });
+                }}
+                className={`text-base md:text-sm font-medium text-white/80 hover:text-accent-gold
+                   transition-colors uppercase tracking-widest ${status === "loading" ? "pointer-events-none" : ""}`}
                 aria-label="Sign in with Google"
             >
                 Sign In
