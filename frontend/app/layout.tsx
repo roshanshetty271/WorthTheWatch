@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import AuthProvider from "@/components/AuthProvider";
 import CantDecideFooterLink from "@/components/CantDecideFooterLink";
 import { DM_Sans, DM_Serif_Display, Lora } from "next/font/google";
@@ -81,6 +82,7 @@ export default function RootLayout({
           {/* Main Content */}
           <main>{children}</main>
           <Analytics />
+          <SpeedInsights />
 
           {/* Footer */}
           <footer className="border-t border-surface-elevated/50 mt-12">
