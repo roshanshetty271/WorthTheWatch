@@ -31,6 +31,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Suppress httpx request logging — it leaks API keys from URL query params
+# (e.g. Watchmode apiKey). Our own service logs cover what we need.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 # ─── Lifespan ─────────────────────────────────────────────
 
