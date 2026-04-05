@@ -117,7 +117,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             meta.setAttribute("name", "theme-color");
             document.head.appendChild(meta);
         }
-        const original = meta.getAttribute("content") || "#d4a843";
+        const original = meta.getAttribute("content") || "#09090b";
 
         fac.getColorAsync(themeColorSource, { algorithm: "dominant" })
             .then((color) => {
