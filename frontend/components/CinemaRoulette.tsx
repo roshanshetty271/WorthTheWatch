@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import BookmarkButton from "./BookmarkButton";
 import SignInDialog from "./SignInDialog";
 import RateLimitCard from "./RateLimitCard";
@@ -54,7 +55,9 @@ interface CinemaRouletteProps {
 export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const { data: session, status: sessionStatus } = useSession();
     const { canRoulette, incrementRoulette, isSignedIn } = useSignInPrompt();
+    const isHistoryAuthenticated = sessionStatus === "authenticated" && !!session?.user?.id;
     const [phase, setPhase] = useState<"prompt" | "fadeout" | "spinning" | "expanding" | "reveal">("prompt");
     const [movie, setMovie] = useState<RandomMovie | null>(null);
     const [posterStrip, setPosterStrip] = useState<string[]>([]);
@@ -188,13 +191,15 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
             const data = await res.json();
 
             incrementRoulette();
-            logActivity({
-                activity_type: "roulette",
-                tmdb_id: (data as RandomMovie).movie.tmdb_id,
-                media_type: (data as RandomMovie).movie.media_type || "movie",
-                title: (data as RandomMovie).movie.title,
-                poster_path: (data as RandomMovie).movie.poster_path,
-            });
+            if (isHistoryAuthenticated) {
+                logActivity({
+                    activity_type: "roulette",
+                    tmdb_id: (data as RandomMovie).movie.tmdb_id,
+                    media_type: (data as RandomMovie).movie.media_type || "movie",
+                    title: (data as RandomMovie).movie.title,
+                    poster_path: (data as RandomMovie).movie.poster_path,
+                });
+            }
 
             const poster = formatPoster(data as RandomMovie);
             setWinnerPoster(poster);
@@ -211,7 +216,7 @@ export default function CinemaRoulette({ isOpen, onClose }: CinemaRouletteProps)
             console.error("Roulette fetch failed:", e);
             setPhase("prompt");
         }
-    }, [canRoulette, incrementRoulette, isSignedIn]);
+    }, [canRoulette, incrementRoulette, isHistoryAuthenticated, isSignedIn]);
 
     const handleSpinComplete = useCallback(() => {
         setTimeout(() => setPhase("expanding"), 300);

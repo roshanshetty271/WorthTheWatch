@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { FastAverageColor } from "fast-average-color";
 import ReviewSection from "@/components/ReviewSection";
 import VerdictBadge from "@/components/VerdictBadge";
@@ -65,11 +66,63 @@ interface MoviePageContentProps {
     initialStreaming?: any;
 }
 
+function formatCompactCurrency(value: number): string {
+    const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        notation: "compact",
+        maximumFractionDigits: 1,
+    }).format(value);
+
+    return formatted.replace(".0", "");
+}
+
+function ScorePill({
+    label,
+    value,
+    icon,
+    iconNode,
+    className,
+}: {
+    label: string;
+    value: string;
+    icon?: string;
+    iconNode?: ReactNode;
+    className: string;
+}) {
+    return (
+        <div className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 shrink-0 ${className}`}>
+            {iconNode ? iconNode : icon ? <span className="text-base">{icon}</span> : null}
+            {label && (
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                    {label}
+                </span>
+            )}
+            <span className="font-bold text-white">{value}</span>
+        </div>
+    );
+}
+
+function ContentPill({ icon, label, value }: { icon: string; label: string; value: string }) {
+    return (
+        <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 shrink-0">
+            <span className="text-sm" aria-hidden="true">{icon}</span>
+            <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">{label}</span>
+            <span className="text-sm font-medium text-white/85">{value}</span>
+        </div>
+    );
+}
+
 export default function MoviePageContent({ movieData, initialStreaming }: MoviePageContentProps) {
     const { movie, review: initialReview } = movieData;
+    const { data: session, status: sessionStatus } = useSession();
     const [review, setReview] = useState<Review | null>(initialReview);
     const [cast, setCast] = useState<CastMember[]>([]);
     const [castOpen, setCastOpen] = useState(true);
+    const [ratingsOpen, setRatingsOpen] = useState(true);
+    const [financialsOpen, setFinancialsOpen] = useState(false);
+    const [parentsGuideOpen, setParentsGuideOpen] = useState(false);
+    const [methodologyOpen, setMethodologyOpen] = useState(false);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [failedCastImages, setFailedCastImages] = useState<Set<number>>(new Set());
     const [copied, setCopied] = useState(false);
@@ -79,7 +132,12 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
     const handleActorCacheUpdate = useCallback((id: number, data: any) => {
         actorCache.set(id, data);
     }, [actorCache]);
+
+    const isHistoryAuthenticated = sessionStatus === "authenticated" && !!session?.user?.id;
+
     useEffect(() => {
+        if (!isHistoryAuthenticated) return;
+
         logActivity({
             activity_type: "view",
             tmdb_id: movie.tmdb_id,
@@ -87,7 +145,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             title: movie.title,
             poster_path: movie.poster_url || null,
         });
-    }, [movie.tmdb_id, movie.media_type, movie.title, movie.poster_url]);
+    }, [isHistoryAuthenticated, movie.tmdb_id, movie.media_type, movie.title, movie.poster_url]);
 
     const [backdropSrc, setBackdropSrc] = useState<string | null>(movie.backdrop_url || movie.poster_url || null);
     const [isPosterFallback, setIsPosterFallback] = useState<boolean>(!movie.backdrop_url && !!movie.poster_url);
@@ -103,12 +161,13 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             setIsPosterFallback(true);
         } else {
             setBackdropSrc(null);
+            setIsPosterFallback(false);
         }
     };
 
     // Dynamic theme-color: extract dominant color from backdrop and apply to mobile browser chrome
     useEffect(() => {
-        if (!themeColorSource) return;
+        if (!themeColorSource || typeof window === "undefined") return;
 
         const fac = new FastAverageColor();
         let meta = document.querySelector('meta[name="theme-color"]');
@@ -118,14 +177,47 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             document.head.appendChild(meta);
         }
         const original = meta.getAttribute("content") || "#09090b";
+        const mediaQuery = window.matchMedia("(max-width: 767px)");
+        let cancelled = false;
 
-        fac.getColorAsync(themeColorSource, { algorithm: "dominant" })
-            .then((color) => {
-                meta?.setAttribute("content", darkenColor(color.hex));
-            })
-            .catch(() => {});
+        const applyThemeColor = () => {
+            if (!mediaQuery.matches) {
+                meta?.setAttribute("content", original);
+                return;
+            }
+
+            fac.getColorAsync(themeColorSource, { algorithm: "dominant" })
+                .then((color) => {
+                    if (!cancelled) {
+                        meta?.setAttribute("content", darkenColor(color.hex));
+                    }
+                })
+                .catch(() => {
+                    if (!cancelled) {
+                        meta?.setAttribute("content", original);
+                    }
+                });
+        };
+
+        applyThemeColor();
+
+        const handleViewportChange = () => {
+            applyThemeColor();
+        };
+
+        if (typeof mediaQuery.addEventListener === "function") {
+            mediaQuery.addEventListener("change", handleViewportChange);
+        } else {
+            mediaQuery.addListener(handleViewportChange);
+        }
 
         return () => {
+            cancelled = true;
+            if (typeof mediaQuery.removeEventListener === "function") {
+                mediaQuery.removeEventListener("change", handleViewportChange);
+            } else {
+                mediaQuery.removeListener(handleViewportChange);
+            }
             if (meta) meta.setAttribute("content", original);
             fac.destroy();
         };
@@ -163,25 +255,75 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
         return `$${raw}`;
     };
 
-    const boxOfficeDisplay = formatBoxOffice((review as any)?.box_office);
+    const boxOfficeDisplay = formatBoxOffice(review?.box_office);
+    const budgetRevenueDisplay =
+        review?.budget != null && review?.revenue != null
+            ? `${formatCompactCurrency(review.budget)} → ${formatCompactCurrency(review.revenue)}`
+            : review?.revenue != null
+                ? formatCompactCurrency(review.revenue)
+                : review?.budget != null
+                    ? formatCompactCurrency(review.budget)
+                    : null;
+    const moneyDisplay = budgetRevenueDisplay || boxOfficeDisplay;
 
-    const hasAnyScore = !!(
-        review?.imdb_score || movie.tmdb_vote_average ||
-        review?.rt_critic_score || review?.rt_audience_score ||
-        review?.metascore || boxOfficeDisplay
+    const hasAnyScore = (
+        review?.imdb_score != null ||
+        movie.tmdb_vote_average != null ||
+        review?.rt_critic_score != null ||
+        review?.rt_audience_score != null ||
+        review?.metascore != null ||
+        review?.letterboxd_score != null ||
+        moneyDisplay != null
+    );
+    const hasContentWarnings = (
+        review?.age_rating != null ||
+        review?.content_violence != null ||
+        review?.content_nudity != null ||
+        review?.content_language != null ||
+        review?.content_drinking != null
     );
 
     // Review/Generate block — rendered in different positions based on review state
     const verdictBlock = (
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
             <div className={review ? "mt-12" : "mt-4"}>
-                <div className="mb-8 text-center">
+                <div className="mb-8 text-center relative">
                     <span className="mb-2 block font-display text-sm uppercase tracking-wider text-accent-gold/80">
                         Consensus
                     </span>
-                    <h2 className="font-display text-3xl text-text-primary drop-shadow-md">
-                        The Internet&apos;s Verdict
-                    </h2>
+                    <div className="flex items-center justify-center gap-2">
+                        <h2 className="font-display text-3xl text-text-primary drop-shadow-md">
+                            The Internet&apos;s Verdict
+                        </h2>
+                        <div
+                            className="relative"
+                            onMouseEnter={() => setMethodologyOpen(true)}
+                            onMouseLeave={() => setMethodologyOpen(false)}
+                        >
+                            <button
+                                onClick={() => setMethodologyOpen(!methodologyOpen)}
+                                className="text-white/25 hover:text-white/50 transition-colors mt-1"
+                                aria-label="How is this verdict generated?"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </button>
+                            {methodologyOpen && (
+                                <>
+                                    {/* Invisible backdrop — tap anywhere on mobile to dismiss */}
+                                    <div className="fixed inset-0 z-10 sm:hidden" onClick={() => setMethodologyOpen(false)} />
+                                    <div className="absolute right-0 sm:left-1/2 sm:-translate-x-1/2 top-full mt-2 z-20 w-72 text-center px-4 py-3 rounded-xl bg-zinc-900/95 border border-white/10 shadow-xl backdrop-blur-sm animate-fade-in">
+                                        <p className="text-xs text-text-secondary leading-relaxed">
+                                            Verdicts are generated by analyzing reviews from professional critics,
+                                            Reddit discussions, and audience scores. AI synthesizes several sources
+                                            into a single verdict.
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="relative rounded-2xl border border-white/10 bg-surface-card/50 p-6 shadow-2xl backdrop-blur-sm sm:p-10">
@@ -316,9 +458,9 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                                             <span className="hidden sm:inline text-base" aria-hidden="true">⏱️</span> {movie.runtime} min
                                         </span>
                                     )}
-                                    {(review as any)?.rated && (
+                                    {review?.rated && (
                                         <span className="rounded-md bg-black/40 backdrop-blur-sm border border-white/40 px-2 py-0.5 text-[10px] sm:text-xs font-bold text-white uppercase tracking-wider">
-                                            {(review as any).rated}
+                                            {review.rated}
                                         </span>
                                     )}
                                 </div>
@@ -427,88 +569,184 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             </section>
 
             {/* ═══════════════════════════════════════════════════════════════════
-            SCORES — single scrollable row with divider lines
+            OVERVIEW — Above all data sections
+            ═══════════════════════════════════════════════════════════════════ */}
+            {movie.overview && (
+                <div className="mx-auto max-w-4xl px-4 pb-6 sm:px-6">
+                    <p className={`text-base sm:text-lg leading-relaxed text-text-secondary/90 font-light ${!overviewExpanded ? "line-clamp-4 sm:line-clamp-none" : ""}`}>
+                        {movie.overview}
+                    </p>
+                    {movie.overview.length > 200 && (
+                        <button
+                            onClick={() => setOverviewExpanded(!overviewExpanded)}
+                            className="text-xs text-accent-gold mt-2 hover:text-accent-goldLight transition-colors sm:hidden"
+                        >
+                            {overviewExpanded ? "Show less" : "Read more"}
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════════
+            RATINGS — always visible, no dropdown
             ═══════════════════════════════════════════════════════════════════ */}
             {hasAnyScore && (
-            <div className="mx-auto max-w-4xl px-4 sm:px-6">
-                <div className="py-5">
+                <div className="mx-auto max-w-4xl px-4 pt-2 sm:px-6">
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
-                        {review?.imdb_score ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base font-bold text-yellow-500">IMDb</span>
-                                <span className="font-bold text-white">{review.imdb_score}</span>
-                            </div>
-                        ) : movie.tmdb_vote_average ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">⭐</span>
-                                <span className="font-bold text-white">{movie.tmdb_vote_average.toFixed(1)}</span>
-                            </div>
+                        {review?.imdb_score != null ? (
+                            <ScorePill
+                                label=""
+                                value={review.imdb_score.toFixed(1)}
+                                iconNode={
+                                    <div className="flex h-5 w-auto items-center justify-center rounded bg-yellow-500 px-1.5 font-black text-black text-[9px] tracking-tight" aria-hidden="true">IMDb</div>
+                                }
+                                className="border-yellow-500/20 bg-yellow-500/10"
+                            />
+                        ) : movie.tmdb_vote_average != null ? (
+                            <ScorePill
+                                label=""
+                                value={movie.tmdb_vote_average.toFixed(1)}
+                                icon="⭐"
+                                className="border-accent-gold/20 bg-accent-gold/10"
+                            />
                         ) : null}
 
-                        {review?.rt_critic_score ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">🍅</span>
-                                <span className="font-bold text-white">{review.rt_critic_score}%</span>
-                            </div>
+                        {review?.rt_critic_score != null ? (
+                            <ScorePill
+                                label="Critics"
+                                value={`${review.rt_critic_score}%`}
+                                icon="🍅"
+                                className="border-red-500/20 bg-red-500/10"
+                            />
                         ) : null}
 
-                        {review?.rt_audience_score ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">🍿</span>
-                                <span className="font-bold text-white">{review.rt_audience_score}%</span>
-                            </div>
+                        {review?.rt_audience_score != null ? (
+                            <ScorePill
+                                label="Audience"
+                                value={`${review.rt_audience_score}%`}
+                                icon="🍿"
+                                className="border-orange-500/20 bg-orange-500/10"
+                            />
                         ) : null}
 
-                        {review?.metascore ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 shrink-0">
-                                <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
-                                <span className="font-bold text-white">{review.metascore}</span>
-                            </div>
+                        {review?.metascore != null ? (
+                            <ScorePill
+                                label="Metascore"
+                                value={`${review.metascore}`}
+                                iconNode={
+                                    <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500 font-bold text-white text-[10px]" aria-hidden="true">M</div>
+                                }
+                                className="border-purple-500/20 bg-purple-500/10"
+                            />
                         ) : null}
 
-                        {boxOfficeDisplay && (
-                            <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 shrink-0">
-                                <span className="text-base">💰</span>
-                                <span className="font-bold text-white text-sm">{boxOfficeDisplay}</span>
-                            </div>
-                        )}
+                        {review?.letterboxd_score != null ? (
+                            <ScorePill
+                                label="Letterboxd"
+                                value={review.letterboxd_score.toFixed(1)}
+                                className="border-emerald-500/20 bg-emerald-500/10"
+                            />
+                        ) : null}
+
                     </div>
                 </div>
-            </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════════
+            BUDGET & REVENUE — Collapsible
+            ═══════════════════════════════════════════════════════════════════ */}
+            {moneyDisplay && (
+                <div className="mx-auto max-w-4xl px-4 pt-5 sm:px-6">
+                    <button
+                        onClick={() => setFinancialsOpen(!financialsOpen)}
+                        className="flex items-center gap-2 mb-1 py-1 group cursor-pointer"
+                        aria-expanded={financialsOpen}
+                    >
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 group-hover:text-white/60 transition-colors">
+                            Budget & Revenue
+                        </h3>
+                        <svg
+                            className={`w-4 h-4 text-white/30 group-hover:text-white/50 transition-transform ${financialsOpen ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            aria-hidden="true"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    {financialsOpen && (
+                        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
+                            <ScorePill
+                                label={budgetRevenueDisplay ? "Budget / Revenue" : "Box Office"}
+                                value={moneyDisplay}
+                                icon="💰"
+                                className="border-green-500/20 bg-green-500/10"
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════════
+            PARENTS GUIDE — Collapsible
+            ═══════════════════════════════════════════════════════════════════ */}
+            {hasContentWarnings && (
+                <div className="mx-auto max-w-4xl px-4 pt-5 sm:px-6">
+                    <button
+                        onClick={() => setParentsGuideOpen(!parentsGuideOpen)}
+                        className="flex items-center gap-2 mb-1 py-1 group cursor-pointer"
+                        aria-expanded={parentsGuideOpen}
+                    >
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 group-hover:text-white/60 transition-colors">
+                            Parents Guide
+                        </h3>
+                        <svg
+                            className={`w-4 h-4 text-white/30 group-hover:text-white/50 transition-transform ${parentsGuideOpen ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            aria-hidden="true"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    {parentsGuideOpen && (
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
+                            {review?.age_rating != null ? (
+                                <ContentPill icon="🔞" label="Ages" value={`${review.age_rating}+`} />
+                            ) : null}
+                            {review?.content_violence != null ? (
+                                <ContentPill icon="🔪" label="Violence" value={`${review.content_violence}/5`} />
+                            ) : null}
+                            {review?.content_nudity != null ? (
+                                <ContentPill icon="👁" label="Nudity" value={`${review.content_nudity}/5`} />
+                            ) : null}
+                            {review?.content_language != null ? (
+                                <ContentPill icon="💬" label="Language" value={`${review.content_language}/5`} />
+                            ) : null}
+                            {review?.content_drinking != null ? (
+                                <ContentPill icon="🍺" label="Substances" value={`${review.content_drinking}/5`} />
+                            ) : null}
+                        </div>
+                    )}
+                </div>
             )}
 
 
             {/* ═══════════════════════════════════════════════════════════════════
-            AWARDS & OVERVIEW
+            AWARDS
             ═══════════════════════════════════════════════════════════════════ */}
-            {((review as any)?.awards || movie.overview) && (
+            {review?.awards && (
             <div className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6">
-                {/* Awards */}
-                {(review as any)?.awards && (
-                    <div className="mb-6 flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/5 px-4 py-2.5">
-                        <span className="text-lg">🏆</span>
-                        <p className="text-sm text-accent-gold/90 font-medium">
-                            {(review as any).awards}
-                        </p>
-                    </div>
-                )}
-
-                {/* Overview Text */}
-                {movie.overview && (
-                    <div>
-                        <p className={`text-base sm:text-lg leading-relaxed text-text-secondary/90 font-light ${!overviewExpanded ? "line-clamp-4 sm:line-clamp-none" : ""}`}>
-                            {movie.overview}
-                        </p>
-                        {movie.overview.length > 200 && (
-                            <button
-                                onClick={() => setOverviewExpanded(!overviewExpanded)}
-                                className="text-xs text-accent-gold mt-2 hover:text-accent-goldLight transition-colors sm:hidden"
-                            >
-                                {overviewExpanded ? "Show less" : "Read more"}
-                            </button>
-                        )}
-                    </div>
-                )}
+                <div className="mb-6 flex items-center gap-2 rounded-lg border border-accent-gold/20 bg-accent-gold/5 px-4 py-2.5">
+                    <span className="text-lg">🏆</span>
+                    <p className="text-sm text-accent-gold/90 font-medium">
+                        {review.awards}
+                    </p>
+                </div>
             </div>
             )}
 
@@ -539,9 +777,9 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                     {castOpen && (
                         <>
                         <div className="flex gap-4 overflow-x-auto pt-2 pb-4 scrollbar-hide -mx-1 px-1">
-                            {cast.map((person) => (
+                            {cast.map((person, idx) => (
                                 <button
-                                    key={person.id}
+                                    key={`${person.id}-${idx}`}
                                     onClick={() => setSelectedActor({ id: person.id, name: person.name, image: person.profile_url })}
                                     className="flex-shrink-0 w-20 text-center cursor-pointer group"
                                 >

@@ -37,8 +37,9 @@ export default function ReviewSection({
     posterPath,
 }: ReviewSectionProps) {
     const router = useRouter();
-    const { data: session } = useSession();
+    const { data: session, status: sessionStatus } = useSession();
     const isSignedIn = !!session?.user;
+    const isHistoryAuthenticated = sessionStatus === "authenticated" && !!session?.user?.id;
     const [review, setReview] = useState<Review | null>(initialReview);
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState("Preparing...");
@@ -277,13 +278,15 @@ export default function ReviewSection({
                 return;
             }
 
-            logActivity({
-                activity_type: "generate",
-                tmdb_id: tmdbId,
-                media_type: mediaType,
-                title: movieTitle,
-                poster_path: posterPath,
-            });
+            if (isHistoryAuthenticated) {
+                logActivity({
+                    activity_type: "generate",
+                    tmdb_id: tmdbId,
+                    media_type: mediaType,
+                    title: movieTitle,
+                    poster_path: posterPath,
+                });
+            }
 
             sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
 

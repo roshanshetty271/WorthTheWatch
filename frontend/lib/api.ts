@@ -50,12 +50,27 @@ export interface Review {
   imdb_score: number | null;
   rt_critic_score: number | null;
   rt_audience_score: number | null;
+  metascore: number | null;
+  letterboxd_score: number | null;
+  trakt_score: number | null;
+  metacritic_user_score: number | null;
+  mdblist_score: number | null;
+  rogerebert_score: number | null;
+  age_rating: number | null;
+  content_violence: number | null;
+  content_nudity: number | null;
+  content_language: number | null;
+  content_drinking: number | null;
+  budget: number | null;
+  revenue: number | null;
+  awards: string | null;
+  box_office: string | null;
+  rated: string | null;
   // Verdict DNA
   tags?: string[];
   best_quote?: string;
   quote_source?: string;
 
-  metascore: number | null;
   controversial: boolean;
 
   // Phase 2 additions

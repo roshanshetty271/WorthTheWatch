@@ -22,7 +22,8 @@ from app.services.llm import synthesize_review, llm_model
 from app.config import get_settings
 
 # Phase 2 imports
-from app.services.omdb import omdb_service
+from app.services.omdb import omdb_service, OMDBScores
+from app.services.mdblist import mdblist_service, MDBListScores
 from app.services.kinocheck import kinocheck_service, youtube_embed_url
 from app.services.guardian import guardian_service
 from app.services.nyt import nyt_service
@@ -64,6 +65,127 @@ def normalize_for_search(title: str) -> str:
     """Strip diacritical marks for search: Bāhubali → Bahubali, Amélie → Amelie"""
     nfkd = unicodedata.normalize('NFKD', title)
     return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _resolve_rating_context(
+    movie: Movie,
+    omdb_data: Optional[OMDBScores] = None,
+    mdblist_scores: Optional[MDBListScores] = None,
+) -> dict:
+    """Merge OMDb and MDBList into one optional score context."""
+    context = {
+        "tmdb_score": movie.tmdb_vote_average or 0.0,
+        "tmdb_votes": movie.tmdb_vote_count or 0,
+        "imdb_score": None,
+        "imdb_votes": None,
+        "rt_critic_score": None,
+        "rt_critic_votes": None,
+        "rt_audience_score": None,
+        "rt_audience_votes": None,
+        "metascore": None,
+        "metascore_votes": None,
+        "metacritic_user_score": None,
+        "metacritic_user_votes": None,
+        "letterboxd_score": None,
+        "letterboxd_votes": None,
+        "trakt_score": None,
+        "trakt_votes": None,
+        "rogerebert_score": None,
+        "mdblist_score": None,
+        "age_rating": None,
+        "content_violence": None,
+        "content_nudity": None,
+        "content_language": None,
+        "content_drinking": None,
+        "budget": None,
+        "revenue": None,
+    }
+
+    if omdb_data:
+        if omdb_data.imdb_score is not None:
+            context["imdb_score"] = omdb_data.imdb_score
+        if omdb_data.imdb_votes is not None:
+            context["imdb_votes"] = omdb_data.imdb_votes
+        if omdb_data.rt_critic_score is not None:
+            context["rt_critic_score"] = omdb_data.rt_critic_score
+        if omdb_data.metascore is not None:
+            context["metascore"] = omdb_data.metascore
+
+    if mdblist_scores:
+        if context["imdb_score"] is None:
+            context["imdb_score"] = mdblist_scores.imdb_score
+        if context["imdb_votes"] is None:
+            context["imdb_votes"] = mdblist_scores.imdb_votes
+        if context["rt_critic_score"] is None:
+            context["rt_critic_score"] = mdblist_scores.rt_critic_score
+        if mdblist_scores.rt_critic_votes is not None:
+            context["rt_critic_votes"] = mdblist_scores.rt_critic_votes
+        if context["metascore"] is None:
+            context["metascore"] = mdblist_scores.metascore
+        if mdblist_scores.metascore_votes is not None:
+            context["metascore_votes"] = mdblist_scores.metascore_votes
+
+        context["rt_audience_score"] = mdblist_scores.rt_audience_score
+        context["rt_audience_votes"] = mdblist_scores.rt_audience_votes
+        context["metacritic_user_score"] = mdblist_scores.metacritic_user_score
+        context["metacritic_user_votes"] = mdblist_scores.metacritic_user_votes
+        context["letterboxd_score"] = mdblist_scores.letterboxd_score
+        context["letterboxd_votes"] = mdblist_scores.letterboxd_votes
+        context["trakt_score"] = mdblist_scores.trakt_score
+        context["trakt_votes"] = mdblist_scores.trakt_votes
+        context["rogerebert_score"] = mdblist_scores.rogerebert_score
+        context["mdblist_score"] = mdblist_scores.mdblist_score
+        context["age_rating"] = mdblist_scores.age_rating
+        context["content_violence"] = mdblist_scores.content_violence
+        context["content_nudity"] = mdblist_scores.content_nudity
+        context["content_language"] = mdblist_scores.content_language
+        context["content_drinking"] = mdblist_scores.content_drinking
+        context["budget"] = mdblist_scores.budget
+        context["revenue"] = mdblist_scores.revenue
+
+    return context
+
+
+def _set_if_present(review: Review, field: str, value) -> None:
+    """Only overwrite fields when fresh enrichment data exists."""
+    if value is not None:
+        setattr(review, field, value)
+
+
+def _apply_review_enrichment(
+    review: Review,
+    rating_context: dict,
+    omdb_data: Optional[OMDBScores] = None,
+    mdblist_scores: Optional[MDBListScores] = None,
+) -> None:
+    """Apply ratings and content metadata without wiping existing values."""
+    for field in (
+        "imdb_score",
+        "rt_critic_score",
+        "rt_audience_score",
+        "metascore",
+        "letterboxd_score",
+        "trakt_score",
+        "metacritic_user_score",
+        "mdblist_score",
+        "rogerebert_score",
+        "age_rating",
+        "content_violence",
+        "content_nudity",
+        "content_language",
+        "content_drinking",
+        "budget",
+        "revenue",
+    ):
+        _set_if_present(review, field, rating_context.get(field))
+
+    if omdb_data:
+        _set_if_present(review, "awards", getattr(omdb_data, "awards", None))
+        _set_if_present(review, "box_office", getattr(omdb_data, "box_office", None))
+        _set_if_present(review, "rated", getattr(omdb_data, "rated", None))
+
+    if review.rt_critic_score is not None and review.rt_audience_score is not None:
+        review.controversial = abs(review.rt_critic_score - review.rt_audience_score) > 25
 
 
 
@@ -416,6 +538,11 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # ─── Step 1: SEARCH ────────────────────────────────────
     # ─── Step 1: Search for Reviews ───────────────────────────
     # ─── Step 1: Search for Reviews ───────────────────────────
+    omdb_data = None
+    mdblist_scores = None
+    trailer_url = None
+    all_results = []
+
     # If TV show, append "TV series" to query to avoid generic matches (e.g. "Space" -> "Space TV series")
     # DO NOT include year here — it is passed separately to services!
     if movie.media_type == "tv":
@@ -436,6 +563,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             if imdb_id
             else omdb_service.get_scores_by_title(search_title, year, "series" if movie.media_type == "tv" else "movie")
         )
+        mdblist_coro = mdblist_service.get_scores(movie.tmdb_id, movie.media_type or "movie")
         search_results = await asyncio.gather(
             serper_service.search_reviews(search_query, year, movie.media_type or "movie", director_context),
             serper_service.search_reddit(search_query, year, movie.media_type or "movie", director_context),
@@ -443,6 +571,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             nyt_service.search_reviews(search_query),
             omdb_coro,
             _get_best_trailer(movie.tmdb_id, movie.media_type or "movie"),
+            mdblist_coro,
             return_exceptions=True,
         )
         
@@ -453,6 +582,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         nyt_results = search_results[3] if not isinstance(search_results[3], Exception) else []
         omdb_data = search_results[4] if not isinstance(search_results[4], Exception) else None
         trailer_url = search_results[5] if not isinstance(search_results[5], Exception) else None
+        mdblist_scores = search_results[6] if not isinstance(search_results[6], Exception) else None
         
         # Year Validation — catches wrong IMDb IDs linked by TMDB
         if omdb_data and omdb_data.omdb_year and year:
@@ -502,20 +632,18 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                 )
                 omdb_data = None
         
-        # Extract IMDb score early for verdict overrides
-        imdb_score = None
-        imdb_votes = None
-        if omdb_data:
-            imdb_score = omdb_data.imdb_score
-            imdb_votes = omdb_data.imdb_votes
-            if imdb_score:
-                logger.info(f"🎬 IMDb: {imdb_score}/10 ({imdb_votes or '?'} votes)")
+        rating_context = _resolve_rating_context(movie, omdb_data, mdblist_scores)
+        imdb_score = rating_context["imdb_score"]
+        imdb_votes = rating_context["imdb_votes"]
+        if imdb_score is not None:
+            logger.info(f"🎬 IMDb: {imdb_score}/10 ({imdb_votes or '?'} votes)")
 
         # Log failures
         if isinstance(search_results[0], Exception): logger.error(f"Critic search failed: {search_results[0]}")
         if isinstance(search_results[1], Exception): logger.error(f"Reddit search failed: {search_results[1]}")
         if isinstance(search_results[2], Exception): logger.warning(f"Guardian search failed: {search_results[2]}")
         if isinstance(search_results[3], Exception): logger.warning(f"NYT search failed: {search_results[3]}")
+        if isinstance(search_results[6], Exception): logger.warning(f"MDBList fetch failed: {search_results[6]}")
 
         # Combine all results
         all_results = serper_critics + serper_reddit
@@ -539,7 +667,13 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         logger.warning(f"No search results found for '{title}'")
         job_progress.pop(tmdb_id, None)
         # Create low-confidence review from metadata only
-        return await _create_fallback_review(db, movie, genres)
+        return await _create_fallback_review(
+            db,
+            movie,
+            genres,
+            omdb_data=omdb_data,
+            mdblist_scores=mdblist_scores,
+        )
 
     # Select diverse, high-quality sources
     selected_urls, backfill_urls = select_best_sources(all_results, movie_title=search_title, max_total=12)
@@ -771,6 +905,9 @@ CRITIC REVIEWS (Professional):
         )
 
     try:
+        rating_context = _resolve_rating_context(movie, omdb_data, mdblist_scores)
+        imdb_score = rating_context["imdb_score"]
+        imdb_votes = rating_context["imdb_votes"]
         llm_output = await synthesize_review(
             title=title,
             year=year,
@@ -778,10 +915,23 @@ CRITIC REVIEWS (Professional):
             overview=movie.overview or "",
             opinions=filtered_opinions, # Already truncated
             sources_count=len(articles),
-            tmdb_score=movie.tmdb_vote_average or 0.0,
-            tmdb_vote_count=movie.tmdb_vote_count or 0,
+            tmdb_score=rating_context["tmdb_score"],
+            tmdb_vote_count=rating_context["tmdb_votes"],
             imdb_score=imdb_score,
             imdb_votes=imdb_votes,
+            rt_critic_score=rating_context["rt_critic_score"],
+            rt_critic_votes=rating_context["rt_critic_votes"],
+            rt_audience_score=rating_context["rt_audience_score"],
+            rt_audience_votes=rating_context["rt_audience_votes"],
+            metascore=rating_context["metascore"],
+            metascore_votes=rating_context["metascore_votes"],
+            metacritic_user_score=rating_context["metacritic_user_score"],
+            metacritic_user_votes=rating_context["metacritic_user_votes"],
+            letterboxd_score=rating_context["letterboxd_score"],
+            letterboxd_votes=rating_context["letterboxd_votes"],
+            trakt_score=rating_context["trakt_score"],
+            trakt_votes=rating_context["trakt_votes"],
+            rogerebert_score=rating_context["rogerebert_score"],
             confidence_tier=confidence_stats["confidence_tier"],
             articles_read=confidence_stats["articles_read"],
             reddit_sources=confidence_stats["reddit_sources"],
@@ -790,9 +940,9 @@ CRITIC REVIEWS (Professional):
         
         
         # Initialize override variables early to prevent UnboundLocalError
-        override_score = imdb_score if imdb_score else movie.tmdb_vote_average
-        override_votes = imdb_votes if imdb_votes else (movie.tmdb_vote_count or 0)
-        score_source = "IMDb" if imdb_score else "TMDB"
+        override_score = imdb_score if imdb_score is not None else movie.tmdb_vote_average
+        override_votes = imdb_votes if imdb_votes is not None else (movie.tmdb_vote_count or 0)
+        score_source = "IMDb" if imdb_score is not None else "TMDB"
 
         # Sanity check: verdict should match sentiment percentages
         if llm_output.positive_pct is not None and llm_output.negative_pct is not None:
@@ -851,6 +1001,16 @@ CRITIC REVIEWS (Professional):
         # the movie is generally considered bad. The LLM should not 
         # give it WORTH IT unless the internet OVERWHELMINGLY disagrees.
         
+        if (
+            llm_output.verdict == "NOT WORTH IT"
+            and imdb_score is not None
+            and imdb_score >= 7.0
+            and imdb_votes is not None
+            and imdb_votes > 500
+        ):
+            logger.info(f"IMDb Floor: {imdb_score}/10 ({imdb_votes} votes) -> MIXED BAG")
+            llm_output.verdict = "MIXED BAG"
+
         # Check determined override score
         if (
             override_score and override_score < 6.0
@@ -914,10 +1074,13 @@ CRITIC REVIEWS (Professional):
             or confidence_stats.get("opinion_chars", 0) >= 5000
         )
 
+        rt_audience_score = rating_context["rt_audience_score"]
+        rt_audience_votes = rating_context["rt_audience_votes"]
         audience_loves_it = (
-            omdb_data is not None
-            and getattr(omdb_data, "rt_audience_score", None) is not None
-            and getattr(omdb_data, "rt_audience_score", 0) >= 70
+            rt_audience_score is not None
+            and rt_audience_score >= 70
+            and rt_audience_votes is not None
+            and rt_audience_votes > 100
         )
 
         if (
@@ -936,7 +1099,7 @@ CRITIC REVIEWS (Professional):
                 f"positive {llm_output.positive_pct}%, "
                 f"articles {confidence_stats['articles_read']}, "
                 f"reddit {confidence_stats.get('reddit_sources', 0)}, "
-                f"RT audience {getattr(omdb_data, 'rt_audience_score', 'N/A') if omdb_data else 'N/A'}%) "
+                f"RT audience {rt_audience_score if rt_audience_score is not None else 'N/A'}%) "
                 f"WORTH IT → MIXED BAG (thin data, trusting IMDb)"
             )
             llm_output.verdict = "MIXED BAG"
@@ -949,22 +1112,23 @@ CRITIC REVIEWS (Professional):
             if confidence_stats["articles_read"] < 3:
                 # Check if IMDb provides strong enough signal to trust the LLM
                 has_strong_imdb = (
-                    override_score is not None 
-                    and override_score >= 7.0 
-                    and override_votes is not None 
-                    and override_votes >= 1000
+                    imdb_score is not None
+                    and imdb_score >= 7.0
+                    and imdb_votes is not None
+                    and imdb_votes >= 1000
                 )
                 if has_strong_imdb:
                     logger.info(
                         f"✅ LOW confidence but strong IMDb signal: {title} "
-                        f"({score_source} {override_score}, {override_votes} votes) "
+                        f"(IMDb {imdb_score}, {imdb_votes} votes) "
                         f"— keeping WORTH IT despite only {confidence_stats['articles_read']} articles"
                     )
                 else:
                     logger.info(
                         f"⚖️ Verdict override: WORTH IT → MIXED BAG "
                         f"(LOW confidence, only {confidence_stats['articles_read']} articles, "
-                        f"IMDb {override_score or 'N/A'}/{override_votes or 0} votes — not enough signal)"
+                        f"IMDb {imdb_score if imdb_score is not None else 'N/A'}, "
+                        f"{imdb_votes or 0} votes — not enough signal)"
                     )
                     llm_output.verdict = "MIXED BAG"
         
@@ -1082,20 +1246,8 @@ CRITIC REVIEWS (Professional):
     else:
         logger.info(f"🎬 No trailer found in Step 1 (or failed)")
         
-    # Apply OMDB scores (using data fetched in Step 1)
-    # Apply OMDB scores (using data fetched in Step 1)
-    if omdb_data:
-        review.imdb_score = omdb_data.imdb_score
-        review.rt_critic_score = omdb_data.rt_critic_score
-        review.metascore = omdb_data.metascore
-        review.awards = getattr(omdb_data, "awards", None)
-        review.box_office = getattr(omdb_data, "box_office", None)
-        review.rated = getattr(omdb_data, "rated", None)
-        # Calculate controversial flag (RT critic vs audience gap > 25)
-        # We can only do this if we have both, currently we might lack audience score
-        if omdb_data.rt_critic_score and review.rt_audience_score:
-            gap = abs(omdb_data.rt_critic_score - review.rt_audience_score)
-            review.controversial = gap > 25
+    rating_context = _resolve_rating_context(movie, omdb_data, mdblist_scores)
+    _apply_review_enrichment(review, rating_context, omdb_data, mdblist_scores)
     
     # Apply trailer
     if not isinstance(trailer_url, Exception) and trailer_url:
@@ -1144,8 +1296,15 @@ async def _get_best_trailer(tmdb_id: int, media_type: str) -> Optional[str]:
     return None
 
 
-async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -> Review:
+async def _create_fallback_review(
+    db: AsyncSession,
+    movie: Movie,
+    genres: str,
+    omdb_data: Optional[OMDBScores] = None,
+    mdblist_scores: Optional[MDBListScores] = None,
+) -> Review:
     """Create a low-confidence review when no sources are found."""
+    rating_context = _resolve_rating_context(movie, omdb_data, mdblist_scores)
     llm_output = await synthesize_review(
         title=movie.title,
         year=str(movie.release_date.year) if movie.release_date else "",
@@ -1153,8 +1312,23 @@ async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -
         overview=movie.overview or "",
         opinions="Very limited crowd discussion found for this title. Base your review on the movie description and any general knowledge you have.",
         sources_count=0,
-        tmdb_score=movie.tmdb_vote_average or 0.0,
-        tmdb_vote_count=movie.tmdb_vote_count or 0,
+        tmdb_score=rating_context["tmdb_score"],
+        tmdb_vote_count=rating_context["tmdb_votes"],
+        imdb_score=rating_context["imdb_score"],
+        imdb_votes=rating_context["imdb_votes"],
+        rt_critic_score=rating_context["rt_critic_score"],
+        rt_critic_votes=rating_context["rt_critic_votes"],
+        rt_audience_score=rating_context["rt_audience_score"],
+        rt_audience_votes=rating_context["rt_audience_votes"],
+        metascore=rating_context["metascore"],
+        metascore_votes=rating_context["metascore_votes"],
+        metacritic_user_score=rating_context["metacritic_user_score"],
+        metacritic_user_votes=rating_context["metacritic_user_votes"],
+        letterboxd_score=rating_context["letterboxd_score"],
+        letterboxd_votes=rating_context["letterboxd_votes"],
+        trakt_score=rating_context["trakt_score"],
+        trakt_votes=rating_context["trakt_votes"],
+        rogerebert_score=rating_context["rogerebert_score"],
         confidence_tier="LOW",
         articles_read=0,
         reddit_sources=0,
@@ -1182,6 +1356,7 @@ async def _create_fallback_review(db: AsyncSession, movie: Movie, genres: str) -
         best_quote=llm_output.best_quote,
         quote_source=llm_output.quote_source,
     )
+    _apply_review_enrichment(review, rating_context, omdb_data, mdblist_scores)
     db.add(review)
     await db.flush()
     return review

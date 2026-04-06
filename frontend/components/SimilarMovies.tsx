@@ -99,7 +99,9 @@ export default function SimilarMovies({ tmdbId, mediaType, title }: SimilarMovie
                 </div>
             ) : (
                 <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-pl-4 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-                    {movies.map((movie) => (
+                    {movies
+                        .filter((movie, i, arr) => arr.findIndex(m => m.tmdb_id === movie.tmdb_id) === i)
+                        .map((movie) => (
                         <Link
                             key={movie.tmdb_id}
                             href={`/movie/${movie.tmdb_id}?type=${movie.media_type}`}

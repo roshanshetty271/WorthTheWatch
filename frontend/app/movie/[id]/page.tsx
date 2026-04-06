@@ -197,13 +197,21 @@ function generateFaqJsonLd(movie: MovieWithReview) {
     });
   }
 
-  if (r?.rt_critic_score || r?.metascore) {
+  if (
+    r?.rt_critic_score != null ||
+    r?.rt_audience_score != null ||
+    r?.metascore != null ||
+    r?.imdb_score != null ||
+    r?.letterboxd_score != null
+  ) {
     const scores: string[] = [];
-    if (r.rt_critic_score) scores.push(`Rotten Tomatoes: ${r.rt_critic_score}%`);
-    if (r.metascore) scores.push(`Metacritic: ${r.metascore}/100`);
-    if (r.imdb_score) scores.push(`IMDb: ${r.imdb_score}/10`);
+    if (r?.rt_critic_score != null) scores.push(`Rotten Tomatoes Critics: ${r.rt_critic_score}%`);
+    if (r?.rt_audience_score != null) scores.push(`Rotten Tomatoes Audience: ${r.rt_audience_score}%`);
+    if (r?.metascore != null) scores.push(`Metacritic: ${r.metascore}/100`);
+    if (r?.imdb_score != null) scores.push(`IMDb: ${r.imdb_score}/10`);
+    if (r?.letterboxd_score != null) scores.push(`Letterboxd: ${r.letterboxd_score}/5`);
     faqs.push({
-      question: `What do critics say about ${m.title}?`,
+      question: `How is ${m.title} rated?`,
       answer: scores.join('. ') + '.',
     });
   }

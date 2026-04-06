@@ -5,7 +5,7 @@ Worth the Watch? — SQLAlchemy Models
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Float, Boolean, DateTime, Date,
-    ForeignKey, JSON, Index, UniqueConstraint
+    ForeignKey, JSON, Index, UniqueConstraint, BigInteger
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -60,6 +60,18 @@ class Review(Base):
     rt_critic_score = Column(Integer, nullable=True)
     rt_audience_score = Column(Integer, nullable=True)
     metascore = Column(Integer, nullable=True)
+    letterboxd_score = Column(Float, nullable=True)
+    trakt_score = Column(Integer, nullable=True)
+    metacritic_user_score = Column(Float, nullable=True)
+    mdblist_score = Column(Integer, nullable=True)
+    rogerebert_score = Column(Float, nullable=True)
+    age_rating = Column(Integer, nullable=True)
+    content_violence = Column(Integer, nullable=True)
+    content_nudity = Column(Integer, nullable=True)
+    content_language = Column(Integer, nullable=True)
+    content_drinking = Column(Integer, nullable=True)
+    budget = Column(BigInteger, nullable=True)
+    revenue = Column(BigInteger, nullable=True)
     controversial = Column(Boolean, default=False)
     positive_pct = Column(Integer, nullable=True)
     negative_pct = Column(Integer, nullable=True)
@@ -226,4 +238,3 @@ class WatchmodeFetchState(Base):
         UniqueConstraint("tmdb_id", "media_type", name="uq_fetch_state_tmdb"),
         Index("idx_fetch_state_tmdb", "tmdb_id", "media_type"),
     )
-

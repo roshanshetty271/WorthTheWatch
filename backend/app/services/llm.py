@@ -7,6 +7,7 @@ Uses OpenAI SDK for both (DeepSeek is OpenAI-compatible).
 import json
 import logging
 import re
+from typing import Optional
 from openai import AsyncOpenAI
 from app.config import get_settings
 from app.schemas import LLMReviewOutput, ALLOWED_TAGS
@@ -72,6 +73,94 @@ def sanitize_text(text: str) -> str:
         text = text.strip(" \"'`")
 
     return text.strip()
+
+
+def _format_count(count: Optional[int], label: str) -> str:
+    if count is None or count <= 0:
+        return ""
+    return f" ({count:,} {label})"
+
+
+def _build_rating_landscape(
+    tmdb_score: float = 0.0,
+    tmdb_vote_count: int = 0,
+    imdb_score: Optional[float] = None,
+    imdb_votes: Optional[int] = None,
+    rt_critic_score: Optional[int] = None,
+    rt_critic_votes: Optional[int] = None,
+    rt_audience_score: Optional[int] = None,
+    rt_audience_votes: Optional[int] = None,
+    metascore: Optional[int] = None,
+    metascore_votes: Optional[int] = None,
+    metacritic_user_score: Optional[float] = None,
+    metacritic_user_votes: Optional[int] = None,
+    letterboxd_score: Optional[float] = None,
+    letterboxd_votes: Optional[int] = None,
+    trakt_score: Optional[int] = None,
+    trakt_votes: Optional[int] = None,
+    rogerebert_score: Optional[float] = None,
+) -> str:
+    lines = ["=== RATING LANDSCAPE ==="]
+
+    if imdb_score is not None:
+        lines.append(f"IMDb: {imdb_score:.1f}/10{_format_count(imdb_votes, 'votes')}")
+    if tmdb_score is not None:
+        lines.append(f"TMDB: {tmdb_score:.1f}/10{_format_count(tmdb_vote_count, 'votes')}")
+    if rt_critic_score is not None:
+        lines.append(
+            f"Rotten Tomatoes Critics: {rt_critic_score}%{_format_count(rt_critic_votes, 'reviews')}"
+        )
+    if rt_audience_score is not None:
+        lines.append(
+            f"Rotten Tomatoes Audience: {rt_audience_score}%{_format_count(rt_audience_votes, 'ratings')}"
+        )
+    if metascore is not None:
+        lines.append(f"Metascore: {metascore}/100{_format_count(metascore_votes, 'critic reviews')}")
+    if metacritic_user_score is not None:
+        lines.append(
+            f"Metacritic Users: {metacritic_user_score:.1f}/10{_format_count(metacritic_user_votes, 'ratings')}"
+        )
+    if letterboxd_score is not None:
+        lines.append(f"Letterboxd: {letterboxd_score:.1f}/5{_format_count(letterboxd_votes, 'logs')}")
+    if trakt_score is not None:
+        lines.append(f"Trakt: {trakt_score}%{_format_count(trakt_votes, 'votes')}")
+    if rogerebert_score is not None:
+        lines.append(f"Roger Ebert: {rogerebert_score:.1f}/4")
+
+    gap_note = None
+    if (
+        rt_critic_score is not None
+        and rt_audience_score is not None
+        and abs(rt_audience_score - rt_critic_score) > 25
+    ):
+        gap_note = (
+            "⚠️ Critics and audiences disagree significantly on this movie.\n"
+            f"RT Critics: {rt_critic_score}% vs RT Audience: {rt_audience_score}%."
+        )
+    elif rt_critic_score is not None and imdb_score is not None:
+        rt_as_ten = rt_critic_score / 10
+        if (imdb_score - rt_as_ten) > 3.0:
+            critic_scores = [f"RT {rt_critic_score}%"]
+            if metascore is not None:
+                critic_scores.append(f"Metascore {metascore}")
+            gap_note = (
+                "⚠️ Critic scores "
+                f"({', '.join(critic_scores)}) are notably lower than user scores "
+                f"(IMDb {imdb_score:.1f})."
+            )
+
+    if gap_note:
+        lines.extend(["", gap_note])
+
+    lines.extend(
+        [
+            "",
+            "Use all rating sources together to judge consensus. "
+            "No single source is definitive, and larger vote counts usually mean more stable consensus.",
+        ]
+    )
+
+    return "\n".join(lines)
 
 
 def _build_openai_client():
@@ -263,6 +352,19 @@ async def synthesize_review(
     tmdb_vote_count: int = 0,
     imdb_score: float = None,
     imdb_votes: int = None,
+    rt_critic_score: Optional[int] = None,
+    rt_critic_votes: Optional[int] = None,
+    rt_audience_score: Optional[int] = None,
+    rt_audience_votes: Optional[int] = None,
+    metascore: Optional[int] = None,
+    metascore_votes: Optional[int] = None,
+    metacritic_user_score: Optional[float] = None,
+    metacritic_user_votes: Optional[int] = None,
+    letterboxd_score: Optional[float] = None,
+    letterboxd_votes: Optional[int] = None,
+    trakt_score: Optional[int] = None,
+    trakt_votes: Optional[int] = None,
+    rogerebert_score: Optional[float] = None,
     confidence_tier: str = "MEDIUM",
     articles_read: int = 0,
     reddit_sources: int = 0,
@@ -306,13 +408,25 @@ RULES:
 - Speak with full authority — the internet has spoken.
 - Do NOT mention source counts in the review text."""
 
-    
-    if imdb_score:
-        score_context = f"IMDb Rating: {imdb_score}/10 based on {imdb_votes or 'N/A'} votes (IMDb is highly trusted, use this as a strong signal)"
-        if tmdb_score:
-            score_context += f"\nTMDB User Rating: {tmdb_score}/10 (for reference)"
-    else:
-        score_context = f"TMDB User Rating: {tmdb_score}/10 (based on {tmdb_vote_count} votes)"
+    score_context = _build_rating_landscape(
+        tmdb_score=tmdb_score,
+        tmdb_vote_count=tmdb_vote_count,
+        imdb_score=imdb_score,
+        imdb_votes=imdb_votes,
+        rt_critic_score=rt_critic_score,
+        rt_critic_votes=rt_critic_votes,
+        rt_audience_score=rt_audience_score,
+        rt_audience_votes=rt_audience_votes,
+        metascore=metascore,
+        metascore_votes=metascore_votes,
+        metacritic_user_score=metacritic_user_score,
+        metacritic_user_votes=metacritic_user_votes,
+        letterboxd_score=letterboxd_score,
+        letterboxd_votes=letterboxd_votes,
+        trakt_score=trakt_score,
+        trakt_votes=trakt_votes,
+        rogerebert_score=rogerebert_score,
+    )
 
     content_label = "TV Series" if media_type == "tv" else "Movie"
 
@@ -324,6 +438,7 @@ Description: {overview}
 
 {data_context}
 
+=== OPINIONS ===
 Opinions gathered from {sources_count} sources across the internet:
 
 {opinions}

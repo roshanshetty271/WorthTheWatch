@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
     # Phase 2 APIs
     OMDB_API_KEY: str = ""
+    MDBLIST_API_KEY: str = ""
     KINOCHECK_API_KEY: str = ""
     GUARDIAN_API_KEY: str = ""
     NYT_API_KEY: str = ""

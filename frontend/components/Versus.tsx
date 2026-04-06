@@ -142,6 +142,7 @@ function getBackdropUrl(path: string | null): string | null {
 export default function Versus() {
     const router = useRouter();
     const { data: session } = useSession();
+    const isHistoryAuthenticated = !!session?.user?.id;
     const { addItem, removeItem, isInWatchlist } = useWatchlist();
     const { canBattle, incrementBattle, isSignedIn } = useSignInPrompt();
     const [phase, setPhase] = useState<Phase>("landing");
@@ -307,13 +308,15 @@ export default function Versus() {
                 incrementBattle();
                 const result: BattleResult = await res.json();
                 const winnerMovie = result.winner_title === result.movie_a.title ? result.movie_a : result.movie_b;
-                logActivity({
-                    activity_type: "battle",
-                    tmdb_id: movieAId,
-                    media_type: movieAType,
-                    title: result.winner_title,
-                    poster_path: winnerMovie.poster_path,
-                });
+                if (isHistoryAuthenticated) {
+                    logActivity({
+                        activity_type: "battle",
+                        tmdb_id: movieAId,
+                        media_type: movieAType,
+                        title: result.winner_title,
+                        poster_path: winnerMovie.poster_path,
+                    });
+                }
                 setBattleResult(result);
 
                 // Update slots with data from result (preserving correct media_type)
@@ -349,7 +352,7 @@ export default function Versus() {
                 if (loadingInterval.current) clearInterval(loadingInterval.current);
             }
         },
-        [canBattle, incrementBattle, isSignedIn]
+        [canBattle, incrementBattle, isHistoryAuthenticated, isSignedIn]
     );
 
     const handleTrendingBattle = useCallback(

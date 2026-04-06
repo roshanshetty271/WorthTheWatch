@@ -63,6 +63,19 @@ class ReviewResponse(BaseModel):
     imdb_score: Optional[float] = None
     rt_critic_score: Optional[int] = None
     rt_audience_score: Optional[int] = None
+    metascore: Optional[int] = None
+    letterboxd_score: Optional[float] = None
+    trakt_score: Optional[int] = None
+    metacritic_user_score: Optional[float] = None
+    mdblist_score: Optional[int] = None
+    rogerebert_score: Optional[float] = None
+    age_rating: Optional[int] = None
+    content_violence: Optional[int] = None
+    content_nudity: Optional[int] = None
+    content_language: Optional[int] = None
+    content_drinking: Optional[int] = None
+    budget: Optional[int] = None
+    revenue: Optional[int] = None
     controversial: Optional[bool] = False
     # Phase 2 additions
     trailer_url: Optional[str] = None
@@ -72,12 +85,12 @@ class ReviewResponse(BaseModel):
     positive_pct: Optional[int] = None
     negative_pct: Optional[int] = None
     mixed_pct: Optional[int] = None
-    
+
     # Verdict DNA
     tags: Optional[list[str]] = None
     best_quote: Optional[str] = None
     quote_source: Optional[str] = None
-    
+
     # Review Voice & Critics vs Reddit
     hook: Optional[str] = None
     who_should_watch: Optional[str] = None
