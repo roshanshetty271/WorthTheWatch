@@ -592,7 +592,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
             ═══════════════════════════════════════════════════════════════════ */}
             {hasAnyScore && (
                 <div className="mx-auto max-w-4xl px-4 pt-2 sm:px-6">
-                    <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 pb-2 [mask-image:linear-gradient(to_right,white_85%,transparent)] sm:[mask-image:none] sm:mx-0 sm:px-0 sm:flex-wrap sm:pb-1">
                         {review?.imdb_score != null ? (
                             <ScorePill
                                 label=""
@@ -677,7 +677,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                         </svg>
                     </button>
                     {financialsOpen && (
-                        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 pb-2 [mask-image:linear-gradient(to_right,white_85%,transparent)] sm:[mask-image:none] sm:mx-0 sm:px-0 sm:flex-wrap sm:pb-1">
                             <ScorePill
                                 label={budgetRevenueDisplay ? "Budget / Revenue" : "Box Office"}
                                 value={moneyDisplay}
@@ -714,7 +714,7 @@ export default function MoviePageContent({ movieData, initialStreaming }: MovieP
                         </svg>
                     </button>
                     {parentsGuideOpen && (
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 sm:mx-0 sm:px-0 sm:flex-wrap">
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1 pb-2 [mask-image:linear-gradient(to_right,white_85%,transparent)] sm:[mask-image:none] sm:mx-0 sm:px-0 sm:flex-wrap sm:pb-1">
                             {review?.age_rating != null ? (
                                 <ContentPill icon="🔞" label="Ages" value={`${review.age_rating}+`} />
                             ) : null}
