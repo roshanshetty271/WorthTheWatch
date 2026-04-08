@@ -121,7 +121,7 @@ const formatReviewText = (text: string) => {
   // 2. Break down any individual paragraphs that are still too long (>350 chars)
   initialParas.forEach(para => {
     if (para.length > 320) {
-      const sentences = para.match(/[^.!?]+(?:[.!?]+|$)/g);
+      const sentences = para.match(/[^.!?]+(?:[.!?]+['"”’\])]*|$)/g);
       if (!sentences) {
         finalParas.push(para.trim());
         return;
@@ -170,7 +170,8 @@ function extractMentionedTitles(text: string): string[] {
  */
 function parseMovieMentions(
   text: string,
-  resolvedMap: Record<string, ResolvedMovie>
+  resolvedMap: Record<string, ResolvedMovie>,
+  currentTmdbId?: number
 ): ReactNode[] {
   const regex = /\[\[([^\]]+)\]\]/g;
   const parts: ReactNode[] = [];
@@ -183,18 +184,28 @@ function parseMovieMentions(
     }
     const movieName = match[1];
     const resolved = resolvedMap[movieName];
-    const href = resolved
-      ? `/movie/${resolved.tmdb_id}?type=${resolved.media_type}`
-      : `/search?q=${encodeURIComponent(movieName)}`;
-    parts.push(
-      <Link
-        key={`mention-${match.index}`}
-        href={href}
-        className="text-accent-gold underline decoration-accent-gold/40 underline-offset-2 hover:text-accent-goldLight hover:decoration-accent-gold transition-colors duration-150"
-      >
-        {movieName}
-      </Link>
-    );
+    
+    // Don't link to the movie we are currently viewing
+    if (resolved && currentTmdbId && resolved.tmdb_id === currentTmdbId) {
+      parts.push(
+        <strong key={`mention-${match.index}`} className="text-white/90">
+          {movieName}
+        </strong>
+      );
+    } else {
+      const href = resolved
+        ? `/movie/${resolved.tmdb_id}?type=${resolved.media_type}`
+        : `/search?q=${encodeURIComponent(movieName)}`;
+      parts.push(
+        <Link
+          key={`mention-${match.index}`}
+          href={href}
+          className="text-accent-gold underline decoration-accent-gold/40 underline-offset-2 hover:text-accent-goldLight hover:decoration-accent-gold transition-colors duration-150"
+        >
+          {movieName}
+        </Link>
+      );
+    }
     lastIndex = regex.lastIndex;
   }
 
@@ -235,9 +246,16 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
             );
             if (!res.ok) return;
             const data = await res.json();
-            const first = data.results?.[0];
-            if (first) {
-              map[title] = { tmdb_id: first.tmdb_id, media_type: first.media_type };
+            
+            // Prioritize an exact title match to avoid linking to remakes/sequels that TMDB ranks higher
+            const exactMatch = data.results?.find(
+              (r: any) => (r.title || r.name)?.toLowerCase() === title.toLowerCase()
+            );
+            
+            const bestMatch = exactMatch || data.results?.[0];
+            
+            if (bestMatch) {
+              map[title] = { tmdb_id: bestMatch.tmdb_id || bestMatch.id, media_type: bestMatch.media_type || 'movie' };
             }
           } catch { /* ignore - fallback link still works */ }
         })
@@ -360,9 +378,9 @@ export default function ReviewContent({ review, releaseDate, tmdbId, onRefresh, 
       )}
 
       {/* Main Review Text */}
-      <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-base md:text-lg leading-relaxed text-text-secondary/90 text-justify hyphens-auto">
+      <div className="space-y-6 max-w-3xl mx-auto px-2 font-serif text-base md:text-lg leading-relaxed text-text-secondary/90 text-left md:text-justify hyphens-auto">
         {paragraphs.map((para, i) => {
-          const parsed = parseMovieMentions(para, resolvedMentions);
+          const parsed = parseMovieMentions(para, resolvedMentions, tmdbId);
           if (i === 0 && para.length > 0) {
             const firstChar = typeof parsed[0] === "string" ? parsed[0].charAt(0) : "";
             const restOfFirst = typeof parsed[0] === "string" ? parsed[0].slice(1) : parsed[0];

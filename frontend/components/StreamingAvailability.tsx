@@ -110,9 +110,10 @@ export default function StreamingAvailability({ tmdbId, mediaType = "movie", ini
     if (loading || !hasData) return null;
 
     const { flatrate, free, justwatch_link } = data!;
-    const allOptions = [...flatrate, ...free];
-    const streamingOptions = allOptions.slice(0, 3);
-    const hasMore = allOptions.length > 3 || !!justwatch_link;
+    const allOptionsRaw = [...flatrate, ...free];
+    const uniqueOptions = Array.from(new Map(allOptionsRaw.map(p => [p.provider_id, p])).values());
+    const streamingOptions = uniqueOptions.slice(0, 3);
+    const hasMore = uniqueOptions.length > 3 || !!justwatch_link;
 
     return (
         <div className="flex items-center gap-2.5 animate-fade-in">
