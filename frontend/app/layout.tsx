@@ -71,26 +71,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const maintenance = process.env.MAINTENANCE_MODE === "true";
-
-  // In maintenance mode the whole site rewrites to /maintenance at runtime.
-  // We drop the Navbar + footer so the maintenance page renders clean, but we
-  // KEEP AuthProvider: Next still prerenders every page at build time, and
-  // several (e.g. /contact, /profile) call useSession() — removing the
-  // SessionProvider makes those prerenders crash the build. SessionProvider is
-  // JWT-based and never touches the (down) database.
-  if (maintenance) {
-    return (
-      <html lang="en">
-        <body className={`${dmSans.variable} ${dmSerif.variable} ${lora.variable} min-h-screen bg-surface`}>
-          <AuthProvider>{children}</AuthProvider>
-          <Analytics />
-          <SpeedInsights />
-        </body>
-      </html>
-    );
-  }
-
+  // Note: maintenance mode is handled entirely by middleware.ts (which rewrites
+  // every route to /maintenance) and the /maintenance page itself (a full-screen
+  // overlay that covers this chrome). The layout stays unconditional so it can be
+  // toggled live via env without a rebuild, and so every page still prerenders.
   return (
     <html lang="en">
       <head>

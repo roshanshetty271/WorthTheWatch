@@ -1,25 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Whole-site maintenance switch.
+ * Whole-site maintenance switch — one flag.
  *
- * Flip with the MAINTENANCE_MODE env var in Vercel (then redeploy):
- *   MAINTENANCE_MODE=true   → every page rewrites to /maintenance
- *   unset / anything else   → normal site, this middleware is a no-op
+ *   MAINTENANCE_MODE = "true"  → every route rewrites to /maintenance
+ *                    = unset / anything else → normal site (no-op)
  *
- * The feedback endpoint and static assets stay reachable so the maintenance
- * page (and its form) actually work while the backend/DB are down.
+ * Toggle in Vercel: set the env var, then redeploy. To bring the site back,
+ * set it to "false" (or delete it) and redeploy.
+ *
+ * The feedback endpoint, NextAuth, and static assets stay reachable so the
+ * maintenance page (and its form) work while the backend/DB are down.
  */
-const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === "true";
-
 export function middleware(req: NextRequest) {
-    if (!MAINTENANCE_MODE) return NextResponse.next();
+    if (process.env.MAINTENANCE_MODE !== "true") return NextResponse.next();
 
     const { pathname } = req.nextUrl;
 
-    // Allow the maintenance page itself, the email-only feedback API, NextAuth
-    // (so the JWT session check works without errors — it doesn't touch the DB),
-    // and assets.
     if (
         pathname === "/maintenance" ||
         pathname.startsWith("/api/feedback") ||
@@ -40,6 +37,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-    // Run on everything except Next internals/image optimizer and favicon.
     matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

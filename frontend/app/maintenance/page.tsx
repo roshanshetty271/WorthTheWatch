@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function MaintenancePage() {
     return (
-        <div className="relative min-h-screen overflow-hidden bg-surface">
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-surface">
             {/* Cinematic backdrop — same treatment as the homepage hero & "Can't Decide?" CTA */}
             <div className="absolute inset-0 z-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
