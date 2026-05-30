@@ -20,14 +20,6 @@ export default function MaintenancePage() {
                     className="h-full w-full object-cover object-center opacity-25"
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-surface/85 via-surface/75 to-surface" />
-                {/* Soft gold spotlight, like a projector beam */}
-                <div
-                    className="pointer-events-none absolute inset-0"
-                    style={{
-                        background:
-                            "radial-gradient(ellipse 60% 45% at 50% 8%, rgba(251,191,36,0.12) 0%, transparent 70%)",
-                    }}
-                />
             </div>
 
             <div className="relative z-10 mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-4 py-16">
