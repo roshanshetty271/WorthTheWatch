@@ -10,47 +10,62 @@ export const metadata: Metadata = {
 export default function MaintenancePage() {
     return (
         <div className="relative min-h-screen overflow-hidden bg-surface">
-            {/* Ambient gold glow — subtle, on-brand */}
-            <div
-                className="pointer-events-none absolute inset-0"
-                style={{
-                    background:
-                        "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(251,191,36,0.10) 0%, transparent 70%)",
-                }}
-            />
+            {/* Cinematic backdrop — same treatment as the homepage hero & "Can't Decide?" CTA */}
+            <div className="absolute inset-0 z-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src="/images/cinema-bg.jpg"
+                    alt=""
+                    aria-hidden="true"
+                    className="h-full w-full object-cover object-center opacity-25"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-surface/85 via-surface/75 to-surface" />
+                {/* Soft gold spotlight, like a projector beam */}
+                <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                        background:
+                            "radial-gradient(ellipse 60% 45% at 50% 8%, rgba(251,191,36,0.12) 0%, transparent 70%)",
+                    }}
+                />
+            </div>
 
-            <div className="relative z-10 mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 py-16">
+            <div className="relative z-10 mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-4 py-16">
                 {/* Logo — matches Navbar treatment */}
-                <span className="font-display text-2xl md:text-3xl text-white tracking-tight">
+                <span className="font-display text-2xl md:text-3xl text-white tracking-tight text-shadow-hero">
                     Worth the <span className="text-accent-gold">Watch</span>?
                 </span>
 
-                {/* Status pill */}
-                <span className="mt-8 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-white/60">
+                {/* Eyebrow — cinema motif, matches the gold uppercase label used across the app */}
+                <span className="mt-12 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-accent-gold/80">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-gold" />
-                    Under Maintenance
+                    Intermission
                 </span>
 
                 {/* Headline */}
-                <h1 className="mt-5 text-center font-display text-3xl md:text-4xl text-white tracking-tight">
+                <h1 className="mt-4 text-center font-display text-4xl md:text-5xl text-white tracking-tight text-shadow-hero">
                     We&apos;ll be right back.
                 </h1>
-                <p className="mt-3 max-w-md text-center text-base text-text-secondary">
-                    We&apos;re doing some quick maintenance and expect to be back online by{" "}
-                    <span className="font-semibold text-accent-gold">June 1</span>. Thanks so much for
-                    using Worth the Watch? — it genuinely means a lot. 🍿
+                <p className="mt-4 max-w-md text-center text-base sm:text-lg text-text-secondary/90 text-shadow-sub">
+                    We&apos;re running some quick maintenance and expect to be back by{" "}
+                    <span className="font-semibold text-accent-gold">June 1</span>. Thanks so much
+                    for using Worth the Watch? — it genuinely means a lot. 🍿
                 </p>
 
-                {/* Feedback card — matches homepage empty-state card styling */}
-                <div className="mt-10 w-full rounded-2xl border border-surface-elevated bg-surface-card p-6 sm:p-8 animate-fade-in">
-                    <h2 className="font-display text-xl text-white">While you&apos;re here…</h2>
-                    <p className="mt-1 mb-6 text-sm text-white/50">
-                        Help shape what comes next. What do you love, and what should we improve?
-                    </p>
+                {/* Feedback card — frosted surface with the app's editorial accent header */}
+                <div className="mt-12 w-full rounded-2xl border border-white/10 bg-surface-card/80 p-6 backdrop-blur-md sm:p-8 animate-fade-in">
+                    <div className="mb-5 border-l-4 border-accent-gold pl-3">
+                        <h2 className="font-body text-lg font-bold uppercase tracking-wide text-white">
+                            While you&apos;re here
+                        </h2>
+                        <p className="mt-1 text-sm text-text-secondary/70 normal-case">
+                            Help shape what comes next — what do you love, and what should we improve?
+                        </p>
+                    </div>
                     <MaintenanceFeedbackForm />
                 </div>
 
-                <p className="mt-8 text-center text-xs text-text-muted">
+                <p className="mt-10 text-center text-xs text-text-muted">
                     © {new Date().getFullYear()} Worth the Watch? — Don&apos;t watch another bad movie.
                 </p>
             </div>

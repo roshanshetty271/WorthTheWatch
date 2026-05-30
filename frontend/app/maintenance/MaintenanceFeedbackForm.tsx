@@ -133,7 +133,7 @@ export default function MaintenanceFeedbackForm() {
             <button
                 type="submit"
                 disabled={status === "sending" || !canSubmit}
-                className="w-full py-3 rounded-xl bg-accent-gold text-black font-bold text-sm uppercase tracking-wider hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="w-full py-3 rounded-xl bg-accent-gold text-black font-bold text-sm uppercase tracking-wider shadow-lg shadow-accent-gold/20 hover:brightness-110 hover:shadow-accent-gold/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all"
             >
                 {status === "sending" ? "Sending..." : "Send Feedback"}
             </button>
