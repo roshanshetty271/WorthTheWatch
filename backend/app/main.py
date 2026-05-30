@@ -42,8 +42,15 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI):
     """Startup: create tables. Shutdown: cleanup."""
     logger.info("🎬 Worth the Watch? — Starting up...")
-    await init_db()
-    logger.info("✅ Database initialized")
+    try:
+        await init_db()
+        logger.info("✅ Database initialized")
+    except Exception as e:
+        # Don't let a DB outage (e.g. Neon over-quota / suspended) block startup.
+        # The app must still boot so the DB-free /health stays green and the
+        # service recovers automatically once the database is reachable again.
+        # Endpoints that need the DB will surface errors until then.
+        logger.error(f"⚠️ init_db failed at startup — continuing without it: {e}")
 
     if settings.ENVIRONMENT == "production" and not settings.INTERNAL_PROXY_SECRET:
         logger.warning("⚠️ INTERNAL_PROXY_SECRET is not set — proxy quota path is disabled!")
