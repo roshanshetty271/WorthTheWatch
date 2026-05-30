@@ -71,6 +71,23 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const maintenance = process.env.MAINTENANCE_MODE === "true";
+
+  // In maintenance mode the whole site rewrites to /maintenance, which is fully
+  // backend-independent. Render a bare shell — no Navbar/footer/AuthProvider, all
+  // of which make calls to the (down) backend.
+  if (maintenance) {
+    return (
+      <html lang="en">
+        <body className={`${dmSans.variable} ${dmSerif.variable} ${lora.variable} min-h-screen bg-surface`}>
+          {children}
+          <Analytics />
+          <SpeedInsights />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en">
       <head>

@@ -12,9 +12,17 @@ settings = get_settings()
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    pool_size=5,
-    max_overflow=10,
+    # Small pool: a single Koyeb instance can't usefully hold many sockets, and
+    # fewer lingering connections lets Neon's serverless compute scale to zero.
+    pool_size=2,
+    max_overflow=3,
+    # Keep pre_ping: after Neon autosuspends and drops the socket, the next
+    # checkout transparently reconnects (waking Neon) instead of erroring.
     pool_pre_ping=True,
+    # Recycle connections every 5 min so they don't pin the compute awake.
+    pool_recycle=300,
+    # Fail fast instead of hanging if the DB is throttled/unavailable.
+    pool_timeout=10,
 )
 
 async_session = async_sessionmaker(

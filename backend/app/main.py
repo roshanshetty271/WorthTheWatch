@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from app.config import get_settings
-from app.database import init_db, get_db
+from app.database import init_db, get_db, async_session
 from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry, GenerationUsageEntry  # noqa: F401
 from app.routers import movies, search, versus, nowplaying, discover, feedback
 from app.jobs.daily_sync import run_daily_sync
@@ -135,24 +135,29 @@ async def health_check(
     request: Request,
     check_services: bool = False,
     secret: str = "",
-    db: AsyncSession = Depends(get_db),
 ):
+    # IMPORTANT: the default liveness path must NOT touch the database.
+    # Uptime pingers (keep-warm cron, Koyeb probe) hit this every few minutes;
+    # if it opened a Neon connection it would keep the serverless compute awake
+    # 24/7 and burn the compute-hour quota. No Depends(get_db) here on purpose.
     if not check_services:
         return HealthCheck(status="ok")
-    
+
     if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret for deep check")
 
     health_status = {
-        "status": "ok", 
+        "status": "ok",
         "database": "unknown",
         "tmdb": "unknown",
         "llm": "unknown",
         "serper": "unknown"
     }
 
+    # Deep check only: open a session manually so the DB is touched solely here.
     try:
-        await db.execute(select(1))
+        async with async_session() as db:
+            await db.execute(select(1))
         health_status["database"] = "connected"
     except Exception as e:
         logger.error(f"Health DB fail: {e}")
