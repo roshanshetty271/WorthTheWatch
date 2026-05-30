@@ -17,10 +17,13 @@ export function middleware(req: NextRequest) {
 
     const { pathname } = req.nextUrl;
 
-    // Allow the maintenance page itself, the email-only feedback API, and assets.
+    // Allow the maintenance page itself, the email-only feedback API, NextAuth
+    // (so the JWT session check works without errors — it doesn't touch the DB),
+    // and assets.
     if (
         pathname === "/maintenance" ||
         pathname.startsWith("/api/feedback") ||
+        pathname.startsWith("/api/auth") ||
         pathname.startsWith("/_next") ||
         pathname === "/favicon.ico" ||
         pathname === "/robots.txt" ||

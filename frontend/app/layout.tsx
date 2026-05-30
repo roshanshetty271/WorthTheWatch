@@ -73,14 +73,17 @@ export default function RootLayout({
 }) {
   const maintenance = process.env.MAINTENANCE_MODE === "true";
 
-  // In maintenance mode the whole site rewrites to /maintenance, which is fully
-  // backend-independent. Render a bare shell — no Navbar/footer/AuthProvider, all
-  // of which make calls to the (down) backend.
+  // In maintenance mode the whole site rewrites to /maintenance at runtime.
+  // We drop the Navbar + footer so the maintenance page renders clean, but we
+  // KEEP AuthProvider: Next still prerenders every page at build time, and
+  // several (e.g. /contact, /profile) call useSession() — removing the
+  // SessionProvider makes those prerenders crash the build. SessionProvider is
+  // JWT-based and never touches the (down) database.
   if (maintenance) {
     return (
       <html lang="en">
         <body className={`${dmSans.variable} ${dmSerif.variable} ${lora.variable} min-h-screen bg-surface`}>
-          {children}
+          <AuthProvider>{children}</AuthProvider>
           <Analytics />
           <SpeedInsights />
         </body>
