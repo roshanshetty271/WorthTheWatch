@@ -29,91 +29,58 @@ router = APIRouter()
 # Genres alone are too broad — "Drama" covers everything from The Notebook to Breaking Bad.
 # Exclusion genres prevent wrong-mood results from leaking in.
 
-MOOD_CONFIG = {
+# Each mood needs a DEFINING tag ("any") AND must NOT carry a clashing tag
+# ("none"). A pure-OR over tags fails because common tags like "Funny" /
+# "Emotional" are on almost everything — a single shared tag would drag a dark
+# film (Obsession, Pulp Fiction) into "Tired"/"Fun". Tags ∈ schemas.ALLOWED_TAGS.
+MOOD_TAGS = {
     "tired": {
-        # Easy, light, comfort watches — unwind without thinking
-        "tags": ["Feel-Good", "Whimsical", "Family-Friendly", "Funny", "Light", "Comforting", "Wholesome"],
-        "include_genres": ["Comedy", "Romance", "Animation", "Family", "Music"],
-        "exclude_genres": ["Horror", "Thriller", "Crime", "War"],
+        # Easy, light comfort — unwind without intensity
+        "any": ["Feel-Good", "Whimsical", "Family-Friendly"],
+        "none": ["Dark", "Gritty", "Violent", "Gory", "Heartbreaking",
+                 "Slow-Burn", "Mind-Bending", "Action-Packed"],
     },
     "pumped": {
-        # Adrenaline, high-octane — John Wick, Mad Max, Top Gun
-        "tags": ["Action-Packed", "Gritty", "Fast-Paced", "Violent", "Intense", "Thrilling"],
-        "include_genres": ["Action", "War"],
-        "exclude_genres": ["Romance", "Family", "Animation", "Music"],
+        # Adrenaline / high energy
+        "any": ["Action-Packed", "Fast-Paced"],
+        "none": ["Slow-Burn", "Dialogue-Heavy", "Heartbreaking"],
     },
     "emotional": {
-        # Tearjerkers, deep feelings — Green Mile, Schindler's List, Grave of the Fireflies
-        "tags": ["Emotional", "Heartbreaking", "Tearjerker", "Moving", "Touching", "Heartfelt", "Devastating"],
-        "include_genres": ["Drama", "Romance"],
-        "exclude_genres": ["Action", "Thriller", "Crime", "Horror", "Science Fiction"],
+        # Tearjerkers / deep feeling
+        "any": ["Emotional", "Heartbreaking"],
+        "none": ["Funny", "Action-Packed", "Fast-Paced"],
     },
     "cerebral": {
-        # Mind-benders, make you think — Inception, Memento, Arrival, Interstellar
-        "tags": ["Mind-Bending", "Cerebral", "Slow-Burn", "Thought-Provoking", "Complex", "Philosophical"],
-        "include_genres": ["Science Fiction", "Mystery"],
-        "exclude_genres": ["Comedy", "Family", "Animation", "Romance"],
+        # Mind-benders / makes you think
+        "any": ["Mind-Bending", "Cerebral"],
+        "none": ["Family-Friendly", "Action-Packed"],
     },
     "fun": {
-        # Popcorn entertainment — Jurassic Park, Guardians, Spider-Verse
-        "tags": ["Funny", "Feel-Good", "Whimsical", "Entertaining", "Adventure", "Escapist"],
-        "include_genres": ["Comedy", "Animation", "Adventure", "Fantasy"],
-        "exclude_genres": ["Horror", "War", "Crime"],
+        # Light, entertaining good time
+        "any": ["Funny", "Feel-Good", "Whimsical", "Action-Packed"],
+        "none": ["Dark", "Gory", "Violent", "Heartbreaking", "Slow-Burn"],
     },
 }
 
 
 def _build_mood_filter(mood: str):
     """
-    Build SQLAlchemy filter for mood-based browsing.
-    
-    Strategy: Tags first (most accurate), genres second (with exclusions).
-    
-    A movie matches a mood if:
-      - It has ANY matching tag (LLM assigned, most reliable), OR
-      - It has an included genre AND does NOT have any excluded genre
-    
-    This prevents "Breaking Bad" from showing in "Emotional" (it's Drama 
-    but also Crime+Thriller which are excluded) while keeping "The Green Mile" 
-    (Drama with no excluded genres).
+    Mood filter from the review's LLM tags: match if the review has ANY of the
+    mood's defining tags AND NONE of its clashing tags. Keeps a "Funny" horror
+    film out of "Tired"/"Fun", and a heavy/violent film out of "Tired".
     """
-    config = MOOD_CONFIG.get(mood)
+    config = MOOD_TAGS.get(mood)
     if not config:
         return None
 
-    conditions = []
+    def _has(tag: str):
+        return cast(Review.tags, String).ilike(f'%"{tag}"%')
 
-    # 1. TAG MATCHING (primary — most accurate mood signal)
-    for tag in config["tags"]:
-        conditions.append(
-            cast(Review.tags, String).ilike(f'%{tag}%')
-        )
-
-    # 2. GENRE MATCHING with exclusions (secondary — broader but filtered)
-    genre_includes = []
-    for genre in config["include_genres"]:
-        genre_includes.append(
-            cast(Movie.genres, String).ilike(f'%{genre}%')
-        )
-
-    genre_excludes = []
-    for genre in config["exclude_genres"]:
-        genre_excludes.append(
-            cast(Movie.genres, String).ilike(f'%{genre}%')
-        )
-
-    # Movie has at least one included genre AND none of the excluded genres
-    if genre_includes:
-        has_included = or_(*genre_includes)
-        if genre_excludes:
-            has_excluded = or_(*genre_excludes)
-            # Include genre match BUT NOT excluded genre
-            genre_condition = and_(has_included, ~has_excluded)
-        else:
-            genre_condition = has_included
-        conditions.append(genre_condition)
-
-    return or_(*conditions)
+    positive = or_(*[_has(t) for t in config["any"]])
+    if config.get("none"):
+        negative = or_(*[_has(t) for t in config["none"]])
+        return and_(positive, ~negative)
+    return positive
 
 
 @router.get("", response_model=PaginatedMovies)
