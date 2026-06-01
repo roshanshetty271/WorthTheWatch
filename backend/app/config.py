@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     SERPER_API_KEY_FALLBACK: str = ""
     SERPER_API_KEY_FALLBACK_2: str = ""
 
+    # Alerting (email via Resend) — for surfacing silent failures (e.g. Serper down)
+    RESEND_API_KEY: str = ""
+    ALERT_EMAIL: str = ""                                 # recipient (your inbox)
+    ALERT_FROM_EMAIL: str = "onboarding@resend.dev"       # use a verified sender in prod
+
     # Jina Reader
     JINA_API_KEY: str = ""
     JINA_BASE_URL: str = "https://r.jina.ai"

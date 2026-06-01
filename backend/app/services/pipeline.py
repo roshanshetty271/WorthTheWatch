@@ -1110,25 +1110,47 @@ CRITIC REVIEWS (Professional):
         # may lack English articles but have real crowd consensus
         if confidence_stats["confidence_tier"] == "LOW" and llm_output.verdict == "WORTH IT":
             if confidence_stats["articles_read"] < 3:
-                # Check if IMDb provides strong enough signal to trust the LLM
-                has_strong_imdb = (
-                    imdb_score is not None
-                    and imdb_score >= 7.0
-                    and imdb_votes is not None
-                    and imdb_votes >= 1000
+                # Thin SCRAPED data — but a strong critic/audience consensus across ANY
+                # major source is itself reliable signal. Don't downgrade a movie the
+                # critics + crowd clearly love just because our scrapers came up short.
+                rt_critic = rating_context["rt_critic_score"]
+                rt_aud = rating_context["rt_audience_score"]
+                rt_aud_votes = rating_context["rt_audience_votes"]
+                meta = rating_context["metascore"]
+                letterboxd = rating_context["letterboxd_score"]
+
+                # Release-aware IMDb vote floor — brand-new movies haven't accrued
+                # votes yet (1,000 is unfair to a film that's only weeks old).
+                imdb_vote_floor = 1000
+                if movie.release_date:
+                    days_old = (date.today() - movie.release_date).days
+                    if days_old <= 30:
+                        imdb_vote_floor = 300
+                    elif days_old <= 90:
+                        imdb_vote_floor = 500
+
+                has_strong_consensus = (
+                    (imdb_score is not None and imdb_score >= 7.0
+                     and imdb_votes is not None and imdb_votes >= imdb_vote_floor)
+                    or (rt_critic is not None and rt_critic >= 75)
+                    or (meta is not None and meta >= 70)
+                    or (rt_aud is not None and rt_aud >= 75
+                        and rt_aud_votes is not None and rt_aud_votes > 100)
+                    or (letterboxd is not None and letterboxd >= 3.8)
                 )
-                if has_strong_imdb:
+                if has_strong_consensus:
                     logger.info(
-                        f"✅ LOW confidence but strong IMDb signal: {title} "
-                        f"(IMDb {imdb_score}, {imdb_votes} votes) "
+                        f"✅ LOW confidence but strong rating consensus: {title} "
+                        f"(IMDb {imdb_score}/{imdb_votes}v floor {imdb_vote_floor}, "
+                        f"RT {rt_critic}, Meta {meta}, LB {letterboxd}) "
                         f"— keeping WORTH IT despite only {confidence_stats['articles_read']} articles"
                     )
                 else:
                     logger.info(
                         f"⚖️ Verdict override: WORTH IT → MIXED BAG "
                         f"(LOW confidence, only {confidence_stats['articles_read']} articles, "
-                        f"IMDb {imdb_score if imdb_score is not None else 'N/A'}, "
-                        f"{imdb_votes or 0} votes — not enough signal)"
+                        f"no strong rating consensus — IMDb {imdb_score if imdb_score is not None else 'N/A'}/"
+                        f"{imdb_votes or 0}v, RT {rt_critic}, Meta {meta}, LB {letterboxd})"
                     )
                     llm_output.verdict = "MIXED BAG"
         

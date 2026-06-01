@@ -7,9 +7,11 @@ Supports automatic key failover: when primary key hits 402/429,
 switches to SERPER_API_KEY_FALLBACK for the rest of the session.
 """
 
+import asyncio
 import httpx
 import logging
 from app.config import get_settings
+from app.services.alerts import send_alert
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -90,6 +92,9 @@ class SerperService:
 
     async def search(self, query: str, num_results: int = 10) -> list[dict]:
         """Search Google via Serper with automatic key failover."""
+        if not self._keys:
+            logger.error("⛔ No SERPER_API_KEY configured — Serper search disabled.")
+            return []
         try:
             async with httpx.AsyncClient(timeout=5) as client:
                 resp = await client.post(
@@ -118,7 +123,22 @@ class SerperService:
                     return []
 
                 if resp.status_code != 200:
-                    logger.warning(f"Serper returned {resp.status_code}")
+                    body = (resp.text or "")[:300]
+                    logger.warning(f"Serper returned {resp.status_code}: {body}")
+                    if resp.status_code in (400, 401, 403):
+                        logger.error(
+                            f"⛔ Serper auth/request error — check SERPER_API_KEY "
+                            f"(keys configured: {len(self._keys)})"
+                        )
+                        # Fire-and-forget, throttled — never blocks the search.
+                        asyncio.create_task(send_alert(
+                            "⚠️ Serper is failing",
+                            f"Serper returned HTTP {resp.status_code} on review searches, so "
+                            f"Reddit + critic data is unavailable until fixed.\n\n"
+                            f"Likely cause: an invalid or rotated SERPER_API_KEY in the backend env.\n"
+                            f"Response body: {body}",
+                            dedupe_key="serper-auth",
+                        ))
                     return []
 
                 try:

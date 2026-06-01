@@ -16,7 +16,7 @@ from sqlalchemy import select, desc
 from app.config import get_settings
 from app.database import init_db, get_db, async_session
 from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry, GenerationUsageEntry  # noqa: F401
-from app.routers import movies, search, versus, nowplaying, discover, feedback
+from app.routers import movies, search, versus, nowplaying, discover, feedback, picks
 from app.jobs.daily_sync import run_daily_sync
 from app.middleware.rate_limit import cleanup_old_rate_limit_entries
 from app.schemas import HealthCheck
@@ -54,6 +54,19 @@ async def lifespan(app: FastAPI):
 
     if settings.ENVIRONMENT == "production" and not settings.INTERNAL_PROXY_SECRET:
         logger.warning("⚠️ INTERNAL_PROXY_SECRET is not set — proxy quota path is disabled!")
+
+    # Loud alert if Serper isn't configured — its silent failure starves reviews of
+    # Reddit + critic data (see the May-13 incident).
+    if not settings.SERPER_API_KEY:
+        logger.warning("⚠️ SERPER_API_KEY is not set — Reddit/critic search is DISABLED (reviews will be low-signal).")
+        import asyncio
+        from app.services.alerts import send_alert
+        asyncio.create_task(send_alert(
+            "⚠️ Serper not configured",
+            "The backend booted without a SERPER_API_KEY. Reddit + critic search is disabled, "
+            "so reviews will be generated on weak signal until a valid key is set.",
+            dedupe_key="serper-missing-key",
+        ))
     
     from app.services.tmdb import tmdb_service
     import asyncio
@@ -106,6 +119,7 @@ app.include_router(versus.router, prefix="/api/versus", tags=["versus"])
 app.include_router(nowplaying.router, prefix="/api/nowplaying", tags=["nowplaying"])
 app.include_router(discover.router, prefix="/api/discover", tags=["discover"])
 app.include_router(feedback.router, prefix="/api/reviews", tags=["feedback"])
+app.include_router(picks.router, prefix="/api/picks", tags=["picks"])
 
 
 # ─── Sitemap (SEO) ────────────────────────────────────────
