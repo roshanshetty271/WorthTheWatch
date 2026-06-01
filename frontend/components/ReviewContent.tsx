@@ -105,6 +105,11 @@ const cleanReviewText = (text: string) => {
 
   return text
     .trim()
+    // The LLM sometimes wraps titles in markdown emphasis (*Backrooms*, **Obsession**).
+    // We render plain text, so strip the markers — otherwise raw asterisks show AND the
+    // title can't be auto-linked. (** first so it isn't mangled by the single-* rule.)
+    .replace(/\*\*([^*\n]+)\*\*/g, "$1")
+    .replace(/\*([^*\n]+)\*/g, "$1")
     // A review that opens with the title in quotes ('Obsession') breaks the drop-cap
     // (the quote becomes the big gold letter) and orphans the closing quote. Unwrap a
     // leading quoted phrase so the drop-cap is a real letter.

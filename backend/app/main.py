@@ -397,27 +397,48 @@ REGEN_BATCH_SIZE = 20
 async def regenerate_all_reviews(
     request: Request,
     secret: str = "",
+    since: str = "",
+    until: str = "",
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Re-generate all existing reviews with the current prompt."""
+    """Re-generate existing reviews. Optional `since`/`until` (ISO date) filter on
+    `review.generated_at` to target a window — e.g. the Serper-outage reviews —
+    instead of all of them. No window = all (original behavior)."""
     if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     from sqlalchemy.orm import joinedload
+    from datetime import datetime
+
+    try:
+        since_dt = datetime.fromisoformat(since) if since else None
+        until_dt = datetime.fromisoformat(until) if until else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="since/until must be ISO dates, e.g. 2026-05-14")
+
+    def _in_window(m) -> bool:
+        if m.review is None:
+            return False
+        g = m.review.generated_at
+        if since_dt and (g is None or g < since_dt):
+            return False
+        if until_dt and (g is None or g >= until_dt):
+            return False
+        return True
 
     result = await db.execute(
         select(Movie).options(joinedload(Movie.review))
     )
     all_movies = result.unique().scalars().all()
-    movies_with_reviews = [m for m in all_movies if m.review is not None]
-    tmdb_ids = [m.tmdb_id for m in movies_with_reviews]
+    tmdb_ids = [m.tmdb_id for m in all_movies if _in_window(m)]
 
     background_tasks.add_task(_regenerate_background, tmdb_ids)
 
+    window = f" generated in [{since or '…'}, {until or '…'})" if (since or until) else ""
     return {
         "status": "started",
-        "message": f"Regenerating {len(tmdb_ids)} reviews in batches of {REGEN_BATCH_SIZE}. Watch server logs.",
+        "message": f"Regenerating {len(tmdb_ids)} reviews{window} in batches of {REGEN_BATCH_SIZE}. Watch server logs.",
         "count": len(tmdb_ids),
     }
 
