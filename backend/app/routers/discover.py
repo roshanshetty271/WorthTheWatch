@@ -40,13 +40,33 @@ MOVIE_GENRES = {
     "sci-fi": 878, "thriller": 53, "war": 10752, "western": 37,
 }
 
+# TMDB TV genres are a DIFFERENT set from movies — no standalone Thriller/Horror.
 TV_GENRES = {
     "action": 10759, "adventure": 10759, "animation": 16, "comedy": 35,
     "crime": 80, "documentary": 99, "drama": 18, "family": 10751,
-    "fantasy": 10765, "sci-fi": 10765, "science-fiction": 10765,
-    "mystery": 9648, "romance": 10749, "thriller": 53, "war": 10768,
-    "western": 37, "reality": 10764, "soap": 10766,
+    "kids": 10762, "mystery": 9648, "reality": 10764,
+    "sci-fi": 10765, "science-fiction": 10765, "fantasy": 10765,
+    "war": 10768, "western": 37,
 }
+
+# Explicit chip lists (id + display) per media type — what the UI offers.
+# Frontend selects by id and sends ids, so display names can be accurate ("&" etc).
+MOVIE_GENRE_OPTIONS = [
+    {"id": 28, "name": "Action"}, {"id": 12, "name": "Adventure"}, {"id": 16, "name": "Animation"},
+    {"id": 35, "name": "Comedy"}, {"id": 80, "name": "Crime"}, {"id": 99, "name": "Documentary"},
+    {"id": 18, "name": "Drama"}, {"id": 10751, "name": "Family"}, {"id": 14, "name": "Fantasy"},
+    {"id": 36, "name": "History"}, {"id": 27, "name": "Horror"}, {"id": 10402, "name": "Music"},
+    {"id": 9648, "name": "Mystery"}, {"id": 10749, "name": "Romance"}, {"id": 878, "name": "Sci-Fi"},
+    {"id": 53, "name": "Thriller"}, {"id": 10752, "name": "War"}, {"id": 37, "name": "Western"},
+]
+TV_GENRE_OPTIONS = [
+    {"id": 10759, "name": "Action & Adventure"}, {"id": 16, "name": "Animation"},
+    {"id": 35, "name": "Comedy"}, {"id": 80, "name": "Crime"}, {"id": 99, "name": "Documentary"},
+    {"id": 18, "name": "Drama"}, {"id": 10751, "name": "Family"}, {"id": 10762, "name": "Kids"},
+    {"id": 9648, "name": "Mystery"}, {"id": 10764, "name": "Reality"},
+    {"id": 10765, "name": "Sci-Fi & Fantasy"}, {"id": 10768, "name": "War & Politics"},
+    {"id": 37, "name": "Western"},
+]
 
 SORT_OPTIONS = {
     "popular": "popularity.desc",
@@ -115,11 +135,12 @@ async def discover(
     - `genre`: one or more genre names (comma-separated). Unknown names ignored.
     - `match`: `any` (OR) or `all` (AND) when combining genres.
     """
+    # Accept genre IDs (preferred — what the UI sends) OR names (back-compat for old links).
     genre_map = TV_GENRES if media_type == "tv" else MOVIE_GENRES
-    names = [g.strip().lower() for g in (genre or "").split(",") if g.strip()]
+    genre_tokens = [t.strip() for t in (genre or "").split(",") if t.strip()]
     genre_ids: list[int] = []
-    for n in names:
-        gid = genre_map.get(n)
+    for tok in genre_tokens:
+        gid = int(tok) if tok.isdigit() else genre_map.get(tok.lower())
         if gid and gid not in genre_ids:
             genre_ids.append(gid)
 
@@ -230,7 +251,7 @@ async def discover(
         "total_pages": total_pages,
         "filters": {
             "media_type": media_type,
-            "genres": names,
+            "genres": genre_ids,
             "match": match,
             "year": year,
             "min_rating": min_rating,
@@ -243,12 +264,5 @@ async def discover(
 async def get_genres(
     media_type: str = Query("movie", pattern="^(movie|tv)$"),
 ):
-    """Get available genre list for the filter UI."""
-    genre_map = TV_GENRES if media_type == "tv" else MOVIE_GENRES
-    seen_ids = set()
-    genres = []
-    for name, gid in sorted(genre_map.items()):
-        if gid not in seen_ids:
-            seen_ids.add(gid)
-            genres.append({"id": gid, "name": name.replace("-", " ").title()})
-    return {"genres": genres}
+    """Genre options (id + display name) for the filter UI — valid for the media type."""
+    return {"genres": TV_GENRE_OPTIONS if media_type == "tv" else MOVIE_GENRE_OPTIONS}

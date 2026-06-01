@@ -187,42 +187,22 @@ async def list_movies(
                 )
             )
 
-        # ─── Mood Categories (Curated Lists) ─────────────────────────
+        # ─── Mood Categories (tag-driven) ────────────────────────────
+        # Matches our WORTH-IT reviews by LLM tags (+ genre include/exclude) via
+        # _build_mood_filter — accurate and grows with the catalog, unlike the
+        # old static curated lists.
         elif category.startswith("mood-"):
-            from app.services.curated_moods import CURATED_MOODS
-
             mood = category.replace("mood-", "")
-            curated_ids = CURATED_MOODS.get(mood, [])
+            mood_filter = _build_mood_filter(mood)
 
-            if not curated_ids:
-                # Unknown mood — fall back to all reviewed
-                query = query.join(Review).where(
-                    Review.verdict == "WORTH IT"
-                ).order_by(desc(Movie.tmdb_popularity))
-                count_query = count_query.join(Review).where(
-                    Review.verdict == "WORTH IT"
-                )
-            else:
-                # Shuffle: randomize the curated order
-                if shuffle:
-                    curated_ids = list(curated_ids)
-                    _random.shuffle(curated_ids)
+            base = query.join(Review).where(Review.verdict == "WORTH IT")
+            base_count = count_query.join(Review).where(Review.verdict == "WORTH IT")
+            if mood_filter is not None:
+                base = base.where(mood_filter)
+                base_count = base_count.where(mood_filter)
 
-                # Get movies from our DB matching curated TMDB IDs
-                # Include all — reviewed and unreviewed — with reviews loaded
-                query = query.where(
-                    Movie.tmdb_id.in_(curated_ids)
-                )
-                count_query = count_query.where(
-                    Movie.tmdb_id.in_(curated_ids)
-                )
-
-                # We need custom ordering to match the curated list order
-                # SQLAlchemy doesn't support CASE ordering easily, so we'll
-                # fetch all and sort in Python after the query executes
-                # For now, use popularity as proxy (most iconic = most popular)
-                if not shuffle:
-                    query = query.order_by(desc(Movie.tmdb_popularity))
+            query = base.order_by(func.random() if shuffle else desc(Movie.tmdb_popularity))
+            count_query = base_count
 
     else:
         if media_type:

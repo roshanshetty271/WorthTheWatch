@@ -20,12 +20,7 @@ interface DiscoverResult {
     hook?: string | null;
 }
 
-const GENRES = [
-    "Action", "Adventure", "Animation", "Comedy", "Crime",
-    "Documentary", "Drama", "Family", "Fantasy", "History",
-    "Horror", "Music", "Mystery", "Romance", "Sci-Fi",
-    "Thriller", "War", "Western",
-];
+interface GenreOption { id: number; name: string; }
 
 const YEARS = Array.from({ length: 6 }, (_, i) => 2026 - i);
 
@@ -78,22 +73,6 @@ function VerdictPill({ verdict }: { verdict: string }) {
     );
 }
 
-function MoviePoster({ item, sizes }: { item: DiscoverResult; sizes: string }) {
-    return (
-        <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
-            <PosterImage src={item.poster_url} alt={item.title} sizes={sizes} />
-            {item.tmdb_vote_average && item.tmdb_vote_average > 0 && (
-                <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-accent-gold z-10">
-                    ★ {item.tmdb_vote_average.toFixed(1)}
-                </div>
-            )}
-            {item.verdict && (
-                <div className="absolute bottom-2 left-2 z-10"><VerdictPill verdict={item.verdict} /></div>
-            )}
-        </div>
-    );
-}
-
 function loadSessionFilters() {
     if (typeof window === "undefined") return null;
     try {
@@ -110,8 +89,8 @@ export default function DiscoverPage() {
     const [mediaType, setMediaType] = useState<"movie" | "tv">(
         saved?.mediaType || (searchParams.get("type") as "movie" | "tv") || "movie"
     );
-    const [genres, setGenres] = useState<string[]>(
-        saved?.genres ?? (searchParams.get("genres")?.split(",").filter(Boolean) || [])
+    const [genres, setGenres] = useState<number[]>(
+        saved?.genres ?? (searchParams.get("genres")?.split(",").map(Number).filter((n: number) => !isNaN(n)) || [])
     );
     const [match, setMatch] = useState<"any" | "all">(
         saved?.match || (searchParams.get("match") as "any" | "all") || "any"
@@ -124,6 +103,7 @@ export default function DiscoverPage() {
     );
     const [sort, setSort] = useState(saved?.sort || searchParams.get("sort") || "popular");
 
+    const [genreOptions, setGenreOptions] = useState<GenreOption[]>([]);
     const [worthIt, setWorthIt] = useState<DiscoverResult[]>([]);
     const [results, setResults] = useState<DiscoverResult[]>([]);
     const [loading, setLoading] = useState(true);
@@ -131,6 +111,23 @@ export default function DiscoverPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [fetchError, setFetchError] = useState(false);
     const abortRef = useRef<AbortController | null>(null);
+
+    // Genre options depend on media type (TV genres ≠ movie genres on TMDB).
+    useEffect(() => {
+        let active = true;
+        fetch(`${API_BASE}/api/discover/genres?media_type=${mediaType}`)
+            .then((r) => (r.ok ? r.json() : { genres: [] }))
+            .then((d) => { if (active) setGenreOptions(d.genres || []); })
+            .catch(() => { if (active) setGenreOptions([]); });
+        return () => { active = false; };
+    }, [mediaType]);
+
+    // Switching movie/tv resets genres (the IDs differ between the two).
+    const changeMediaType = (t: "movie" | "tv") => {
+        if (t === mediaType) return;
+        setMediaType(t);
+        setGenres([]);
+    };
 
     const fetchResults = useCallback(async (pageNum: number = 1) => {
         abortRef.current?.abort();
@@ -144,7 +141,7 @@ export default function DiscoverPage() {
             params.set("match", match);
             params.set("page", String(pageNum));
             params.set("min_votes", "200");
-            if (genres.length) params.set("genre", genres.map((g) => g.toLowerCase()).join(","));
+            if (genres.length) params.set("genre", genres.join(","));
             if (year) params.set("year", String(year));
             if (minRating) params.set("min_rating", String(minRating));
 
@@ -192,12 +189,13 @@ export default function DiscoverPage() {
         } catch {}
     }, [mediaType, genres, match, year, minRating, sort, router]);
 
-    const toggleGenre = (g: string) =>
-        setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+    const toggleGenre = (id: number) =>
+        setGenres((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
     const clearFilters = () => { setGenres([]); setMatch("any"); setYear(null); setMinRating(null); setSort("popular"); };
 
-    const genreLabel = genres.length ? genres.join(" + ") : "Right Now";
+    const selectedNames = genres.map((id) => genreOptions.find((o) => o.id === id)?.name).filter(Boolean) as string[];
+    const genreLabel = selectedNames.length ? selectedNames.join(" + ") : "Right Now";
     const hasFilters = genres.length > 0 || year || minRating || sort !== "popular" || match !== "any";
 
     return (
@@ -223,7 +221,7 @@ export default function DiscoverPage() {
                             {(["movie", "tv"] as const).map((t) => (
                                 <button
                                     key={t}
-                                    onClick={() => setMediaType(t)}
+                                    onClick={() => changeMediaType(t)}
                                     className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${mediaType === t ? "bg-accent-gold text-black" : "text-white/50 hover:text-white/70"}`}
                                 >
                                     {t === "movie" ? "Movies" : "TV Shows"}
@@ -265,17 +263,17 @@ export default function DiscoverPage() {
                         )}
                     </div>
 
-                    {/* Row 2: Genre chips (multi-select) */}
+                    {/* Row 2: Genre chips (multi-select, per media type) */}
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                        {GENRES.map((g) => {
-                            const active = genres.includes(g);
+                        {genreOptions.map((g) => {
+                            const active = genres.includes(g.id);
                             return (
                                 <button
-                                    key={g}
-                                    onClick={() => toggleGenre(g)}
+                                    key={g.id}
+                                    onClick={() => toggleGenre(g.id)}
                                     className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:outline-none ${active ? "bg-accent-gold text-black" : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"}`}
                                 >
-                                    {g}
+                                    {g.name}
                                 </button>
                             );
                         })}
@@ -395,7 +393,17 @@ export default function DiscoverPage() {
                                             href={`/movie/${item.tmdb_id}?type=${item.media_type}`}
                                             className="group movie-card"
                                         >
-                                            <MoviePoster item={item} sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 16vw" />
+                                            <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent-gold/30 transition-all">
+                                                <PosterImage src={item.poster_url} alt={item.title} sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 16vw" />
+                                                {item.tmdb_vote_average && item.tmdb_vote_average > 0 && (
+                                                    <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-accent-gold z-10">
+                                                        ★ {item.tmdb_vote_average.toFixed(1)}
+                                                    </div>
+                                                )}
+                                                {item.verdict && (
+                                                    <div className="absolute bottom-2 left-2 z-10"><VerdictPill verdict={item.verdict} /></div>
+                                                )}
+                                            </div>
                                             <p className="mt-2 text-xs font-medium text-white/70 truncate group-hover:text-white transition-colors">{item.title}</p>
                                             {item.release_date && <p className="text-[10px] text-white/30">{item.release_date.split("-")[0]}</p>}
                                         </Link>
