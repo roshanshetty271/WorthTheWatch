@@ -185,7 +185,7 @@ export default function Navbar() {
                             href="/discover"
                             className="text-sm font-medium text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors uppercase tracking-widest text-shadow-hero"
                         >
-                            Discover
+                            Genre Picks
                         </Link>
 
                         <button
@@ -236,14 +236,6 @@ export default function Navbar() {
 
                             {exploreOpen && (
                                 <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-surface-card border border-white/10 shadow-2xl py-2 z-50 animate-fade-in">
-                                    <Link
-                                        href="/picks"
-                                        onClick={() => setExploreOpen(false)}
-                                        className="block w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors"
-                                    >
-                                        <span className="text-sm text-text-secondary">Genre Picks</span>
-                                        <span className="block text-[11px] text-text-muted mt-0.5">Pick genres, get vetted worth-it movies</span>
-                                    </Link>
                                     <Link
                                         href="/browse/mood/tired"
                                         onClick={() => setExploreOpen(false)}
@@ -376,7 +368,7 @@ export default function Navbar() {
                         onClick={() => setMobileMenuOpen(false)}
                         className="w-full py-5 font-body text-sm font-semibold uppercase tracking-widest text-white/80 hover:text-accent-gold active:text-accent-gold transition-colors border-b border-white/10 text-center"
                     >
-                        Discover
+                        Genre Picks
                     </Link>
                     <button
                         onClick={() => {
@@ -415,13 +407,6 @@ export default function Navbar() {
                         </button>
                         {exploreExpanded && (
                             <div className="animate-fade-in pb-3 flex flex-col items-center gap-0.5">
-                                <Link
-                                    href="/picks"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="w-full py-3 font-body text-xs font-medium uppercase tracking-widest text-text-secondary hover:text-accent-gold transition-colors text-center"
-                                >
-                                    Genre Picks
-                                </Link>
                                 <Link
                                     href="/browse/mood/tired"
                                     onClick={() => setMobileMenuOpen(false)}

@@ -105,6 +105,10 @@ const cleanReviewText = (text: string) => {
 
   return text
     .trim()
+    // A review that opens with the title in quotes ('Obsession') breaks the drop-cap
+    // (the quote becomes the big gold letter) and orphans the closing quote. Unwrap a
+    // leading quoted phrase so the drop-cap is a real letter.
+    .replace(/^["'‘’“”]([^"'‘’“”]{1,60}?)["'‘’“”]/, "$1")
     .replace(/(^|\n\s*\n)\s*'\s+(?=[A-Z])/g, "$1")
     .replace(/([.!?])\s+'\s+(?=[A-Z])/g, "$1 ");
 };

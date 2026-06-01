@@ -180,7 +180,7 @@ class SerperService:
         """
         try:
             type_hint = "TV series" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {context} {type_hint} review opinion'.strip()
+            query = f'{title} {year} {context} {type_hint} review opinion'.strip()
             # Clean up any double spaces from empty context
             query = " ".join(query.split())
             return await self.search(query, num_results=20)
@@ -199,7 +199,7 @@ class SerperService:
         """
         try:
             type_hint = "TV show" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {context} {type_hint} reddit'.strip()
+            query = f'{title} {year} {context} {type_hint} reddit'.strip()
             query = " ".join(query.split())
             return await self.search(query, num_results=15)
         except Exception as e:
@@ -217,7 +217,7 @@ class SerperService:
         """
         try:
             type_hint = "TV show" if media_type == "tv" else "movie"
-            query = f'"{title}" {year} {context} {type_hint} review discussion opinions worth watching'.strip()
+            query = f'{title} {year} {context} {type_hint} review discussion opinions worth watching'.strip()
             query = " ".join(query.split())
             return await self.search(query, num_results=10)
         except Exception as e:

@@ -16,7 +16,7 @@ from sqlalchemy import select, desc
 from app.config import get_settings
 from app.database import init_db, get_db, async_session
 from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry, GenerationUsageEntry  # noqa: F401
-from app.routers import movies, search, versus, nowplaying, discover, feedback, picks
+from app.routers import movies, search, versus, nowplaying, discover, feedback
 from app.jobs.daily_sync import run_daily_sync
 from app.middleware.rate_limit import cleanup_old_rate_limit_entries
 from app.schemas import HealthCheck
@@ -119,7 +119,6 @@ app.include_router(versus.router, prefix="/api/versus", tags=["versus"])
 app.include_router(nowplaying.router, prefix="/api/nowplaying", tags=["nowplaying"])
 app.include_router(discover.router, prefix="/api/discover", tags=["discover"])
 app.include_router(feedback.router, prefix="/api/reviews", tags=["feedback"])
-app.include_router(picks.router, prefix="/api/picks", tags=["picks"])
 
 
 # ─── Sitemap (SEO) ────────────────────────────────────────
