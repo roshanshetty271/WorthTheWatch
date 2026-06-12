@@ -47,6 +47,37 @@ export function verifyUnsubscribeToken(userId: string, token: string): boolean {
 
 export function welcomeEmailHtml(name: string, unsubUrl: string): string {
     const site = siteUrl();
+
+    const verdicts = [
+        { label: "WORTH IT", color: "#5fd08a" },
+        { label: "MIXED BAG", color: "#f0b24a" },
+        { label: "NOT WORTH IT", color: "#f0616d" },
+    ]
+        .map(
+            (v) =>
+                `<span style="display:inline-block;margin:0 4px 8px;font-size:11px;font-weight:800;letter-spacing:.06em;color:${v.color};border:1px solid ${v.color};border-radius:999px;padding:5px 12px;">${v.label}</span>`
+        )
+        .join("");
+
+    const features: [string, string][] = [
+        ["Search", "look up any title and get its verdict in seconds. No account needed."],
+        ["Cinema Roulette", "a slot-machine picker that only lands on Worth It titles."],
+        ["Mood browsing", "find something by how you feel — Tired, Pumped, Emotional, Cerebral, Fun."],
+        ["Genre Picks", "filter by genre, year, and rating, with Worth-It titles first."],
+        ["Movie Battle", "put two titles head to head and see which one wins."],
+        ["My List", "save anything to a watchlist (no account needed) and share it with a link."],
+        ["For You", "recommendations that learn from what you save and watch."],
+        ["Streaming", "where to stream, rent, or buy, all in one place."],
+        ["Always current", "ratings and box office stay up to date instead of going stale."],
+    ];
+    const featureRows = features
+        .map(
+            ([n, d]) =>
+                `<tr><td valign="top" style="padding:5px 10px 5px 0;color:${C.gold};font-size:13px;">◆</td>` +
+                `<td style="padding:5px 0;color:${C.muted};font-size:14px;line-height:1.5;"><strong style="color:${C.text};">${n}</strong> — ${d}</td></tr>`
+        )
+        .join("");
+
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:${C.bg};">
   <div style="max-width:600px;margin:0 auto;padding:32px 20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -56,17 +87,21 @@ export function welcomeEmailHtml(name: string, unsubUrl: string): string {
     <div style="background:${C.card};border:1px solid ${C.border};border-radius:16px;padding:24px;">
       <h1 style="margin:0 0 12px;font-size:22px;color:${C.text};">Welcome, ${name}! 🍿</h1>
       <p style="margin:0 0 14px;color:${C.muted};font-size:15px;line-height:1.6;">
-        No more 40 minutes scrolling trailers. Save anything you're curious about and we'll give it
-        to you straight — <strong style="color:${C.text};">Worth It</strong> or <strong style="color:${C.text};">Not</strong>.
+        People spend about <strong style="color:${C.text};">110 hours a year</strong> just deciding what
+        to watch. Let's give that back.
       </p>
-      <p style="margin:0 0 20px;color:${C.muted};font-size:15px;line-height:1.6;">
-        Once a month we'll send you the best new picks plus whatever the internet's losing its mind
-        over. No spam, ever.
+      <p style="margin:0 0 16px;color:${C.muted};font-size:15px;line-height:1.6;">
+        Look up any movie or show and get one honest verdict, from critic reviews and what real
+        audiences say on Reddit:
       </p>
-      <a href="${site}" style="display:inline-block;background:${C.gold};color:#000;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:10px;">Find something to watch →</a>
+      <div style="text-align:center;margin:0 0 22px;">${verdicts}</div>
+      <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;color:${C.muted};text-transform:uppercase;">What you can do</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 22px;">${featureRows}</table>
+      <a href="${site}" style="display:inline-block;background:${C.gold};color:#000;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:10px;">Find something worth it →</a>
     </div>
     <p style="margin:20px 0 0;font-size:12px;color:${C.muted};line-height:1.6;">
-      Prefer weekly, or none at all? Set it in <a href="${site}/profile" style="color:${C.gold};">your profile</a>
+      Once a month we'll send you the best new picks plus whatever's blowing up. Prefer weekly or none?
+      Set it in <a href="${site}/profile" style="color:${C.gold};">your profile</a>
       · <a href="${unsubUrl}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a>
     </p>
   </div>
