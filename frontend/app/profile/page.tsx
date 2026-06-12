@@ -239,8 +239,75 @@ export default function ProfilePage() {
                     </div>
                 )}
 
+                {/* Email Preferences */}
+                <EmailPreferences />
+
                 {/* Danger Zone */}
                 <DangerZone />
+            </div>
+        </div>
+    );
+}
+
+function EmailPreferences() {
+    const [freq, setFreq] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        fetch("/api/user-preferences")
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => { if (d?.digest_frequency) setFreq(d.digest_frequency); })
+            .catch(() => {});
+    }, []);
+
+    const update = async (value: string) => {
+        const prev = freq;
+        setFreq(value);
+        setSaving(true);
+        try {
+            const res = await fetch("/api/user-preferences", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ digest_frequency: value }),
+            });
+            if (!res.ok) setFreq(prev);
+        } catch {
+            setFreq(prev);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const options = [
+        { v: "monthly", l: "Monthly" },
+        { v: "weekly", l: "Weekly" },
+        { v: "off", l: "Off" },
+    ];
+
+    return (
+        <div className="mt-8 rounded-2xl border border-white/10 bg-surface-card p-6">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-2">
+                Worth-It Digest
+            </h2>
+            <p className="text-sm text-text-secondary mb-4 max-w-md">
+                The best new <span className="text-accent-gold font-medium">Worth It</span> picks
+                plus whatever&apos;s blowing up — straight to your inbox. No spam; unsubscribe in one tap.
+            </p>
+            <div className="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
+                {options.map((o) => (
+                    <button
+                        key={o.v}
+                        onClick={() => update(o.v)}
+                        disabled={saving || freq === null}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 ${
+                            freq === o.v
+                                ? "bg-accent-gold text-black"
+                                : "text-text-secondary hover:text-white"
+                        }`}
+                    >
+                        {o.l}
+                    </button>
+                ))}
             </div>
         </div>
     );

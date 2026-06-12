@@ -45,6 +45,7 @@ class Review(Base):
     id = Column(Integer, primary_key=True, index=True)
     movie_id = Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), unique=True, nullable=False)
     verdict = Column(String(20), nullable=False)  # 'WORTH IT', 'NOT WORTH IT', 'MIXED BAG'
+    base_verdict = Column(String(20), nullable=True)  # raw pre-override LLM verdict; lets stats-refresh re-eval the score override against fresh ratings
     review_text = Column(Text, nullable=False)
     praise_points = Column(JSON)  # ["great performances", ...]
     criticism_points = Column(JSON)  # ["slow pacing", ...]

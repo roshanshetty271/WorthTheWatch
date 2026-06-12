@@ -32,6 +32,55 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+# Notifications table — schema mirrors frontend/app/api/notifications/route.ts.
+_NOTIFICATIONS_DDL = """
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    type VARCHAR(30) NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT,
+    tmdb_id INTEGER,
+    read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW()
+)
+"""
+
+
+async def notify_watchlisters(tmdb_id: int, title: str, verdict: str) -> None:
+    """Best-effort: ping every signed-in user who saved this title that its verdict
+    just landed (the in-app bell). Runs in its OWN session/transaction so a failure
+    — or the table not existing yet — can never poison the review generation that
+    triggered it. Fires only on brand-new reviews (see caller), so no spam on refresh.
+    """
+    try:
+        from app.database import async_session
+        from sqlalchemy import text as _text
+
+        async with async_session() as ns:
+            rows = await ns.execute(
+                _text("SELECT DISTINCT user_id FROM watchlist_items WHERE tmdb_id = :tid"),
+                {"tid": tmdb_id},
+            )
+            user_ids = [r[0] for r in rows.all()]
+            if not user_ids:
+                return
+
+            await ns.execute(_text(_NOTIFICATIONS_DDL))
+            body = f"{title} is {verdict}"
+            for uid in user_ids:
+                await ns.execute(
+                    _text(
+                        "INSERT INTO notifications (user_id, type, title, body, tmdb_id) "
+                        "VALUES (:uid, 'new_review_for_saved', :title, :body, :tid)"
+                    ),
+                    {"uid": uid, "title": "A movie on your list got its verdict",
+                     "body": body, "tid": tmdb_id},
+                )
+            await ns.commit()
+            logger.info(f"🔔 Notified {len(user_ids)} watchlister(s): {title} → {verdict}")
+    except Exception as e:
+        logger.warning(f"notify_watchlisters skipped (non-fatal): {e}")
 
 
 async def _fetch_fallback_poster(title: str, release_date: str = None) -> Optional[str]:
@@ -939,6 +988,10 @@ CRITIC REVIEWS (Professional):
         )
         
         
+        # Capture the raw LLM verdict BEFORE any score override, so stats-refresh can later
+        # re-apply the same score rules against fresh ratings (see jobs/stats_refresh.py).
+        base_verdict = llm_output.verdict
+
         # Initialize override variables early to prevent UnboundLocalError
         override_score = imdb_score if imdb_score is not None else movie.tmdb_vote_average
         override_votes = imdb_votes if imdb_votes is not None else (movie.tmdb_vote_count or 0)
@@ -1196,9 +1249,11 @@ CRITIC REVIEWS (Professional):
     # Check for existing review to update
     result = await db.execute(select(Review).where(Review.movie_id == movie.id))
     existing = result.scalar_one_or_none()
+    is_new_review = existing is None
 
     if existing:
         existing.verdict = llm_output.verdict
+        existing.base_verdict = base_verdict
         existing.review_text = llm_output.review_text
         existing.praise_points = llm_output.praise_points
         existing.criticism_points = llm_output.criticism_points
@@ -1231,6 +1286,7 @@ CRITIC REVIEWS (Professional):
         review = Review(
             movie_id=movie.id,
             verdict=llm_output.verdict,
+            base_verdict=base_verdict,
             review_text=llm_output.review_text,
             praise_points=llm_output.praise_points,
             criticism_points=llm_output.criticism_points,
@@ -1287,6 +1343,12 @@ CRITIC REVIEWS (Professional):
         logger.warning(f"Final flush failed: {e}")
     
     job_progress.pop(tmdb_id, None)
+
+    # Tell anyone who saved this title that its verdict just landed — only on a
+    # brand-new review (not a refresh), in its own session so it can't break us.
+    if is_new_review:
+        await notify_watchlisters(movie.tmdb_id, movie.title, review.verdict)
+
     return review
 
 

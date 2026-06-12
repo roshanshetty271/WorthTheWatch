@@ -69,3 +69,44 @@ async def send_alert(subject: str, body: str, dedupe_key: str) -> None:
     except Exception as e:
         # Never let alerting break the caller.
         logger.error(f"Alert email error: {e}")
+
+
+async def send_email(to: str, subject: str, html: str, headers: dict | None = None) -> bool:
+    """Send a single user-facing email (e.g. the Worth-It digest) via Resend.
+
+    Unlike send_alert this is NOT throttled (every recipient gets their own send),
+    delivers HTML from the newsletter sender, and supports extra headers (e.g.
+    List-Unsubscribe). Best-effort: returns True on success, never raises — one bad
+    send must not abort a batch.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.warning(f"📭 Email not sent (RESEND_API_KEY unset): {subject} → {to}")
+        return False
+
+    payload: dict = {
+        "from": settings.NEWSLETTER_FROM_EMAIL,
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }
+    if headers:
+        payload["headers"] = headers
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                RESEND_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+        if resp.status_code >= 300:
+            logger.error(f"Email failed (HTTP {resp.status_code}) to {to}: {(resp.text or '')[:200]}")
+            return False
+        logger.info(f"📧 Email sent: {subject} → {to}")
+        return True
+    except Exception as e:
+        logger.error(f"Email send error to {to}: {e}")
+        return False

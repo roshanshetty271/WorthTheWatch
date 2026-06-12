@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     ALERT_EMAIL: str = ""                                 # recipient (your inbox)
     ALERT_FROM_EMAIL: str = "onboarding@resend.dev"       # use a verified sender in prod
 
+    # Newsletter / digest (user-facing email) — verified sender REQUIRED in prod,
+    # else Resend only delivers to the account owner. SITE_URL builds email links
+    # (unsubscribe, movie pages) and must point at the frontend domain.
+    NEWSLETTER_FROM_EMAIL: str = "onboarding@resend.dev"
+    SITE_URL: str = "https://worth-the-watch.com"
+
     # Jina Reader
     JINA_API_KEY: str = ""
     JINA_BASE_URL: str = "https://r.jina.ai"

@@ -18,6 +18,8 @@ from app.database import init_db, get_db, async_session
 from app.models import Movie, Review, SearchEvent, ReviewFeedback, RateLimitEntry, GenerationUsageEntry  # noqa: F401
 from app.routers import movies, search, versus, nowplaying, discover, feedback
 from app.jobs.daily_sync import run_daily_sync
+from app.jobs.email_digest import run_digest
+from app.jobs.stats_refresh import run_stats_refresh
 from app.middleware.rate_limit import cleanup_old_rate_limit_entries
 from app.schemas import HealthCheck
 
@@ -51,6 +53,18 @@ async def lifespan(app: FastAPI):
         # service recovers automatically once the database is reachable again.
         # Endpoints that need the DB will surface errors until then.
         logger.error(f"⚠️ init_db failed at startup — continuing without it: {e}")
+
+    # create_all() won't ALTER existing tables, so ensure the new column exists before any
+    # review is saved (generation writes reviews.base_verdict). Idempotent + non-fatal.
+    try:
+        from sqlalchemy import text
+        async with async_session() as db:
+            await db.execute(text("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS base_verdict VARCHAR(20)"))
+            await db.execute(text("CREATE INDEX IF NOT EXISTS idx_reviews_last_refreshed ON reviews(last_refreshed_at)"))
+            await db.commit()
+        logger.info("✅ reviews.base_verdict ensured")
+    except Exception as e:
+        logger.warning(f"Could not ensure base_verdict column at boot (stats cron will retry): {e}")
 
     if settings.ENVIRONMENT == "production" and not settings.INTERNAL_PROXY_SECRET:
         logger.warning("⚠️ INTERNAL_PROXY_SECRET is not set — proxy quota path is disabled!")
@@ -238,6 +252,81 @@ async def cron_daily(
     await cleanup_old_rate_limit_entries()
     result = await run_daily_sync(db, max_new=20)
     return {"status": "completed", **result}
+
+
+@app.post("/api/cron/digest")
+async def cron_digest(
+    request: Request,
+    secret: str = "",
+    period: str = "monthly",
+    db: AsyncSession = Depends(get_db),
+):
+    """Send the opt-in Worth-It digest. The external cron hits this weekly + monthly
+    with ?period=weekly / ?period=monthly. Skips silently if nothing's worth sending."""
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid cron secret")
+
+    result = await run_digest(db, period=period)
+    return {"status": "completed", **result}
+
+
+@app.post("/api/cron/refresh-stats")
+async def cron_refresh_stats(
+    request: Request,
+    secret: str = "",
+    limit: int = 200,
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh live stats (ratings / box office / awards) + re-apply the verdict override on a
+    rolling, age-tiered basis. No LLM/Serper/Jina — cheap. Hit daily by the external cron."""
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid cron secret")
+
+    result = await run_stats_refresh(db, limit=limit)
+    return {"status": "completed", **result}
+
+
+@app.api_route("/api/cron/daily-tasks", methods=["GET", "POST"])
+async def cron_daily_tasks(
+    request: Request,
+    secret: str = "",
+    limit: int = 200,
+    background_tasks: BackgroundTasks = None,
+):
+    """The ONE recurring job to schedule (accepts GET or POST so it works with any cron setup).
+    Runs the CHEAP work in the background — live stats +
+    verdict refresh (TMDB/OMDB/MDBList, no LLM/Serper) plus the Worth-It digest (weekly on
+    Mondays, monthly on the 1st). Deliberately does NOT run daily_sync (review auto-generation
+    was removed to save Serper/LLM credits). Returns immediately so the cron never times out."""
+    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid cron secret")
+
+    background_tasks.add_task(_daily_tasks_background, limit)
+    return {"status": "started", "limit": limit}
+
+
+async def _daily_tasks_background(limit: int):
+    """Runs detached from the request so a long stats sweep can't time out the cron caller."""
+    from app.database import async_session
+    from datetime import datetime
+
+    async with async_session() as db:
+        # 1) Live stats + verdict refresh (cheap; no LLM/Serper/Jina).
+        try:
+            res = await run_stats_refresh(db, limit=limit)
+            logger.info(f"🗓️ daily-tasks stats refresh: {res}")
+        except Exception as e:
+            logger.error(f"daily-tasks stats refresh failed: {e}")
+
+        # 2) Digest — date-aware: Monday → weekly subscribers, 1st of month → monthly.
+        now = datetime.utcnow()
+        try:
+            if now.weekday() == 0:
+                logger.info(f"🗓️ daily-tasks weekly digest: {await run_digest(db, period='weekly')}")
+            if now.day == 1:
+                logger.info(f"🗓️ daily-tasks monthly digest: {await run_digest(db, period='monthly')}")
+        except Exception as e:
+            logger.error(f"daily-tasks digest failed: {e}")
 
 
 @app.post("/api/refresh")

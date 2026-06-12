@@ -6,7 +6,7 @@ Endpoints for listing and retrieving movies with reviews.
 import math
 import random as _random
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, desc, and_, or_, cast, String
 
 from typing import Optional, List
@@ -296,6 +296,7 @@ async def get_random_movie_with_review(
 @router.get("/{tmdb_id}", response_model=MovieWithReview)
 async def get_movie(
     tmdb_id: int,
+    background_tasks: BackgroundTasks,
     media_type: str = Query(None, pattern="^(movie|tv)$"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -317,6 +318,12 @@ async def get_movie(
         movie = reviewed[0] if reviewed else movies[0]
 
     if movie:
+        # On-view freshness: if this title's stats are due by its age tier, refresh them in
+        # the background (non-blocking) so the next load shows live numbers + a current verdict.
+        if movie.review:
+            from app.jobs.stats_refresh import stats_due, refresh_one
+            if stats_due(movie.release_date, movie.review.last_refreshed_at):
+                background_tasks.add_task(refresh_one, movie.tmdb_id, movie.media_type)
         return _format_movie_with_review(movie)
 
     # ─── TMDB Fallback for movies not in our DB ──────────────
