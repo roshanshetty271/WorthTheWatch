@@ -254,11 +254,12 @@ async def cron_daily(
     return {"status": "completed", **result}
 
 
-@app.post("/api/cron/digest")
+@app.api_route("/api/cron/digest", methods=["GET", "POST"])
 async def cron_digest(
     request: Request,
     secret: str = "",
     period: str = "monthly",
+    test_to: str = "",
     db: AsyncSession = Depends(get_db),
 ):
     """Send the opt-in Worth-It digest. The external cron hits this weekly + monthly
@@ -266,7 +267,7 @@ async def cron_digest(
     if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
-    result = await run_digest(db, period=period)
+    result = await run_digest(db, period=period, test_to=(test_to or None))
     return {"status": "completed", **result}
 
 

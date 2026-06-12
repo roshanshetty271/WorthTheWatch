@@ -50,17 +50,18 @@ export function welcomeEmailHtml(name: string, unsubUrl: string): string {
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:${C.bg};">
   <div style="max-width:600px;margin:0 auto;padding:32px 20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <img src="${site}/images/icon-512.png" width="52" height="52" alt="Worth the Watch?" style="border-radius:12px;display:block;margin:0 0 10px;" />
     <p style="margin:0 0 4px;font-size:18px;font-weight:800;color:${C.gold};">Worth the Watch?</p>
     <p style="margin:0 0 24px;font-size:13px;color:${C.muted};">Should you stream it? The internet decides.</p>
     <div style="background:${C.card};border:1px solid ${C.border};border-radius:16px;padding:24px;">
       <h1 style="margin:0 0 12px;font-size:22px;color:${C.text};">Welcome, ${name}! 🍿</h1>
       <p style="margin:0 0 14px;color:${C.muted};font-size:15px;line-height:1.6;">
-        You're in. Save movies &amp; shows to your list, and we'll tell you the moment they're
-        <strong style="color:${C.text};">worth it</strong> — no more doom-scrolling trailers.
+        No more 40 minutes scrolling trailers. Save anything you're curious about and we'll give it
+        to you straight — <strong style="color:${C.text};">Worth It</strong> or <strong style="color:${C.text};">Not</strong>.
       </p>
       <p style="margin:0 0 20px;color:${C.muted};font-size:15px;line-height:1.6;">
-        You're set for the <strong style="color:${C.text};">monthly Worth-It digest</strong>: the best new picks
-        plus whatever's blowing up ("is the hype real?"). One or two emails a month, never spam.
+        Once a month we'll send you the best new picks plus whatever the internet's losing its mind
+        over. No spam, ever.
       </p>
       <a href="${site}" style="display:inline-block;background:${C.gold};color:#000;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:10px;">Find something to watch →</a>
     </div>

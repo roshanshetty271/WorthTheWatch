@@ -212,6 +212,7 @@ def _render_html(period: str, breakout: Optional[dict], picks: list[dict], unsub
 <html>
 <body style="margin:0;padding:0;background:{BG};">
   <div style="max-width:600px;margin:0 auto;padding:32px 20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <img src="{_site()}/images/icon-512.png" width="52" height="52" alt="Worth the Watch?" style="border-radius:12px;display:block;margin:0 0 10px;" />
     <p style="margin:0 0 4px;font-size:18px;font-weight:800;color:{GOLD};letter-spacing:.02em;">Worth the Watch?</p>
     <p style="margin:0 0 28px;font-size:13px;color:{MUTED};">Should you stream it? The internet decides.</p>
     {breakout_html}
@@ -232,7 +233,7 @@ def _render_html(period: str, breakout: Optional[dict], picks: list[dict], unsub
 
 # ─── Entry point ───────────────────────────────────────────
 
-async def run_digest(db: AsyncSession, period: str = "monthly") -> dict:
+async def run_digest(db: AsyncSession, period: str = "monthly", test_to: str = None) -> dict:
     """Build + send the digest for `period` ('weekly' | 'monthly'). Best-effort per
     recipient; returns a summary dict for the cron response."""
     period = period if period in PERIOD_DAYS else "monthly"
@@ -250,6 +251,21 @@ async def run_digest(db: AsyncSession, period: str = "monthly") -> dict:
         logger.info(f"📭 Digest ({period}): nothing worth sending this window — skipping.")
         return {"period": period, "sent": 0, "recipients": 0, "skipped": "no_content"}
 
+    subject = _subject(period, breakout, picks)
+
+    # Test mode: send ONE copy to a single address. No subscriber query, no DB writes —
+    # safe to fire anytime without touching real users.
+    if test_to:
+        unsub = unsubscribe_url(test_to)
+        html = _render_html(period, breakout, picks, unsub)
+        ok = await send_email(
+            test_to, f"[TEST] {subject}", html,
+            headers={"List-Unsubscribe": f"<{unsub}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"},
+        )
+        logger.info(f"📧 Digest TEST → {test_to}: sent={ok}")
+        return {"period": period, "test_to": test_to, "sent": 1 if ok else 0,
+                "picks": len(picks), "breakout": breakout["title"] if breakout else None}
+
     # ── Recipients (opt-out monthly default), with double-send guard ──
     cutoff = now - timedelta(days=max(1, int(days * 0.9)))
     result = await db.execute(
@@ -266,7 +282,6 @@ async def run_digest(db: AsyncSession, period: str = "monthly") -> dict:
         logger.info(f"Digest ({period}): no eligible recipients.")
         return {"period": period, "sent": 0, "recipients": 0, "picks": len(picks)}
 
-    subject = _subject(period, breakout, picks)
     sent = 0
     for uid, email in recipients:
         unsub = unsubscribe_url(uid)
