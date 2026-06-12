@@ -58,31 +58,30 @@ export async function GET() {
             (m: any) => m.movie && !seenIds.has(m.movie.tmdb_id)
         );
 
-        // Get user's top genres from their activity
-        const activityTmdbIds = seenActivities.map((r: any) => r.tmdb_id as number).slice(0, 30);
+        // Learn taste genres from BOTH the user's activity AND their saved list.
+        // A save is a stronger signal of intent than a passing view, so weight it double.
+        const savedSet = new Set<number>(savedItems.map((r: any) => r.tmdb_id as number));
+        const tasteIds = Array.from(
+            new Set<number>([
+                ...savedItems.map((r: any) => r.tmdb_id as number),
+                ...seenActivities.map((r: any) => r.tmdb_id as number),
+            ])
+        ).slice(0, 40);
+
         const genreCounts: Record<string, number> = {};
-
-        if (activityTmdbIds.length > 0) {
-            const genrePromises = activityTmdbIds.slice(0, 15).map(async (tmdbId: number) => {
-                try {
-                    const res = await fetch(`${API_BASE}/api/movies/${tmdbId}`, {
-                        next: { revalidate: 3600 },
-                    });
-                    if (!res.ok) return null;
-                    const data = await res.json();
-                    return data?.movie?.genres || [];
-                } catch {
-                    return null;
-                }
-            });
-
-            const genreResults = await Promise.all(genrePromises);
-            for (const genres of genreResults) {
-                if (!genres || !Array.isArray(genres)) continue;
+        if (tasteIds.length > 0) {
+            // One query against the shared movies table — no per-id HTTP fan-out.
+            const rows = await sql`
+                SELECT tmdb_id, genres FROM movies WHERE tmdb_id = ANY(${tasteIds})
+            `;
+            for (const row of rows) {
+                const genres = (row as any).genres;
+                if (!Array.isArray(genres)) continue;
+                const weight = savedSet.has((row as any).tmdb_id as number) ? 2 : 1; // saved counts double
                 for (const g of genres) {
-                    const name = g.name || g;
-                    if (typeof name === "string") {
-                        genreCounts[name] = (genreCounts[name] || 0) + 1;
+                    const name = typeof g === "string" ? g : g?.name;
+                    if (typeof name === "string" && name) {
+                        genreCounts[name] = (genreCounts[name] || 0) + weight;
                     }
                 }
             }
