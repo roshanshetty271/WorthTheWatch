@@ -19,6 +19,7 @@ from app.services.serper import serper_service
 from app.services.jina import jina_service
 from app.services.grep import extract_opinion_paragraphs, select_best_sources
 from app.services.llm import synthesize_review, llm_model
+from app.services.verdict import apply_consensus_override
 from app.config import get_settings
 
 # Phase 2 imports
@@ -1206,7 +1207,31 @@ CRITIC REVIEWS (Professional):
                         f"{imdb_votes or 0}v, RT {rt_critic}, Meta {meta}, LB {letterboxd})"
                     )
                     llm_output.verdict = "MIXED BAG"
-        
+
+        # ─── Final layer: deterministic rating consensus ──────────────────────
+        # When 2+ real rating sources land on a confident score, the SCORES decide
+        # (emphatic high -> WORTH IT, emphatic low -> NOT WORTH IT). Otherwise the AI's
+        # call stands. Shared, single source of truth with jobs/stats_refresh.py so a
+        # verdict can't drift between generation and the live refresh, and can't coin-flip
+        # between regenerations of the same well-rated title.
+        verdict_before_consensus = llm_output.verdict
+        llm_output.verdict = apply_consensus_override(
+            llm_output.verdict,
+            imdb_score=imdb_score,
+            rt_critic=rating_context["rt_critic_score"],
+            rt_audience=rating_context["rt_audience_score"],
+            metascore=rating_context["metascore"],
+            metacritic_user=rating_context["metacritic_user_score"],
+            letterboxd=rating_context["letterboxd_score"],
+            trakt=rating_context["trakt_score"],
+            tmdb_score=movie.tmdb_vote_average,
+        )
+        if llm_output.verdict != verdict_before_consensus:
+            logger.info(
+                f"🎯 Consensus override: {title} {verdict_before_consensus} → "
+                f"{llm_output.verdict} (ratings emphatic)"
+            )
+
         # Override confidence with our calculated value (not LLM's guess)
         llm_output.confidence = confidence_stats["confidence_tier"]
 

@@ -29,6 +29,7 @@ from app.services.tmdb import tmdb_service
 from app.services.omdb import omdb_service
 from app.services.mdblist import mdblist_service
 from app.services.pipeline import _resolve_rating_context, _apply_review_enrichment
+from app.services.verdict import apply_consensus_override
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -194,6 +195,19 @@ async def refresh_review_stats(db: AsyncSession, movie: Movie, review: Review) -
         criticism_points=review.criticism_points,
         praise_points=review.praise_points,
         release_date=movie.release_date,
+    )
+    # Final layer: same deterministic rating consensus as generation (see services/verdict.py).
+    # A confident multi-source consensus decides the extremes; otherwise the verdict above stands.
+    review.verdict = apply_consensus_override(
+        review.verdict,
+        imdb_score=ctx.get("imdb_score"),
+        rt_critic=ctx.get("rt_critic_score"),
+        rt_audience=ctx.get("rt_audience_score"),
+        metascore=ctx.get("metascore"),
+        metacritic_user=ctx.get("metacritic_user_score"),
+        letterboxd=ctx.get("letterboxd_score"),
+        trakt=ctx.get("trakt_score"),
+        tmdb_score=movie.tmdb_vote_average,
     )
 
     review.last_refreshed_at = datetime.utcnow()
