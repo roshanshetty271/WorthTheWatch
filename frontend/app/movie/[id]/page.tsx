@@ -21,8 +21,11 @@ async function getMovie(tmdbId: string, mediaType?: string): Promise<MovieWithRe
     const url = new URL(`${API_BASE}/api/movies/${tmdbId}`);
     if (mediaType) url.searchParams.set("media_type", mediaType);
 
+    // 24h. Review text is effectively immutable once generated (freshness.py TTLs
+    // run 12h to 30 days) and the daily stats cron now revalidates the specific
+    // movies it changed, so a short TTL here bought nothing but Neon wakes.
     const res = await fetch(url.toString(), {
-      next: { revalidate: 600 },
+      next: { revalidate: 86400 },
     });
     if (!res.ok) return null;
     return res.json();
@@ -276,8 +279,10 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     const url = mediaType
       ? `${API_URL}/api/movies/${id}?media_type=${mediaType}`
       : `${API_URL}/api/movies/${id}`;
+    // Must match getMovie's TTL above, otherwise metadata keeps pulling the same
+    // endpoint on the old schedule and wakes Neon regardless of the page cache.
     const res = await fetch(url, {
-      next: { revalidate: 600 }
+      next: { revalidate: 86400 }
     });
     if (!res.ok) return { title: 'Worth the Watch?' };
     const data: MovieWithReview = await res.json();

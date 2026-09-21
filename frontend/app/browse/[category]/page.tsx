@@ -64,7 +64,9 @@ async function getMovies(category: string, page: number): Promise<PaginatedMovie
     try {
         const res = await fetch(
             `${API_BASE}/api/movies?category=${category}&page=${page}&limit=20`,
-            { next: { revalidate: 60 } }
+            // 10 min: browse listings are paginated over the whole catalogue, so a
+            // short TTL multiplied by every page was a steady stream of Neon wakes.
+            { next: { revalidate: 600 } }
         );
         if (!res.ok) return null;
         return res.json();

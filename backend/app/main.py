@@ -7,7 +7,7 @@ import gc
 import logging
 import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,13 +137,23 @@ app.include_router(feedback.router, prefix="/api/reviews", tags=["feedback"])
 
 # ─── Sitemap (SEO) ────────────────────────────────────────
 
+# Google caps a single sitemap at 50k URLs; this bounds the query long before that.
+SITEMAP_MAX_URLS = 5000
+
+
 @app.get("/api/sitemap")
-async def get_sitemap_data(db: AsyncSession = Depends(get_db)):
-    """Returns all reviewed movie IDs for sitemap generation."""
+async def get_sitemap_data(response: Response, db: AsyncSession = Depends(get_db)):
+    """Returns the most recently reviewed movie IDs for sitemap generation.
+
+    Bounded and cached on purpose: this is a public, crawler-facing full table join, and an
+    unlimited scan both scales Neon's compute up and wakes it on every hit.
+    """
+    response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
     result = await db.execute(
         select(Movie.tmdb_id, Movie.title, Movie.media_type, Review.generated_at)
         .join(Review)
         .order_by(desc(Review.generated_at))
+        .limit(SITEMAP_MAX_URLS)
     )
     rows = result.all()
     return [
