@@ -51,7 +51,9 @@ async function getSectionMovies(category: string): Promise<MovieWithReview[]> {
   try {
     const res = await fetch(
       `${API_BASE}/api/movies?category=${category}&limit=8`,
-      { next: { revalidate: 60 } }
+      // 10 min: section rows change at most daily (stats cron), and every miss
+      // here is a Neon wake that costs a 5 min autosuspend window.
+      { next: { revalidate: 600 } }
     );
     if (!res.ok) return [];
     const data: PaginatedMovies = await res.json();
@@ -111,7 +113,10 @@ async function getFeaturedMovie(): Promise<MovieWithReview> {
   try {
     const res = await fetch(
       `${API_BASE}/api/movies?category=latest&limit=1`,
-      { next: { revalidate: 0 } }
+      // Was 0 (uncached): this is the homepage hero, so every visit and every
+      // crawler hit queried Neon directly and kept the compute from suspending.
+      // The hero being up to 10 min behind the newest review is imperceptible.
+      { next: { revalidate: 600 } }
     );
     if (!res.ok) return await getFallbackMovie();
     const data: PaginatedMovies = await res.json();

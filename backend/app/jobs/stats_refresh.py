@@ -214,17 +214,55 @@ async def refresh_review_stats(db: AsyncSession, movie: Movie, review: Review) -
     return True
 
 
-async def revalidate_movie(tmdb_id: int) -> None:
+async def revalidate_movie(tmdb_id: int, skip_home: bool = False) -> None:
     """Best-effort: bust the Next.js ISR cache for one movie page so fresh numbers surface
-    immediately. Used by the on-view path (one at a time — under the route's rate limit)."""
+    immediately. Used by the on-view path (one at a time) and by the bulk sweep.
+
+    Sends CRON_SECRET so the route skips its per-IP rate limit — the sweep does far more than
+    10 calls a minute. `skip_home` stops a bulk run rebuilding the homepage once per movie;
+    the caller revalidates "/" a single time at the end instead.
+    """
     if not settings.SITE_URL:
         return
     try:
         url = f"{settings.SITE_URL.rstrip('/')}/api/revalidate"
+        params = {"path": f"/movie/{tmdb_id}"}
+        if skip_home:
+            params["skipHome"] = "1"
+        headers = {"x-cron-secret": settings.CRON_SECRET} if settings.CRON_SECRET else {}
         async with httpx.AsyncClient(timeout=8) as client:
-            await client.post(url, params={"path": f"/movie/{tmdb_id}"})
+            await client.post(url, params=params, headers=headers)
     except Exception as e:
         logger.debug(f"revalidate failed for {tmdb_id}: {e}")
+
+
+async def _revalidate_home() -> None:
+    """Bust the homepage once after a bulk sweep."""
+    if not settings.SITE_URL:
+        return
+    try:
+        url = f"{settings.SITE_URL.rstrip('/')}/api/revalidate"
+        headers = {"x-cron-secret": settings.CRON_SECRET} if settings.CRON_SECRET else {}
+        async with httpx.AsyncClient(timeout=8) as client:
+            await client.post(url, params={"path": "/"}, headers=headers)
+    except Exception as e:
+        logger.debug(f"homepage revalidate failed: {e}")
+
+
+async def _revalidate_batch(tmdb_ids: list[int], max_concurrent: int = 5) -> None:
+    """Revalidate the pages we actually changed, a few at a time so a 200-title sweep
+    doesn't burst hundreds of requests at Vercel. Best-effort throughout."""
+    if not tmdb_ids:
+        return
+    sem = asyncio.Semaphore(max_concurrent)
+
+    async def _one(tid: int) -> None:
+        async with sem:
+            await revalidate_movie(tid, skip_home=True)
+
+    await asyncio.gather(*(_one(t) for t in tmdb_ids), return_exceptions=True)
+    await _revalidate_home()
+    logger.info(f"♻️ Revalidated {len(tmdb_ids)} movie page(s) + homepage")
 
 
 async def refresh_one(tmdb_id: int, media_type: str = None) -> None:
@@ -248,8 +286,9 @@ async def refresh_one(tmdb_id: int, media_type: str = None) -> None:
 
 async def run_stats_refresh(db: AsyncSession, limit: int = 200) -> dict:
     """Rolling, age-tiered batch refresh. Picks the titles that are 'due' by their age tier,
-    stalest first, and refreshes up to `limit` of them. Bulk pages surface via the 10-min ISR
-    (no per-movie revalidate here, to avoid the /api/revalidate rate limit)."""
+    stalest first, and refreshes up to `limit` of them. Movie pages sit on a 24h ISR now, so
+    this job revalidates exactly the pages it changed (authenticated with CRON_SECRET, which
+    bypasses the route's per-IP rate limit) rather than relying on a short global TTL."""
     # Idempotent schema guards (column added in models.py; index for the ORDER BY).
     await db.execute(text("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS base_verdict VARCHAR(20)"))
     await db.execute(text("CREATE INDEX IF NOT EXISTS idx_reviews_last_refreshed ON reviews(last_refreshed_at)"))
@@ -284,6 +323,7 @@ async def run_stats_refresh(db: AsyncSession, limit: int = 200) -> dict:
         return {"refreshed": 0, "failed": 0, "due": 0}
 
     refreshed = failed = 0
+    changed_tmdb_ids: list[int] = []
     for mid in movie_ids:
         try:
             res = await db.execute(
@@ -294,6 +334,7 @@ async def run_stats_refresh(db: AsyncSession, limit: int = 200) -> dict:
                 continue
             if await refresh_review_stats(db, movie, movie.review):
                 refreshed += 1
+                changed_tmdb_ids.append(movie.tmdb_id)
             await db.commit()
         except Exception as e:
             await db.rollback()
@@ -301,4 +342,9 @@ async def run_stats_refresh(db: AsyncSession, limit: int = 200) -> dict:
             logger.warning(f"stats refresh failed for movie id={mid}: {e}")
 
     logger.info(f"📊 Stats refresh: {refreshed} refreshed, {failed} failed, {len(movie_ids)} due")
+
+    # Surface the new numbers now instead of waiting out the 24h page cache. Runs after the
+    # DB work so a slow/failing frontend can never hold a transaction open.
+    await _revalidate_batch(changed_tmdb_ids)
+
     return {"refreshed": refreshed, "failed": failed, "due": len(movie_ids)}
