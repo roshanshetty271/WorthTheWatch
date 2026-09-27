@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 interface FeedbackData {
   helpful_count: number;
   not_helpful_count: number;
@@ -30,10 +28,9 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
 
   const fetchFeedback = useCallback(async () => {
     try {
-      const url = userId
-        ? `${API_BASE}/api/reviews/${tmdbId}/feedback?user_id=${encodeURIComponent(userId)}`
-        : `${API_BASE}/api/reviews/${tmdbId}/feedback`;
-      const res = await fetch(url);
+      // Same-origin proxy: it resolves who you are from the session server-side.
+      // Passing a user_id from the browser let anyone read another user's vote.
+      const res = await fetch(`/api/reviews/${tmdbId}/feedback`);
       if (res.ok) {
         const json: FeedbackData = await res.json();
         setData(json);
@@ -59,10 +56,10 @@ export default function ReviewFeedback({ tmdbId }: ReviewFeedbackProps) {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/reviews/${tmdbId}/feedback`, {
+      const res = await fetch(`/api/reviews/${tmdbId}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ helpful, user_id: userId }),
+        body: JSON.stringify({ helpful }),
       });
 
       if (res.ok) {

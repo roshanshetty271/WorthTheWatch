@@ -8,6 +8,7 @@
  */
 import { NextRequest } from "next/server";
 import { neon } from "@neondatabase/serverless";
+import { ensureUserDigestColumns } from "@/lib/ensureSchema";
 import { verifyUnsubscribeToken, siteUrl } from "@/lib/email";
 
 function getSQL() {
@@ -50,7 +51,7 @@ async function handle(req: NextRequest): Promise<Response> {
 
     try {
         const sql = getSQL();
-        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS digest_frequency VARCHAR(10) DEFAULT 'monthly'`;
+        await ensureUserDigestColumns(sql);
         await sql`UPDATE users SET digest_frequency = 'off' WHERE id = ${u}`;
         return page(
             "You're unsubscribed",

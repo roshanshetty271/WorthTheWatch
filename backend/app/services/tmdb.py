@@ -386,7 +386,19 @@ class TMDBService:
         return f"{self.image_base}/{size}{path}"
 
     def normalize_result(self, item: dict) -> dict:
-        """Normalize TMDB result to our schema."""
+        """Normalize TMDB result to our schema.
+
+        Raises ValueError on an empty payload. _get() returns {} for 404, 401, 5xx and
+        timeouts, so `item["id"]` used to raise a bare KeyError from deep inside a response
+        handler and turn a transient TMDB blip into a 500 for the user. Callers can catch
+        this and degrade.
+        """
+        tmdb_id = item.get("id")
+        if tmdb_id is None:
+            raise ValueError(
+                "TMDB payload has no id — the upstream call returned nothing"
+            )
+
         media_type = item.get("media_type", "movie")
         title = item.get("title") or item.get("name", "Unknown")
         release = item.get("release_date") or item.get("first_air_date")
@@ -394,7 +406,7 @@ class TMDBService:
         backdrop_path = item.get("backdrop_path")
 
         return {
-            "tmdb_id": item["id"],
+            "tmdb_id": tmdb_id,
             "title": title,
             "original_title": item.get("original_title") or item.get("original_name"),
             "media_type": media_type,

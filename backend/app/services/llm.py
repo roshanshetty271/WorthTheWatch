@@ -506,9 +506,14 @@ MANDATORY INSTRUCTIONS:
         """
 
         try:
-            # We prefer OpenAI for internal knowledge (usually better training data than sanitized DeepSeek)
-            k_client = openai_client if openai_client else llm_client
-            k_model = "gpt-4o-mini"
+            # We prefer OpenAI for internal knowledge (usually better training data than
+            # sanitized DeepSeek). The model id MUST come from whichever client we land on:
+            # hardcoding "gpt-4o-mini" here meant a DeepSeek-only deploy always 400'd, and
+            # the tier-3 placeholder then got persisted as if it were a real review.
+            if openai_client:
+                k_client, k_model = openai_client, openai_model
+            else:
+                k_client, k_model = llm_client, llm_model
             
             content = await _call_llm(k_client, k_model, knowledge_prompt)
             used_model = f"{k_model} (Internal Knowledge)"
@@ -576,10 +581,16 @@ MANDATORY INSTRUCTIONS:
                 data["tags"] = fixed_tags
             
         return LLMReviewOutput(**data)
-    except (json.JSONDecodeError, Exception) as e:
-        logger.warning(f"JSON parsing failed: {e}")
+    except Exception as e:
+        # The raw model output used to be published here as review_text. When the model
+        # hit the token cap mid-JSON, users were shown the truncated string complete with
+        # its JSON scaffolding. Log it for debugging, never render it.
+        logger.warning(
+            f"JSON parsing failed: {e} | raw output (first 500 chars): "
+            f"{content[:500] if isinstance(content, str) else type(content).__name__}"
+        )
         return LLMReviewOutput(
-            review_text=sanitize_text(content) if isinstance(content, str) else "Review generation failed.",
+            review_text="We couldn't put together a reliable review for this one yet. Try again in a moment.",
             verdict="MIXED BAG",
             praise_points=[],
             criticism_points=[],

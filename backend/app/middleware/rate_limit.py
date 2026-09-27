@@ -5,6 +5,7 @@ Survives server restarts and redeployments.
 """
 
 import hashlib
+import secrets
 from datetime import datetime, timedelta
 
 from fastapi import Request, HTTPException
@@ -34,6 +35,12 @@ _LIMIT_MAP = {
     },
 }
 
+# The limit types that consume DAILY_GENERATION_LIMIT, derived from the map above so
+# the two can't drift apart.
+_GLOBAL_DAILY_TYPES = [
+    name for name, cfg in _LIMIT_MAP.items() if cfg["counts_toward_daily_global"]
+]
+
 
 def _get_client_ip(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
@@ -56,6 +63,56 @@ def _is_whitelisted(ip: str) -> bool:
     return ip in {s.strip() for s in raw.split(",") if s.strip()}
 
 
+async def _check_global_caps(db, now: datetime, limit_type: str, config: dict) -> None:
+    """Enforce the site-wide daily and hourly ceilings. Raises 429 if either is hit.
+
+    Shared by the IP path and the actor path so that having a verified identity can't be
+    used to walk straight past the global budget.
+    """
+    if config["counts_toward_daily_global"]:
+        day_ago = now - timedelta(hours=24)
+        global_day_count = (await db.execute(
+            select(func.count()).select_from(RateLimitEntry).where(
+                RateLimitEntry.created_at > day_ago,
+                # Only types that opt in count toward DAILY_GENERATION_LIMIT.
+                # Counting every row let roulette spins exhaust the generation
+                # budget, so users were refused reviews they never generated.
+                RateLimitEntry.limit_type.in_(_GLOBAL_DAILY_TYPES),
+            )
+        )).scalar() or 0
+
+        if global_day_count >= settings.DAILY_GENERATION_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "type": "global_daily_limit",
+                    "message": "Our servers are at capacity for today. Try again tomorrow.",
+                    "retry_after_seconds": 3600,
+                    "limit_type": limit_type,
+                },
+            )
+
+    # Deliberately counts every limit type: this is a server-capacity ceiling, not a
+    # generation budget, and all traffic contributes to load.
+    hour_ago = now - timedelta(hours=1)
+    global_hour_count = (await db.execute(
+        select(func.count()).select_from(RateLimitEntry).where(
+            RateLimitEntry.created_at > hour_ago,
+        )
+    )).scalar() or 0
+
+    if global_hour_count >= settings.HOURLY_GLOBAL_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "type": "global_hourly_limit",
+                "message": "Worth the Watch is buzzing right now! Check back shortly.",
+                "retry_after_seconds": 600,
+                "limit_type": limit_type,
+            },
+        )
+
+
 async def check_rate_limit(request: Request, limit_type: str = "generation"):
     """Check rate limits using persistent DB storage. Raises 429 if exceeded."""
     raw_ip = _get_client_ip(request)
@@ -73,44 +130,9 @@ async def check_rate_limit(request: Request, limit_type: str = "generation"):
     config = _LIMIT_MAP.get(limit_type, _LIMIT_MAP["generation"])
 
     async with async_session() as db:
-        # Global daily generation limit
-        if config["counts_toward_daily_global"]:
-            day_ago = now - timedelta(hours=24)
-            global_day_count = (await db.execute(
-                select(func.count()).select_from(RateLimitEntry).where(
-                    RateLimitEntry.created_at > day_ago,
-                )
-            )).scalar() or 0
+        await _check_global_caps(db, now, limit_type, config)
 
-            if global_day_count >= settings.DAILY_GENERATION_LIMIT:
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "type": "global_daily_limit",
-                        "message": "Our servers are at capacity for today. Try again tomorrow.",
-                        "retry_after_seconds": 3600,
-                        "limit_type": limit_type,
-                    },
-                )
-
-        # Global hourly cap
         hour_ago = now - timedelta(hours=1)
-        global_hour_count = (await db.execute(
-            select(func.count()).select_from(RateLimitEntry).where(
-                RateLimitEntry.created_at > hour_ago,
-            )
-        )).scalar() or 0
-
-        if global_hour_count >= settings.HOURLY_GLOBAL_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "type": "global_hourly_limit",
-                    "message": "Worth the Watch is buzzing right now! Check back shortly.",
-                    "retry_after_seconds": 600,
-                    "limit_type": limit_type,
-                },
-            )
 
         # Per-IP hourly limit
         ip_hour_count = (await db.execute(
@@ -176,19 +198,25 @@ _HYBRID_LIMITS = {
 
 
 def _get_actor_from_request(request: Request) -> tuple[str | None, str | None]:
-    """Extract actor identity from request. Returns (actor_type, actor_id)."""
-    # Check for proxy headers (signed-in users via Vercel proxy)
-    proxy_secret = request.headers.get("x-wtw-proxy-secret")
-    if proxy_secret and proxy_secret == getattr(settings, "INTERNAL_PROXY_SECRET", ""):
+    """Extract actor identity from request. Returns (actor_type, actor_id).
+
+    Identity is ONLY accepted when asserted by the Next.js proxy, which resolves it from
+    the NextAuth session (or an httpOnly anon cookie) and signs the assertion with
+    INTERNAL_PROXY_SECRET — see frontend/lib/verdictProxy.ts.
+
+    A raw wtw_anon_id cookie read off the request used to be accepted here as a fallback.
+    That cookie is client-controlled, so sending a fresh value on every request produced an
+    unlimited supply of clean buckets and defeated the limiter entirely. Callers with no
+    verifiable identity now fall through to the IP-based ceiling instead.
+    """
+    expected = getattr(settings, "INTERNAL_PROXY_SECRET", "")
+    provided = request.headers.get("x-wtw-proxy-secret")
+    if expected and provided and secrets.compare_digest(provided, expected):
         actor_type = request.headers.get("x-wtw-actor-type")
         actor_id = request.headers.get("x-wtw-actor-id")
-        if actor_type and actor_id:
+        # actor_type selects which quota applies, so only accept the known values.
+        if actor_type in ("user", "anon") and actor_id:
             return actor_type, actor_id
-
-    # Check for wtw_anon_id cookie (anonymous browser token)
-    anon_token = request.cookies.get("wtw_anon_id")
-    if anon_token:
-        return "anon", anon_token
 
     return None, None
 
@@ -245,7 +273,16 @@ async def check_rate_limit_hybrid(request: Request, limit_type: str):
                     },
                 )
 
-            # Record using actor_id as key
+            # A verified actor still can't walk past the site-wide ceiling. This used to
+            # return straight after the per-actor check, so every hybrid request skipped
+            # the global daily and hourly caps entirely.
+            await _check_global_caps(
+                db, now, limit_type,
+                _LIMIT_MAP.get(limit_type, _LIMIT_MAP["generation"]),
+            )
+
+            # Record using actor_id as key. Exactly one row per request: the IP path
+            # inserts its own, so this must not fall through to check_rate_limit.
             db.add(RateLimitEntry(
                 ip_hash=actor_id[:16],
                 limit_type=limit_type,

@@ -15,7 +15,12 @@ const nextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https://image.tmdb.org https://*.tmdb.org https://*.googleusercontent.com blob:",
               "media-src 'self'",
-              `connect-src 'self' ${apiUrl}`,
+              // Sentry's ingest host must be listed or the browser blocks every error,
+              // trace and replay before it leaves the page — the dashboard stays empty
+              // while users hit real bugs.
+              `connect-src 'self' ${apiUrl} https://*.ingest.us.sentry.io`,
+              // Session Replay compresses in a web worker, which default-src 'self' blocks.
+              "worker-src 'self' blob:",
               "frame-src 'self' https://www.youtube.com https://youtube.com",
             ].join('; ')
           },

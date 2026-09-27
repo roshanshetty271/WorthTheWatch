@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { neon } from "@neondatabase/serverless";
+import { ensureUserDigestColumns } from "@/lib/ensureSchema";
 
 function getSQL() {
     return neon(process.env.DATABASE_URL!);
@@ -23,8 +24,7 @@ export async function GET() {
 
     try {
         const sql = getSQL();
-        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS digest_frequency VARCHAR(10) DEFAULT 'monthly'`;
-        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMP`;
+        await ensureUserDigestColumns(sql);
 
         const rows = await sql`SELECT digest_frequency FROM users WHERE id = ${session.user.id}`;
         const digest_frequency = ((rows[0] as any)?.digest_frequency as string) || "monthly";
@@ -49,8 +49,7 @@ export async function POST(req: NextRequest) {
         }
 
         const sql = getSQL();
-        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS digest_frequency VARCHAR(10) DEFAULT 'monthly'`;
-        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMP`;
+        await ensureUserDigestColumns(sql);
         await sql`UPDATE users SET digest_frequency = ${value} WHERE id = ${session.user.id}`;
 
         return NextResponse.json({ success: true, digest_frequency: value });

@@ -82,11 +82,25 @@ class ArticleReader:
         else:
             return await self._read_with_selectolax(url, timeout)
 
-    async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 5.0) -> tuple[list[str], list[str]]:
+    async def _fetch_labelled(self, source_url: str, fetch_url: str, timeout: float):
+        """Fetch and keep the originating URL attached to the result.
+
+        Results come back in completion order, so the only safe way to know which article
+        came from which URL is to carry the URL through with it. Callers used to zip the
+        request list against the result list by index, which silently mislabelled every
+        article once one request failed or finished out of order.
+        """
+        return source_url, await self._fetch_and_parse(fetch_url, timeout)
+
+    async def read_urls(
+        self, urls: list[str], max_concurrent: int = 5, timeout: float = 5.0
+    ) -> tuple[list[tuple[str, str]], list[str]]:
         """
         Race to 5: Fire all non-Reddit URLs immediately.
         Return as soon as 5 quality articles are collected.
         Cancel remaining tasks to save time.
+
+        Returns ([(source_url, article_text), ...], failed_urls).
         """
         self._google_cache_blocked = False
         
@@ -103,15 +117,15 @@ class ArticleReader:
         tasks = {}
         for url in other_urls:
             # Create task for direct fetch
-            task = asyncio.create_task(self._fetch_and_parse(url, timeout))
+            task = asyncio.create_task(self._fetch_labelled(url, url, timeout))
             tasks[task] = url
-        
+
         # Also fire Reddit test in parallel with non-Reddit
         reddit_test_task = None
         if reddit_urls:
             test_url = self._to_old_reddit(reddit_urls[0])
             reddit_test_task = asyncio.create_task(
-                self._fetch_and_parse(test_url, timeout)
+                self._fetch_labelled(reddit_urls[0], test_url, timeout)
             )
             tasks[reddit_test_task] = reddit_urls[0]
             
@@ -122,10 +136,10 @@ class ArticleReader:
         if tasks:
             for coro in asyncio.as_completed(tasks.keys()):
                 try:
-                    result = await coro
-                    
+                    source_url, result = await coro
+
                     if result and len(result) > MIN_ARTICLE_CHARS:
-                        articles.append(result)
+                        articles.append((source_url, result))
                         # Check if we won the race
                         if len(articles) >= TARGET_ARTICLES:
                             logger.info(
@@ -144,9 +158,11 @@ class ArticleReader:
                 cancelled_count += 1
                 failed.append(url)
             else:
-                # Task finished, check if it was a failure (None result)
+                # Task finished, check if it was a failure (None result).
+                # result() is now (source_url, text|None) — a tuple is always truthy,
+                # so the text has to be inspected explicitly.
                 try:
-                    res = task.result()
+                    _, res = task.result()
                     if not res:
                         failed.append(url)
                 except Exception:
@@ -161,7 +177,7 @@ class ArticleReader:
         if reddit_test_task:
             if reddit_test_task.done() and not reddit_test_task.cancelled():
                  # It finished naturally
-                res = reddit_test_task.result()
+                _, res = reddit_test_task.result()
                 if res and len(res) > MIN_ARTICLE_CHARS:
                     reddit_blocked = False
             elif reddit_test_task.cancelled():
@@ -186,20 +202,23 @@ class ArticleReader:
                         f"🚫 Reddit blocked/failed — trying cache for "
                         f"{count} URLs (limited to 3)"
                     )
+                    async def _cache_labelled(u: str):
+                        return u, await self._fetch_google_cache(u, timeout)
+
                     cache_tasks = []
                     for url in reddit_urls[1:4]:
                         if not self._google_cache_blocked:
-                            cache_tasks.append(
-                                asyncio.create_task(self._fetch_google_cache(url, timeout))
-                            )
-                    
+                            cache_tasks.append(asyncio.create_task(_cache_labelled(url)))
+
                     if cache_tasks:
                         cache_results = await asyncio.gather(
                             *cache_tasks, return_exceptions=True
                         )
                         for r in cache_results:
-                            if isinstance(r, str) and len(r) > MIN_ARTICLE_CHARS:
-                                articles.append(r)
+                            if isinstance(r, tuple):
+                                src, text = r
+                                if isinstance(text, str) and len(text) > MIN_ARTICLE_CHARS:
+                                    articles.append((src, text))
             else:
                 # Reddit works — fetch remaining in parallel
                 logger.info("✅ Reddit works — fetching remaining threads")
@@ -207,15 +226,17 @@ class ArticleReader:
                 for url in reddit_urls[1:]:
                     old = self._to_old_reddit(url)
                     remaining_tasks.append(
-                        asyncio.create_task(self._fetch_and_parse(old, timeout))
+                        asyncio.create_task(self._fetch_labelled(url, old, timeout))
                     )
                 if remaining_tasks:
                     reddit_results = await asyncio.gather(
                         *remaining_tasks, return_exceptions=True
                     )
                     for r in reddit_results:
-                        if isinstance(r, str) and len(r) > MIN_ARTICLE_CHARS:
-                            articles.append(r)
+                        if isinstance(r, tuple):
+                            src, text = r
+                            if isinstance(text, str) and len(text) > MIN_ARTICLE_CHARS:
+                                articles.append((src, text))
 
         logger.info(f"📖 Read {len(articles)}/{len(urls)} articles successfully")
         if failed:

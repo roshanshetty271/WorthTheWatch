@@ -42,7 +42,7 @@ class AgentState(TypedDict):
     search_attempts: int
     
     # Processed content
-    articles: list[str]
+    articles: list[tuple[str, str]]  # (source_url, article_text)
     filtered_opinions: str
     
     # LLM output
@@ -135,7 +135,7 @@ async def read_articles(state: AgentState) -> dict:
         snippets = "\n\n".join(
             f"Source: {r['title']}\n{r['snippet']}" for r in results[:10]
         )
-        articles = [snippets]
+        articles = [("search snippets", snippets)]
     
     return {
         "articles": articles,
@@ -157,17 +157,16 @@ async def filter_opinions(state: AgentState) -> dict:
     labeled_sections = []
     search_results = state.get("search_results", [])
     
-    # Try to match articles to URLs for labeling
-    for i, article_text in enumerate(articles):
+    # read_urls returns (source_url, text) pairs, so each article carries its own origin.
+    # This used to index search_results by article position, which had no relationship to
+    # which article actually came from where, so sources were labelled essentially at random.
+    for url, article_text in articles:
         best_paras = extract_opinion_paragraphs([article_text], max_paragraphs=5)
         if best_paras:
-            # Try to get source domain
-            domain = "Source"
-            if i < len(search_results) and search_results[i].get("link"):
-                try:
-                    domain = urlparse(search_results[i]["link"]).netloc.replace('www.', '')
-                except:
-                    pass
+            try:
+                domain = urlparse(url).netloc.replace('www.', '') or "Source"
+            except Exception:
+                domain = "Source"
             labeled_sections.append(f"[Source: {domain}]\n{best_paras}")
     
     filtered = "\n\n".join(labeled_sections)

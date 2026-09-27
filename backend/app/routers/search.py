@@ -12,7 +12,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -212,8 +212,14 @@ async def trigger_generation(
     if movie and movie.review:
         return {"status": "already_exists", "tmdb_id": tmdb_id}
 
-    if tmdb_id in job_progress:
-        return {"status": "generating", "message": "Review generation already in progress"}
+    progress = job_progress.get(tmdb_id)
+    if progress is not None:
+        if progress.get("failed"):
+            # A previous attempt died. Clear the marker so this request can retry —
+            # otherwise the title stays wedged on "already in progress" permanently.
+            job_progress.pop(tmdb_id, None)
+        else:
+            return {"status": "generating", "message": "Review generation already in progress"}
 
     from datetime import date
     try:
@@ -332,19 +338,17 @@ async def regenerate_review(
     )
     movie = result.unique().scalar_one_or_none()
 
-    # Enqueue fresh generation FIRST, then delete old review
+    # The old review is deliberately left in place. generate_review_for_movie updates an
+    # existing row rather than inserting, so the replacement overwrites it on success.
+    # Deleting first only ever lost data: background tasks don't start until after this
+    # response is sent, so the DELETE always committed first, and any failed generation
+    # (a Serper outage, an LLM error) left the movie with no review at all — triggerable
+    # by any visitor, since this endpoint needs no authentication.
     background_tasks.add_task(
         _generate_review_background,
         tmdb_id=tmdb_id,
         media_type=media_type,
     )
-
-    if movie and movie.review:
-        await db.execute(
-            delete(Review).where(Review.movie_id == movie.id)
-        )
-        await db.commit()
-        logger.info(f"🗑️ Deleted old review for {movie.title} (tmdb_id={tmdb_id})")
 
     if use_proxy_quota and not _is_whitelisted(raw_ip):
         await record_generation_usage(actor_type, actor_id, ip_hash, "regenerate", tmdb_id)
@@ -477,8 +481,19 @@ async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
             except Exception as e:
                 await db.rollback()
                 logger.error(f"Background generation failed for {tmdb_id}: {e}")
-                # Store error in job_progress so SSE/polling can report it
-                job_progress[tmdb_id] = {"message": "Failed: Review generation encountered an error", "percent": 0}
+                # Store error in job_progress so SSE/polling can report it.
+                # `failed` matters: this entry is written AFTER the pipeline's own cleanup,
+                # so without it the "already in progress" guard saw a job that would never
+                # finish and the title could never be generated again.
+                job_progress[tmdb_id] = {
+                    "message": "Failed: Review generation encountered an error",
+                    "percent": 0,
+                    "failed": True,
+                }
     except Exception as e:
         logger.critical(f"🚨 Background generation task crashed for {tmdb_id}: {e}")
-        job_progress[tmdb_id] = {"message": "Generation crashed. Please try again.", "percent": 0}
+        job_progress[tmdb_id] = {
+            "message": "Generation crashed. Please try again.",
+            "percent": 0,
+            "failed": True,
+        }

@@ -259,8 +259,15 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
         tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
         tmdb_data["media_type"] = "movie"
 
+    # get_movie_details/get_tv_details return {} when TMDB 404s, rate-limits or times out.
+    # Fail with a readable message here instead of KeyError-ing inside normalize_result.
+    if not tmdb_data or not tmdb_data.get("id"):
+        raise ValueError(
+            f"TMDB returned no data for tmdb_id={tmdb_id} ({media_type}) — upstream failure"
+        )
+
     normalized = tmdb_service.normalize_result(tmdb_data)
-    
+
     # Check for missing poster and try fallback
     if not normalized.get("poster_path"):
         logger.info(f"🖼️ Missing poster for {normalized['title']} ({tmdb_id}). Trying Serper fallback...")
@@ -786,7 +793,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     
     # DEBUG: Log content lengths
     logger.info("📊 ARTICLE CONTENT LENGTHS:")
-    total_chars = sum(len(a) for a in articles)
+    total_chars = sum(len(text) for _, text in articles)
     logger.info(f"   TOTAL: {total_chars:,} characters from {len(articles)} articles")
 
     if not articles:
@@ -794,7 +801,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         snippets = "\n\n".join(
             f"Source: {r['title']}\n{r['snippet']}" for r in all_results[:10]
         )
-        articles = [snippets]
+        articles = [("search snippets", snippets)]
 
     # ─── Step 3: GREP ──────────────────────────────────────
     job_progress[tmdb_id] = {"message": "Analyzing feedback...", "percent": 60}
@@ -803,18 +810,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # ─── STEP: Grep filter ONLY the scraped articles ───
     # Reddit snippets bypass grep — they're already pure opinion
     
-    # NEW: Source Labeling & Per-Article Extraction
-    # 1. Sync URLs with Articles (include backfill)
-    final_source_urls = list(selected_urls)
-    if len(articles) > len(selected_urls) and backfill_urls:
-         # Add backfill URLs corresponding to the extra articles
-         backfilled_count = len(articles) - len(selected_urls)
-         final_source_urls.extend(backfill_urls[:backfilled_count])
-
+    # Source labelling & per-article extraction.
+    # read_urls now returns (source_url, text) pairs. This used to rebuild a URL list and
+    # zip it against the articles by index, but results arrive in completion order with
+    # failures dropped, so labels drifted onto the wrong articles — Reddit threads got
+    # tagged as critic publications and fed to the LLM that way.
     reddit_article_sections = []
     critic_article_sections = []
-    
-    for url, article_text in zip(final_source_urls, articles):
+
+    for url, article_text in articles:
         best_paras = extract_opinion_paragraphs([article_text], max_paragraphs=5)
         
         if best_paras:
@@ -1444,8 +1448,7 @@ async def _create_fallback_review(
         media_type=movie.media_type or "movie",
     )
 
-    review = Review(
-        movie_id=movie.id,
+    fields = dict(
         verdict=llm_output.verdict,
         review_text=llm_output.review_text,
         praise_points=llm_output.praise_points,
@@ -1465,7 +1468,23 @@ async def _create_fallback_review(
         best_quote=llm_output.best_quote,
         quote_source=llm_output.quote_source,
     )
+
+    # Review.movie_id is unique, so a blind INSERT here raised UniqueViolation whenever the
+    # movie already had a review — which is exactly the case smart_refresh hits during a
+    # Serper outage, failing every candidate in the batch. Update in place instead.
+    existing = (await db.execute(
+        select(Review).where(Review.movie_id == movie.id)
+    )).scalar_one_or_none()
+
+    if existing:
+        for key, value in fields.items():
+            setattr(existing, key, value)
+        existing.generated_at = datetime.utcnow()
+        review = existing
+    else:
+        review = Review(movie_id=movie.id, **fields)
+        db.add(review)
+
     _apply_review_enrichment(review, rating_context, omdb_data, mdblist_scores)
-    db.add(review)
     await db.flush()
     return review
