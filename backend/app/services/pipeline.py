@@ -19,6 +19,7 @@ from app.services.tmdb import tmdb_service
 from app.services.serper import serper_service
 from app.services.jina import jina_service
 from app.services.grep import extract_opinion_paragraphs, select_best_sources
+from app.services.prompt_guard import join_sources_within_budget
 from app.services.llm import synthesize_review, llm_model
 from app.services.verdict import apply_consensus_override
 from app.config import get_settings
@@ -731,7 +732,7 @@ async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                     except:
                         pass
                 
-                reddit_snippets.append(f"[Source: {source_label}]\n{snippet}")
+                reddit_snippets.append((source_label, snippet))
     
     if reddit_snippets:
         logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
@@ -793,17 +794,15 @@ async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             except:
                 domain = "Source"
             
-            section = f"[Source: {domain}]\n{best_paras}"
+            section = (domain, best_paras)
             if "reddit.com" in url.lower():
                 reddit_article_sections.append(section)
             else:
                 critic_article_sections.append(section)
 
-    # Reddit articles first, then critics
-    filtered_opinions = "\n\n".join(reddit_article_sections + critic_article_sections)
-    
+    extracted_chars = sum(len(text) for _, text in reddit_article_sections + critic_article_sections)
     logger.info(
-        f"🔍 FILTERED OPINIONS: {len(filtered_opinions)} chars "
+        f"🔍 FILTERED OPINIONS: {extracted_chars} chars "
         f"(from {total_chars} raw chars)"
     )
     
@@ -813,53 +812,16 @@ async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # No need to aggressively truncate to 5k.
     
     MAX_LLM_CHARS = 10000
-    
-    # 1. Prepare Reddit Text
-    reddit_text = ""
-    if reddit_snippets:
-        reddit_text = "\n\n".join(reddit_snippets)
-    
-    # 2. Calculate remaining budget for critics
-    if reddit_text:
-        # Reserve space for Reddit (up to 3000 chars roughly, or whatever it is)
-        # We process Reddit first, so we just subtract its length from the budget
-        valuable_reddit_len = min(len(reddit_text), 5000) # Cap Reddit impact on budget if it's huge
-        critic_limit = MAX_LLM_CHARS - valuable_reddit_len
-    else:
-        critic_limit = MAX_LLM_CHARS
 
-    # 3. Truncate Critics if needed
-    critic_text = filtered_opinions
-    if len(critic_text) > critic_limit:
-        critic_text = critic_text[:critic_limit]
-        # Clean cut at last period
-        last_period = critic_text.rfind('.')
-        if last_period > 0:
-            critic_text = critic_text[:last_period+1]
-        
-    # 4. Assemble Final Input: Reddit FIRST
-    # Separate Reddit article opinions from critic opinions
-    reddit_articles_text = "\n\n".join(reddit_article_sections)
-    critic_articles_text = "\n\n".join(critic_article_sections)
-    
-    # Budget: Reddit snippets + Reddit articles get 50%, critics get 50%
-    half_budget = MAX_LLM_CHARS // 2
-    
-    # All Reddit content (snippets + full thread opinions)
-    all_reddit = ""
-    if reddit_text:
-        all_reddit = reddit_text
-    if reddit_articles_text:
-        all_reddit = all_reddit + "\n\n" + reddit_articles_text if all_reddit else reddit_articles_text
-    all_reddit = all_reddit[:half_budget]
-    
-    # Critic content gets the other half
-    critic_final = critic_articles_text[:half_budget]
-    # Clean cut at last period
-    last_period = critic_final.rfind('.')
-    if last_period > 0:
-        critic_final = critic_final[:last_period + 1]
-    
+    # Every source is sanitised and fenced (prompt_guard) before it reaches the prompt:
+    # scraped pages and Reddit comments are written by strangers and must be treated as
+    # data, not instructions. Budgets are applied per source so no fence is ever cut open.
+    # Reddit (snippets + full thread opinions) gets half, critics the other half, minus a
+    # little room for the section headers so synthesize_review's own cap never truncates.
+    half_budget = (MAX_LLM_CHARS - 200) // 2
+    all_reddit = join_sources_within_budget(reddit_snippets + reddit_article_sections, half_budget)
+    critic_final = join_sources_within_budget(critic_article_sections, half_budget)
+
     if all_reddit and critic_final:
         final_opinions = f"""AUDIENCE REACTIONS (Reddit & Forums):
 {all_reddit}
@@ -877,10 +839,15 @@ CRITIC REVIEWS (Professional):
 
     logger.info(f"📨 Sending {len(filtered_opinions)} chars to LLM (Reddit First + Critics)")
 
-    if len(filtered_opinions) < 100 and not reddit_text:
+    if not reddit_snippets and extracted_chars < 70:
         # Use raw snippets as fallback if we have absolutely nothing
-        filtered_opinions = "\n\n".join(
-            f"{r['title']}: {r['snippet']}" for r in all_results[:15]
+        filtered_opinions = join_sources_within_budget(
+            [
+                (urlparse(r.get("link", "")).netloc.replace("www.", ""),
+                 f"{r.get('title', '')}: {r.get('snippet', '')}")
+                for r in all_results[:15]
+            ],
+            MAX_LLM_CHARS - 200,
         )
         logger.info(f"   ⚠️ Using fallback snippets: {len(filtered_opinions)} chars")
 
