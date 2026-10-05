@@ -176,6 +176,28 @@ async def test_feedback_uses_the_proxy_signed_user(db_schema):
     assert row.user_id == "user-1"
 
 
+async def test_proxied_anonymous_voters_are_told_apart_by_client_ip(db_schema):
+    """Every proxied request comes from the same Vercel address. Two anonymous visitors
+    must still get one vote each, not share a single row."""
+    from app.database import async_session
+    from app.models import ReviewFeedback
+
+    await _seed_review()
+    async with _client() as client:
+        for ip, helpful in (("198.51.100.1", True), ("198.51.100.2", False)):
+            r = await client.post(
+                "/api/reviews/603/feedback",
+                json={"helpful": helpful},
+                headers=_proxy_headers(actor_type="anon", actor_id=f"anon-{ip}", client_ip=ip),
+            )
+            assert r.status_code == 200
+        assert r.json()["helpful_count"] == 1
+        assert r.json()["not_helpful_count"] == 1
+
+    async with async_session() as db:
+        assert len((await db.execute(select(ReviewFeedback))).scalars().all()) == 2
+
+
 # ─── Battle cache is keyed by media type ────────────────────────────────────────────
 
 async def test_battle_cache_is_not_served_across_media_types(db_schema, monkeypatch):

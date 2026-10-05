@@ -23,12 +23,20 @@ settings = get_settings()
 
 
 def _hash_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
-        raw_ip = ips[-1] if ips else "unknown"
-    else:
-        raw_ip = request.client.host if request.client else "unknown"
+    # Votes now arrive through the Next.js proxy, so the socket and X-Forwarded-For address
+    # is a Vercel server shared by every visitor. Keying on it would collapse all anonymous
+    # voters into one row per review. The proxy forwards the real client IP alongside the
+    # signed identity headers, so use that when the request is proxy-verified.
+    raw_ip = None
+    if _get_actor_from_request(request)[0] is not None:
+        raw_ip = request.headers.get("x-wtw-client-ip")
+    if not raw_ip:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+            raw_ip = ips[-1] if ips else "unknown"
+        else:
+            raw_ip = request.client.host if request.client else "unknown"
     return hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
 
 
