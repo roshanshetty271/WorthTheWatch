@@ -11,6 +11,7 @@ import time
 from typing import Optional, List, Dict
 from selectolax.lexbor import LexborHTMLParser
 from app.config import get_settings
+from app.services.net_guard import UnsafeURLError, safe_get
 from fake_useragent import UserAgent
 
 settings = get_settings()
@@ -230,12 +231,14 @@ class ArticleReader:
             if self.ua:
                 headers["User-Agent"] = self.ua.random
 
+            # Redirects are followed by safe_get, which checks every hop's address so a
+            # search result can't bounce the backend onto a private or metadata address.
             async with httpx.AsyncClient(
                 timeout=timeout,
-                follow_redirects=True,
+                follow_redirects=False,
                 headers=headers,
             ) as client:
-                resp = await client.get(url)
+                resp = await safe_get(client, url)
                 t_fetch = time.time() - t_start
 
                 if resp.status_code != 200:
@@ -291,6 +294,9 @@ class ArticleReader:
                 return result
 
         except httpx.TimeoutException:
+            return None
+        except UnsafeURLError as e:
+            logger.warning(f"🛑 Refused fetch: {e}")
             return None
         except Exception as e:
             logger.debug(f"Fetch error for {url[:60]}: {e}")
