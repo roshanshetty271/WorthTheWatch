@@ -9,7 +9,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from fastapi import Request, HTTPException
-from sqlalchemy import select, func, delete, distinct
+from sqlalchemy import select, func, delete, distinct, text
 
 from app.config import get_settings
 from app.database import async_session
@@ -54,6 +54,32 @@ def _get_client_ip(request: Request) -> str:
 
 def _hash_ip(raw_ip: str) -> str:
     return hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
+
+
+async def _lock_key(db, key: str) -> None:
+    """Serialise check-and-record for one rate-limit key until the transaction ends.
+
+    The checks below count rows and then insert one. Without a lock, concurrent requests
+    from the same caller all counted the same total and all passed, so a burst walked
+    straight through the per-IP and per-actor limits. pg_advisory_xact_lock is released
+    automatically on commit or rollback, including when a 429 is raised.
+    """
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key}
+    )
+
+
+def _proxy_secret_ok(request: Request) -> bool:
+    """True when the request carries the shared INTERNAL_PROXY_SECRET.
+
+    Constant-time, and compared as bytes: compare_digest raises TypeError on non-ASCII
+    str, which would turn a junk header into a 500.
+    """
+    expected = getattr(settings, "INTERNAL_PROXY_SECRET", "")
+    provided = request.headers.get("x-wtw-proxy-secret", "")
+    if not expected or not provided:
+        return False
+    return secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _is_whitelisted(ip: str) -> bool:
@@ -117,19 +143,21 @@ async def check_rate_limit(request: Request, limit_type: str = "generation"):
     """Check rate limits using persistent DB storage. Raises 429 if exceeded."""
     raw_ip = _get_client_ip(request)
     whitelisted = _is_whitelisted(raw_ip)
+    hashed_ip = _hash_ip(raw_ip)
+    # Only the salted hash is logged. The raw address and X-Forwarded-For used to be
+    # written here at INFO, which defeated the point of hashing everywhere else.
     import logging
     logging.getLogger("app.rate_limit").info(
-        f"🔒 Rate limit check: ip={raw_ip}, whitelisted={whitelisted}, type={limit_type}, "
-        f"x-forwarded-for={request.headers.get('x-forwarded-for', 'none')}"
+        f"🔒 Rate limit check: ip_hash={hashed_ip}, whitelisted={whitelisted}, type={limit_type}"
     )
     if whitelisted:
         return
 
-    hashed_ip = _hash_ip(raw_ip)
     now = datetime.utcnow()
     config = _LIMIT_MAP.get(limit_type, _LIMIT_MAP["generation"])
 
     async with async_session() as db:
+        await _lock_key(db, f"ip:{limit_type}:{hashed_ip}")
         await _check_global_caps(db, now, limit_type, config)
 
         hour_ago = now - timedelta(hours=1)
@@ -209,9 +237,7 @@ def _get_actor_from_request(request: Request) -> tuple[str | None, str | None]:
     unlimited supply of clean buckets and defeated the limiter entirely. Callers with no
     verifiable identity now fall through to the IP-based ceiling instead.
     """
-    expected = getattr(settings, "INTERNAL_PROXY_SECRET", "")
-    provided = request.headers.get("x-wtw-proxy-secret")
-    if expected and provided and secrets.compare_digest(provided, expected):
+    if _proxy_secret_ok(request):
         actor_type = request.headers.get("x-wtw-actor-type")
         actor_id = request.headers.get("x-wtw-actor-id")
         # actor_type selects which quota applies, so only accept the known values.
@@ -244,6 +270,7 @@ async def check_rate_limit_hybrid(request: Request, limit_type: str):
 
         day_ago = now - timedelta(hours=24)
         async with async_session() as db:
+            await _lock_key(db, f"actor:{limit_type}:{actor_id[:16]}")
             actor_count = (await db.execute(
                 select(func.count()).select_from(RateLimitEntry).where(
                     RateLimitEntry.ip_hash == actor_id[:16],  # reuse ip_hash column for actor

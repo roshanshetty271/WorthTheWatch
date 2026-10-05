@@ -8,7 +8,6 @@ import hashlib
 import json
 import asyncio
 import logging
-import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -34,6 +33,7 @@ from app.middleware.rate_limit import (
     _get_client_ip,
     _hash_ip,
     _is_whitelisted,
+    _proxy_secret_ok,
 )
 
 logger = logging.getLogger(__name__)
@@ -245,12 +245,7 @@ async def trigger_generation(
     # --- Quota & abuse checks ---
     raw_ip = _get_client_ip(request)
     ip_hash = _hash_ip(raw_ip)
-    proxy_secret = request.headers.get("x-wtw-proxy-secret", "")
-    use_proxy_quota = (
-        proxy_secret
-        and settings.INTERNAL_PROXY_SECRET
-        and secrets.compare_digest(proxy_secret, settings.INTERNAL_PROXY_SECRET)
-    )
+    use_proxy_quota = _proxy_secret_ok(request)
 
     if _is_whitelisted(raw_ip):
         pass  # skip quota + abuse
@@ -302,12 +297,7 @@ async def regenerate_review(
     """Regenerate review with fresh data. Quota/abuse checked BEFORE deleting old review."""
     raw_ip = _get_client_ip(request)
     ip_hash = _hash_ip(raw_ip)
-    proxy_secret = request.headers.get("x-wtw-proxy-secret", "")
-    use_proxy_quota = (
-        proxy_secret
-        and settings.INTERNAL_PROXY_SECRET
-        and secrets.compare_digest(proxy_secret, settings.INTERNAL_PROXY_SECRET)
-    )
+    use_proxy_quota = _proxy_secret_ok(request)
 
     if _is_whitelisted(raw_ip):
         pass  # skip quota + abuse
