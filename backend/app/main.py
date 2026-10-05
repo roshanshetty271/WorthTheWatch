@@ -296,6 +296,28 @@ async def health_check(
     return HealthCheck(**health_status)
 
 
+@app.get("/health/ready")
+async def readiness_check():
+    """Readiness: 200 only when the database answers, 503 otherwise.
+
+    /health above is liveness only and stays 200 while every DB-backed route returns 500.
+    This one opens a connection, so do NOT point uptime/keep-warm pingers at it: each hit
+    wakes the Neon compute. Use it for deploy checks and alerting.
+    """
+    import asyncio
+
+    try:
+        async with async_session() as db:
+            await asyncio.wait_for(db.execute(select(1)), timeout=5)
+    except Exception as e:
+        logger.error(f"Readiness check: database unavailable: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "database": "disconnected"},
+        )
+    return {"status": "ready", "database": "connected"}
+
+
 # ─── Cron Endpoint ────────────────────────────────────────
 
 @app.post("/api/cron/daily")
