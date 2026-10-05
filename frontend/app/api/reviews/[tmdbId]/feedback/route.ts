@@ -12,6 +12,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveActor, buildProxyHeaders, API_BASE } from "@/lib/verdictProxy";
 
 async function forward(req: NextRequest, tmdbId: string, init?: RequestInit) {
+    // The id is interpolated into the backend URL, and requests to the backend carry the
+    // proxy secret, so only plain numeric ids are passed through.
+    if (!/^\d+$/.test(tmdbId)) {
+        return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    }
+
     const { actorType, actorId, clientIp, setCookie } = await resolveActor(req);
     const headers = {
         ...buildProxyHeaders(actorType, actorId, clientIp),
