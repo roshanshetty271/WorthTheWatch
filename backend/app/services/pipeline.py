@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
+import time
 import unicodedata
 from urllib.parse import urlparse
 
@@ -413,10 +414,69 @@ def calculate_confidence(
     return stats
 
 
-# Global progress tracker: {tmdb_id: {"message": str, "percent": int}}
+# In-flight generations, per process: {tmdb_id: {"message", "percent", "started_at"}}.
+# A failed job leaves {"failed": True, ...} so the SSE/status endpoints can report it.
+# This lives in memory, so it only coordinates requests served by the same process.
 job_progress = {}
 
+# A claim older than this is treated as abandoned, so a hung job can't wedge a title on
+# "already in progress" forever. Longer than the frontend's wait for a review.
+JOB_STALE_AFTER_SECONDS = 10 * 60
+
+
+def job_is_active(entry) -> bool:
+    """True while a generation holds the claim (not failed, not stale)."""
+    if not isinstance(entry, dict) or entry.get("failed"):
+        return False
+    started = entry.get("started_at")
+    return started is None or time.monotonic() - started < JOB_STALE_AFTER_SECONDS
+
+
+def claim_job(tmdb_id: int, message: str = "Starting...") -> bool:
+    """Mark a generation for this title as in flight. False if one already is.
+
+    No await between the check and the write, so two requests on the same event loop
+    can't both win.
+    """
+    if job_is_active(job_progress.get(tmdb_id)):
+        return False
+    job_progress[tmdb_id] = {"message": message, "percent": 5, "started_at": time.monotonic()}
+    return True
+
+
+def release_job(tmdb_id: int) -> None:
+    job_progress.pop(tmdb_id, None)
+
+
+def fail_job(tmdb_id: int, message: str) -> None:
+    job_progress[tmdb_id] = {"message": message, "percent": 0, "failed": True}
+
+
+def _report(tmdb_id: int, message: str, percent: int) -> None:
+    """Update the progress message of a claimed job, keeping its claim time."""
+    entry = job_progress.get(tmdb_id)
+    if job_is_active(entry):
+        entry["message"] = message
+        entry["percent"] = percent
+
+
 async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
+    """Generate (or regenerate in place) the review for one title.
+
+    If the caller already claimed the job (the on-demand routes do, so the claim covers
+    the commit), the caller releases it. Otherwise this claims it and releases it on every
+    exit path, so cron and batch callers can never leave a title stuck as "in progress".
+    """
+    tmdb_id = movie.tmdb_id
+    owns_claim = claim_job(tmdb_id, "Searching for reviews...")
+    try:
+        return await _generate_review_for_movie(db, movie)
+    finally:
+        if owns_claim:
+            release_job(tmdb_id)
+
+
+async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     """
     Full pipeline: Search → Read → Grep → Synthesize → Cache
 
@@ -497,7 +557,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             logger.debug(f"Could not fetch external IDs for TV '{title}': {e}")
         
     # ─── Procedural Pipeline Route ────────────────────────────
-    job_progress[tmdb_id] = {"message": "Searching for reviews...", "percent": 10}
+    _report(tmdb_id, "Searching for reviews...", 10)
     logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
 
     # ─── Step 1: SEARCH ────────────────────────────────────
@@ -630,7 +690,6 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     if not all_results:
         logger.warning(f"No search results found for '{title}'")
-        job_progress.pop(tmdb_id, None)
         # Create low-confidence review from metadata only
         return await _create_fallback_review(
             db,
@@ -678,7 +737,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
 
     # ─── Step 2: READ ──────────────────────────────────────
-    job_progress[tmdb_id] = {"message": "Reading articles...", "percent": 30}
+    _report(tmdb_id, "Reading articles...", 30)
     
     # ─── STEP: Read articles ───
     articles, failed_urls = await jina_service.read_urls(selected_urls)
@@ -711,7 +770,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         articles = [("search snippets", snippets)]
 
     # ─── Step 3: GREP ──────────────────────────────────────
-    job_progress[tmdb_id] = {"message": "Analyzing feedback...", "percent": 60}
+    _report(tmdb_id, "Analyzing feedback...", 60)
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
     
     # ─── STEP: Grep filter ONLY the scraped articles ───
@@ -826,7 +885,7 @@ CRITIC REVIEWS (Professional):
         logger.info(f"   ⚠️ Using fallback snippets: {len(filtered_opinions)} chars")
 
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
-    job_progress[tmdb_id] = {"message": "Writing your verdict...", "percent": 80}
+    _report(tmdb_id, "Writing your verdict...", 80)
     logger.info(f"🧠 Step 4/4: Generating review with LLM for '{title}'")
     logger.info(f"   → Sending {len(filtered_opinions)} chars to LLM")
     logger.info(f"   → TMDB Score: {movie.tmdb_vote_average}")
@@ -1179,7 +1238,6 @@ CRITIC REVIEWS (Professional):
         logger.info(f"   → Praise Points: {len(llm_output.praise_points or [])} items")
         logger.info(f"   → Criticism Points: {len(llm_output.criticism_points or [])} items")
     except Exception as e:
-        job_progress.pop(tmdb_id, None)
         logger.error(f"LLM generation failed: {e}")
         raise
 
@@ -1256,7 +1314,7 @@ CRITIC REVIEWS (Professional):
     await db.flush()
     
     # ─── Step 6: ENRICH (Phase 2) ─────────────────────────
-    job_progress[tmdb_id] = "Finalizing your review..."
+    _report(tmdb_id, "Finalizing your review...", 95)
     
     # Trailer was already fetched in Step 1 parallel search
     if trailer_url:
@@ -1281,8 +1339,6 @@ CRITIC REVIEWS (Professional):
         await db.flush()
     except Exception as e:
         logger.warning(f"Final flush failed: {e}")
-    
-    job_progress.pop(tmdb_id, None)
 
     # Tell anyone who saved this title that its verdict just landed — only on a
     # brand-new review (not a refresh), in its own session so it can't break us.
