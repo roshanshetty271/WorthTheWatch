@@ -71,10 +71,10 @@ def fake_services(monkeypatch):
     return state
 
 
-async def _movie_with_review(db, review_text="Old, good review."):
+async def _movie_with_review(db, review_text="Old, good review.", votes=50):
     from app.models import Movie, Review
 
-    movie = Movie(tmdb_id=603, title="The Matrix", media_type="movie", tmdb_vote_count=50)
+    movie = Movie(tmdb_id=603, title="The Matrix", media_type="movie", tmdb_vote_count=votes)
     db.add(movie)
     await db.flush()
     if review_text is not None:
@@ -161,3 +161,29 @@ async def test_scraped_injection_never_reaches_the_model(db_schema, fake_service
     assert SOURCE_OPEN in opinions
     assert opinions.count(SOURCE_OPEN) == opinions.count(SOURCE_CLOSE)
     assert "[Source: blog.example.com]" in opinions
+
+
+@pytest.mark.parametrize("review_text,expected_confidence", [
+    ("A fun ride with great action and a killer score.", "LOW"),
+    ("Keanu Reeves is magnetic and the action still lands.", "HIGH"),
+    ("The Matrix still rules.", "HIGH"),
+])
+async def test_review_that_names_nothing_from_the_film_is_low_confidence(
+    db_schema, fake_services, review_text, expected_confidence
+):
+    from app.database import async_session
+    from app.models import Review
+    from app.schemas import LLMReviewOutput
+    from app.services.pipeline import generate_review_for_movie
+
+    fake_services["llm_output"] = LLMReviewOutput(review_text=review_text, verdict="MIXED BAG")
+
+    async with async_session() as db:
+        # Over 1000 TMDB votes the computed tier is HIGH, so LOW can only come from the check.
+        movie = await _movie_with_review(db, review_text=None, votes=5000)
+        await generate_review_for_movie(db, movie)
+        await db.commit()
+
+    async with async_session() as db:
+        review = (await db.execute(select(Review))).scalar_one()
+    assert review.confidence == expected_confidence

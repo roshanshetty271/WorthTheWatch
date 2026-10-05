@@ -20,7 +20,7 @@ from app.services.serper import serper_service
 from app.services.jina import jina_service
 from app.services.grep import extract_opinion_paragraphs, select_best_sources
 from app.services.prompt_guard import join_sources_within_budget
-from app.services.llm import synthesize_review, llm_model
+from app.services.llm import synthesize_review, llm_model, review_mentions_subject
 from app.services.verdict import apply_consensus_override
 from app.config import get_settings
 
@@ -529,6 +529,7 @@ async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # TV titles are already unique enough — no one confuses "Fear the Walking Dead"
     # with another show. Movies like "The Call" or "The Host" need disambiguation.
     director_name = ""
+    cast_names: list[str] = []
     imdb_id = None
     if movie.media_type != "tv":
         try:
@@ -545,6 +546,10 @@ async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                     if directors:
                         director_name = directors[0]
                         logger.info(f"🎬 Director: {director_name}")
+                    cast_names = [
+                        c["name"] for c in details_with_credits["credits"].get("cast", [])[:5]
+                        if c.get("name")
+                    ]
         except Exception as e:
             logger.debug(f"Could not fetch director for '{title}': {e}")
     else:
@@ -1175,6 +1180,16 @@ CRITIC REVIEWS (Professional):
 
         # Override confidence with our calculated value (not LLM's guess)
         llm_output.confidence = confidence_stats["confidence_tier"]
+
+        # A review that names neither the title nor anyone from its cast/crew is likely
+        # about the wrong film or generic filler. Keep it, but don't present it as solid.
+        subject_names = [n for n in [director_name, *cast_names] if n]
+        if not review_mentions_subject(llm_output.review_text, title, subject_names):
+            logger.warning(
+                f"⚠️ Review for '{title}' mentions neither the title nor any of "
+                f"{subject_names or 'its credits'} — marking LOW confidence"
+            )
+            llm_output.confidence = "LOW"
 
         # Hook-verdict consistency repair: if the hook contradicts the verdict, swap it
         _NEGATIVE_HOOK_WORDS = {

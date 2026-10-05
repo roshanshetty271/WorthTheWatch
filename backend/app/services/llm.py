@@ -7,6 +7,7 @@ Uses OpenAI SDK for both (DeepSeek is OpenAI-compatible).
 import json
 import logging
 import re
+import unicodedata
 from typing import Optional
 from openai import AsyncOpenAI
 from app.config import get_settings
@@ -337,10 +338,104 @@ async def _call_llm(client: AsyncOpenAI, model: str, user_prompt: str) -> str:
         ],
         response_format={"type": "json_object"},
         temperature=0.3,
-        max_tokens=1000, # ✅ FIXED: Increased to 1000 to prevent JSON crash
+        # 1000 still cut long reviews off mid-JSON. A truncated reply is repaired once
+        # (see _repair_prompt) before synthesize_review gives up on it.
+        max_tokens=1500,
         timeout=60.0,
     )
     return response.choices[0].message.content
+
+
+def _repair_prompt(broken: str) -> str:
+    return (
+        "Your previous reply was not one valid JSON object (it may have been cut off). "
+        "Return the complete review again as ONE valid JSON object in the required output "
+        "format, with nothing before or after it. Keep review_text under 180 words.\n\n"
+        f"Previous reply:\n{broken[:6000]}"
+    )
+
+
+def _parse_review_output(content: str, title: str) -> LLMReviewOutput:
+    """Parse and clean the model's JSON. Raises on anything that isn't a valid review."""
+    data = json.loads(content)
+
+    # Sanitize text fields
+    if "review_text" in data: data["review_text"] = sanitize_text(data["review_text"])
+    if "hook" in data: data["hook"] = sanitize_text(data["hook"])
+    if "best_quote" in data: data["best_quote"] = sanitize_text(data["best_quote"])
+    if "praise_points" in data:
+        data["praise_points"] = [sanitize_text(p) for p in data["praise_points"]]
+    if "criticism_points" in data:
+        data["criticism_points"] = [sanitize_text(p) for p in data["criticism_points"]]
+
+    # Strip [[]] brackets from non-review fields (LLM sometimes ignores instructions)
+    if "hook" in data: data["hook"] = strip_double_brackets(data["hook"])
+    if "vibe" in data: data["vibe"] = strip_double_brackets(data["vibe"])
+    if "best_quote" in data: data["best_quote"] = strip_double_brackets(data["best_quote"])
+    if "praise_points" in data:
+        data["praise_points"] = [strip_double_brackets(p) for p in data["praise_points"]]
+    if "criticism_points" in data:
+        data["criticism_points"] = [strip_double_brackets(p) for p in data["criticism_points"]]
+
+    # Strip self-referential [[Title]] from review_text
+    if "review_text" in data:
+        data["review_text"] = strip_self_mentions(data["review_text"], title)
+        data["review_text"] = fix_paragraph_quotes(data["review_text"])
+
+    # Fix concatenated tags: if any tag contains multiple tag names without separator
+    if "tags" in data and isinstance(data["tags"], list):
+        fixed_tags = []
+        for tag in data["tags"]:
+            if isinstance(tag, str):
+                # Split tags that got concatenated (e.g., "CerebralEmotional" → ["Cerebral", "Emotional"])
+                if len(tag) > 20:
+                    remaining = tag
+                    for allowed in sorted(ALLOWED_TAGS, key=len, reverse=True):
+                        while allowed.lower().replace("-", "") in remaining.lower().replace("-", ""):
+                            fixed_tags.append(allowed)
+                            idx = remaining.lower().replace("-", "").find(allowed.lower().replace("-", ""))
+                            remaining = remaining[:idx] + remaining[idx + len(allowed.replace("-", "")):]
+                else:
+                    fixed_tags.append(tag)
+        if fixed_tags:
+            data["tags"] = fixed_tags
+
+    return LLMReviewOutput(**data)
+
+
+def _normalise_for_match(text: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", text or "")
+    plain = "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
+    return " " + re.sub(r"[^0-9a-z]+", " ", plain).strip() + " "
+
+
+def review_mentions_subject(review_text: str, title: str, names: list[str]) -> bool:
+    """True if the review names the title (or a segment of it around a subtitle) or at least
+    one cast/crew name (full name or surname). A review that names none of them is likely
+    about the wrong film or generic filler."""
+    text = _normalise_for_match(review_text)
+    # Reviews often use only part of a long title ("The Last Jedi", "Dead Reckoning"), so
+    # each segment around a colon or dash counts. Lenient on purpose: a missed flag costs
+    # less than marking a good review LOW.
+    candidates = [title]
+    segments = re.split(r"\s*[:\u2013\u2014]\s*|\s+-\s+", title or "")
+    if len(segments) > 1:
+        candidates.extend(seg for seg in segments if len(seg.strip()) >= 4)
+    for name in names or []:
+        candidates.append(name)
+        parts = (name or "").split()
+        if len(parts) > 1 and len(parts[-1]) >= 4:
+            candidates.append(parts[-1])
+    checkable = False
+    for cand in candidates:
+        norm = _normalise_for_match(cand)
+        if len(norm.strip()) < 2:
+            continue  # e.g. a title in a non-Latin script: nothing to match on
+        checkable = True
+        if norm in text:
+            return True
+    # Nothing to check against is not evidence of a bad review.
+    return not checkable
 
 
 async def synthesize_review(
@@ -462,12 +557,14 @@ MANDATORY INSTRUCTIONS:
 
     content = None
     used_model = None
+    used_client = None
 
     # ─── TIER 1: Search Data ─────────────────────────────────
     try:
         logger.info(f"🧠 Trying primary LLM: {llm_model}")
         content = await _call_llm(llm_client, llm_model, user_prompt)
         used_model = llm_model
+        used_client, repair_model = llm_client, llm_model
     except Exception as e:
         logger.warning(f"Primary LLM ({llm_model}) failed: {e}")
         
@@ -480,6 +577,7 @@ MANDATORY INSTRUCTIONS:
                 logger.info(f"🔄 Falling back to: {fallback_model} (Search Data)")
                 content = await _call_llm(fallback_client, fallback_model, user_prompt)
                 used_model = fallback_model
+                used_client, repair_model = fallback_client, fallback_model
             except Exception as tech_fallback_error:
                 logger.error(f"Fallback LLM ({fallback_model}) also failed: {tech_fallback_error}")
                 content = None
@@ -521,6 +619,7 @@ MANDATORY INSTRUCTIONS:
             
             content = await _call_llm(k_client, k_model, knowledge_prompt)
             used_model = f"{k_model} (Internal Knowledge)"
+            used_client, repair_model = k_client, k_model
             logger.info(f"✅ Generated review using Internal Knowledge.")
             
         except Exception as final_error:
@@ -542,67 +641,33 @@ MANDATORY INSTRUCTIONS:
     logger.info(f"✅ Review generated using {used_model}")
 
     try:
-        data = json.loads(content)
-        
-        # Sanitize text fields
-        if "review_text" in data: data["review_text"] = sanitize_text(data["review_text"])
-        if "hook" in data: data["hook"] = sanitize_text(data["hook"])
-        if "best_quote" in data: data["best_quote"] = sanitize_text(data["best_quote"])
-        if "praise_points" in data:
-            data["praise_points"] = [sanitize_text(p) for p in data["praise_points"]]
-        if "criticism_points" in data:
-            data["criticism_points"] = [sanitize_text(p) for p in data["criticism_points"]]
-
-        # Strip [[]] brackets from non-review fields (LLM sometimes ignores instructions)
-        if "hook" in data: data["hook"] = strip_double_brackets(data["hook"])
-        if "vibe" in data: data["vibe"] = strip_double_brackets(data["vibe"])
-        if "best_quote" in data: data["best_quote"] = strip_double_brackets(data["best_quote"])
-        if "praise_points" in data:
-            data["praise_points"] = [strip_double_brackets(p) for p in data["praise_points"]]
-        if "criticism_points" in data:
-            data["criticism_points"] = [strip_double_brackets(p) for p in data["criticism_points"]]
-
-        # Strip self-referential [[Title]] from review_text
-        if "review_text" in data:
-            data["review_text"] = strip_self_mentions(data["review_text"], title)
-            data["review_text"] = fix_paragraph_quotes(data["review_text"])
-        
-        # Fix concatenated tags: if any tag contains multiple tag names without separator
-        if "tags" in data and isinstance(data["tags"], list):
-            fixed_tags = []
-            for tag in data["tags"]:
-                if isinstance(tag, str):
-                    # Split tags that got concatenated (e.g., "CerebralEmotional" → ["Cerebral", "Emotional"])
-                    if len(tag) > 20:
-                        remaining = tag
-                        for allowed in sorted(ALLOWED_TAGS, key=len, reverse=True):
-                            while allowed.lower().replace("-", "") in remaining.lower().replace("-", ""):
-                                fixed_tags.append(allowed)
-                                idx = remaining.lower().replace("-", "").find(allowed.lower().replace("-", ""))
-                                remaining = remaining[:idx] + remaining[idx + len(allowed.replace("-", "")):]
-                    else:
-                        fixed_tags.append(tag)
-            if fixed_tags:
-                data["tags"] = fixed_tags
-            
-        return LLMReviewOutput(**data)
+        return _parse_review_output(content, title)
     except Exception as e:
-        # The raw model output used to be published here as review_text. When the model
-        # hit the token cap mid-JSON, users were shown the truncated string complete with
-        # its JSON scaffolding. Log it for debugging, never render it.
         logger.warning(
             f"JSON parsing failed: {e} | raw output (first 500 chars): "
             f"{content[:500] if isinstance(content, str) else type(content).__name__}"
         )
-        return LLMReviewOutput(
-            review_text="We couldn't put together a reliable review for this one yet. Try again in a moment.",
-            verdict="MIXED BAG",
-            praise_points=[],
-            criticism_points=[],
-            vibe="Unable to determine",
-            confidence="LOW",
-            hook="Review generation failed.",
-            critic_sentiment="mixed",
-            reddit_sentiment="mixed",
-            degraded=True,
-        )
+
+    # One repair attempt on the same model before giving up on this generation.
+    try:
+        repaired = await _call_llm(used_client, repair_model, _repair_prompt(str(content)))
+        output = _parse_review_output(repaired, title)
+        logger.info(f"🔧 Repaired unparseable model output for '{title}'")
+        return output
+    except Exception as e:
+        logger.warning(f"JSON repair failed for '{title}': {e}")
+
+    # The raw model output used to be published here as review_text, JSON scaffolding and
+    # all. This placeholder is flagged degraded so the pipeline never saves it.
+    return LLMReviewOutput(
+        review_text="We couldn't put together a reliable review for this one yet. Try again in a moment.",
+        verdict="MIXED BAG",
+        praise_points=[],
+        criticism_points=[],
+        vibe="Unable to determine",
+        confidence="LOW",
+        hook="Review generation failed.",
+        critic_sentiment="mixed",
+        reddit_sentiment="mixed",
+        degraded=True,
+    )
