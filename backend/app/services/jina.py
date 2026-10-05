@@ -9,6 +9,8 @@ import httpx
 import logging
 import time
 from typing import Optional, List, Dict
+from urllib.parse import urlsplit
+from urllib.robotparser import RobotFileParser
 from selectolax.lexbor import LexborHTMLParser
 from app.config import get_settings
 from app.services.net_guard import UnsafeURLError, safe_get
@@ -16,6 +18,15 @@ from fake_useragent import UserAgent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# robots.txt: checked once per origin and cached, so the cost is one short request per new
+# site. Any failure to fetch or parse it allows the fetch (fail-open).
+ROBOTS_USER_AGENT = "WorthTheWatch"
+ROBOTS_TIMEOUT = 2.0
+ROBOTS_TTL_SECONDS = 6 * 3600
+ROBOTS_ERROR_TTL_SECONDS = 10 * 60
+ROBOTS_CACHE_MAX = 512
+ROBOTS_MAX_BYTES = 512_000
 
 # Domains that won't work with simple scraping — skip them entirely
 SKIP_DOMAINS = [
@@ -64,6 +75,62 @@ class ArticleReader:
             self.ua = UserAgent()
         except Exception:
             self.ua = None  # Fallback if initialization fails
+
+        # origin -> (expires_at, parser or None meaning "allow everything")
+        self._robots: Dict[str, tuple[float, Optional[RobotFileParser]]] = {}
+        self._robots_inflight: Dict[str, asyncio.Task] = {}
+
+    # ─── robots.txt ───────────────────────────────────────
+
+    async def _load_robots(self, origin: str) -> Optional[RobotFileParser]:
+        """Fetch and parse origin/robots.txt. None means no restrictions apply."""
+        ttl = ROBOTS_TTL_SECONDS
+        parser: Optional[RobotFileParser] = None
+        try:
+            async with httpx.AsyncClient(
+                timeout=ROBOTS_TIMEOUT,
+                follow_redirects=False,
+                headers={"User-Agent": f"{ROBOTS_USER_AGENT}/1.0 (+{settings.SITE_URL})"},
+            ) as client:
+                resp = await safe_get(client, f"{origin}/robots.txt")
+            # Per RFC 9309 a missing robots.txt (4xx) means everything is allowed. 5xx and
+            # network errors would mean "assume disallowed"; we fail open instead and retry
+            # sooner.
+            if resp.status_code == 200:
+                parser = RobotFileParser()
+                parser.parse(resp.text[:ROBOTS_MAX_BYTES].splitlines())
+            elif resp.status_code >= 500:
+                ttl = ROBOTS_ERROR_TTL_SECONDS
+        except Exception as e:
+            logger.debug(f"robots.txt unavailable for {origin}: {e}")
+            ttl = ROBOTS_ERROR_TTL_SECONDS
+
+        if len(self._robots) >= ROBOTS_CACHE_MAX:
+            self._robots.pop(next(iter(self._robots)))
+        self._robots[origin] = (time.monotonic() + ttl, parser)
+        return parser
+
+    async def _robots_allows(self, url: str) -> bool:
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc:
+            return True
+        origin = f"{parts.scheme}://{parts.netloc}"
+
+        cached = self._robots.get(origin)
+        if cached and cached[0] > time.monotonic():
+            parser = cached[1]
+        else:
+            # One request per origin even when the burst fetches several pages from it.
+            task = self._robots_inflight.get(origin)
+            if task is None:
+                task = asyncio.ensure_future(self._load_robots(origin))
+                self._robots_inflight[origin] = task
+                task.add_done_callback(lambda _t, o=origin: self._robots_inflight.pop(o, None))
+            # Shielded: read_urls cancels losing fetches, which must not cancel the shared
+            # lookup other fetches are waiting on.
+            parser = await asyncio.shield(task)
+
+        return parser is None or parser.can_fetch(ROBOTS_USER_AGENT, url)
 
 
     # ─── Main Entry Points ────────────────────────────────
@@ -224,8 +291,12 @@ class ArticleReader:
     async def _fetch_and_parse(self, url: str, timeout: float = 5.0) -> Optional[str]:
         """Single fetch + parse attempt. No retries. Returns clean text or None."""
         t_start = time.time()
-        
+
         try:
+            if not await self._robots_allows(url):
+                logger.info(f"🤖 robots.txt disallows {url[:80]} — skipping")
+                return None
+
             # User-Agent Rotation
             headers = self.headers.copy()
             if self.ua:
