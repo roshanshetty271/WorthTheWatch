@@ -300,8 +300,11 @@ async def run_digest(db: AsyncSession, period: str = "monthly", test_to: str = N
                 text("UPDATE users SET last_digest_sent_at = :now WHERE id = :uid"),
                 {"now": now, "uid": uid},
             )
+            # Commit per recipient. A single commit after the loop meant a crash partway
+            # through lost every marker, so the next run re-sent the digest to everyone
+            # who had already received it.
+            await db.commit()
             sent += 1
-    await db.commit()
 
     logger.info(f"📧 Digest ({period}) sent to {sent}/{len(recipients)} subscribers.")
     return {

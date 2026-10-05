@@ -69,7 +69,6 @@ class Settings(BaseSettings):
     WATCHMODE_API_KEY: str = ""
 
     # Feature Flags
-    USE_LANGGRAPH: bool = False
     USE_JINA: bool = False
 
     # Cron — required in production

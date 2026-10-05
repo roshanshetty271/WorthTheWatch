@@ -2,7 +2,7 @@
 node_modules/
 __pycache__/
 *.pyc
-.venv/
+.venv*/
 venv/
 
 # Environment - NEVER COMMIT THESE
@@ -34,9 +34,6 @@ Thumbs.db
 
 # Logs
 *.log
-
-# Screenshots
-screenshots/
 
 # Project Specific - Exclude internal docs from public repo
 WorthTheWatch_Technical_Architecture_v2.md

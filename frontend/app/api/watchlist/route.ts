@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { neon } from "@neondatabase/serverless";
+import { ensureWatchlistStatusColumn } from "@/lib/ensureSchema";
 
 // Simple in-memory rate limit for POST (add to watchlist)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -42,9 +43,7 @@ export async function GET() {
 
     try {
         const sql = getSQL();
-        await sql`
-            ALTER TABLE watchlist_items ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'want_to_watch'
-        `;
+        await ensureWatchlistStatusColumn(sql);
 
         const items = await sql`
             SELECT tmdb_id, title, poster_path, media_type, verdict, status, added_at 

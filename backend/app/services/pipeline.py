@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
+import time
 import unicodedata
 from urllib.parse import urlparse
 
@@ -18,7 +19,8 @@ from app.services.tmdb import tmdb_service
 from app.services.serper import serper_service
 from app.services.jina import jina_service
 from app.services.grep import extract_opinion_paragraphs, select_best_sources
-from app.services.llm import synthesize_review, llm_model
+from app.services.prompt_guard import join_sources_within_budget
+from app.services.llm import synthesize_review, llm_model, review_mentions_subject
 from app.services.verdict import apply_consensus_override
 from app.config import get_settings
 
@@ -259,8 +261,15 @@ async def get_or_create_movie(db: AsyncSession, tmdb_id: int, media_type: str = 
         tmdb_data = await tmdb_service.get_movie_details(tmdb_id)
         tmdb_data["media_type"] = "movie"
 
+    # get_movie_details/get_tv_details return {} when TMDB 404s, rate-limits or times out.
+    # Fail with a readable message here instead of KeyError-ing inside normalize_result.
+    if not tmdb_data or not tmdb_data.get("id"):
+        raise ValueError(
+            f"TMDB returned no data for tmdb_id={tmdb_id} ({media_type}) — upstream failure"
+        )
+
     normalized = tmdb_service.normalize_result(tmdb_data)
-    
+
     # Check for missing poster and try fallback
     if not normalized.get("poster_path"):
         logger.info(f"🖼️ Missing poster for {normalized['title']} ({tmdb_id}). Trying Serper fallback...")
@@ -406,15 +415,71 @@ def calculate_confidence(
     return stats
 
 
-# Global progress tracker: {tmdb_id: {"message": str, "percent": int}}
+# In-flight generations, per process: {tmdb_id: {"message", "percent", "started_at"}}.
+# A failed job leaves {"failed": True, ...} so the SSE/status endpoints can report it.
+# This lives in memory, so it only coordinates requests served by the same process.
 job_progress = {}
 
+# A claim older than this is treated as abandoned, so a hung job can't wedge a title on
+# "already in progress" forever. Longer than the frontend's wait for a review.
+JOB_STALE_AFTER_SECONDS = 10 * 60
+
+
+def job_is_active(entry) -> bool:
+    """True while a generation holds the claim (not failed, not stale)."""
+    if not isinstance(entry, dict) or entry.get("failed"):
+        return False
+    started = entry.get("started_at")
+    return started is None or time.monotonic() - started < JOB_STALE_AFTER_SECONDS
+
+
+def claim_job(tmdb_id: int, message: str = "Starting...") -> bool:
+    """Mark a generation for this title as in flight. False if one already is.
+
+    No await between the check and the write, so two requests on the same event loop
+    can't both win.
+    """
+    if job_is_active(job_progress.get(tmdb_id)):
+        return False
+    job_progress[tmdb_id] = {"message": message, "percent": 5, "started_at": time.monotonic()}
+    return True
+
+
+def release_job(tmdb_id: int) -> None:
+    job_progress.pop(tmdb_id, None)
+
+
+def fail_job(tmdb_id: int, message: str) -> None:
+    job_progress[tmdb_id] = {"message": message, "percent": 0, "failed": True}
+
+
+def _report(tmdb_id: int, message: str, percent: int) -> None:
+    """Update the progress message of a claimed job, keeping its claim time."""
+    entry = job_progress.get(tmdb_id)
+    if job_is_active(entry):
+        entry["message"] = message
+        entry["percent"] = percent
+
+
 async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
+    """Generate (or regenerate in place) the review for one title.
+
+    If the caller already claimed the job (the on-demand routes do, so the claim covers
+    the commit), the caller releases it. Otherwise this claims it and releases it on every
+    exit path, so cron and batch callers can never leave a title stuck as "in progress".
+    """
+    tmdb_id = movie.tmdb_id
+    owns_claim = claim_job(tmdb_id, "Searching for reviews...")
+    try:
+        return await _generate_review_for_movie(db, movie)
+    finally:
+        if owns_claim:
+            release_job(tmdb_id)
+
+
+async def _generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     """
     Full pipeline: Search → Read → Grep → Synthesize → Cache
-    
-    If USE_LANGGRAPH=true, uses the LangGraph agent for adaptive review generation.
-    Otherwise, uses the procedural pipeline (faster, simpler).
 
     Steps:
     1. SEARCH: Serper finds review articles + Reddit threads
@@ -464,6 +529,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # TV titles are already unique enough — no one confuses "Fear the Walking Dead"
     # with another show. Movies like "The Call" or "The Host" need disambiguation.
     director_name = ""
+    cast_names: list[str] = []
     imdb_id = None
     if movie.media_type != "tv":
         try:
@@ -480,6 +546,10 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                     if directors:
                         director_name = directors[0]
                         logger.info(f"🎬 Director: {director_name}")
+                    cast_names = [
+                        c["name"] for c in details_with_credits["credits"].get("cast", [])[:5]
+                        if c.get("name")
+                    ]
         except Exception as e:
             logger.debug(f"Could not fetch director for '{title}': {e}")
     else:
@@ -492,97 +562,8 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         except Exception as e:
             logger.debug(f"Could not fetch external IDs for TV '{title}': {e}")
         
-    # ─── LangGraph Agent Route ────────────────────────────────
-    # Uses adaptive search with conditional broadening.
-    # Slower and more expensive than pipeline, but better for obscure titles.
-    if settings.USE_LANGGRAPH:
-        logger.info(f"🤖 Using LangGraph agent for '{title}'")
-        job_progress[tmdb_id] = {"message": "Running AI Agent...", "percent": 10}
-        
-        try:
-            from app.services.agent import run_agent_pipeline
-            result = await run_agent_pipeline(movie)
-            
-            if result.get("error"):
-                logger.error(f"LangGraph agent error: {result['error']}")
-                # Fall through to procedural pipeline as fallback
-            elif result.get("llm_output"):
-                llm_output = result["llm_output"]
-                
-                # Check for existing review to update
-                existing_result = await db.execute(select(Review).where(Review.movie_id == movie.id))
-                existing_review = existing_result.scalar_one_or_none()
-                
-                if existing_review:
-                    existing_review.verdict = llm_output.verdict
-                    existing_review.review_text = llm_output.review_text
-                    existing_review.praise_points = llm_output.praise_points
-                    existing_review.criticism_points = llm_output.criticism_points
-                    existing_review.vibe = llm_output.vibe
-                    existing_review.confidence = llm_output.confidence
-                    existing_review.tags = llm_output.tags
-                    existing_review.best_quote = llm_output.best_quote
-                    existing_review.quote_source = llm_output.quote_source
-                    existing_review.hook = llm_output.hook
-                    existing_review.critic_sentiment = llm_output.critic_sentiment
-                    existing_review.reddit_sentiment = llm_output.reddit_sentiment
-                    existing_review.positive_pct = llm_output.positive_pct
-                    existing_review.negative_pct = llm_output.negative_pct
-                    existing_review.mixed_pct = llm_output.mixed_pct
-                    existing_review.sources_count = len(result.get("search_results", []))
-                    existing_review.sources_urls = [r.get("link", "") for r in result.get("search_results", [])[:10]]
-                    existing_review.llm_model = llm_model
-                    existing_review.generated_at = datetime.utcnow()
-                    review = existing_review
-                else:
-                    review = Review(
-                        movie_id=movie.id,
-                        verdict=llm_output.verdict,
-                        review_text=llm_output.review_text,
-                        praise_points=llm_output.praise_points,
-                        criticism_points=llm_output.criticism_points,
-                        vibe=llm_output.vibe,
-                        confidence=llm_output.confidence,
-                        tags=llm_output.tags,
-                        best_quote=llm_output.best_quote,
-                        quote_source=llm_output.quote_source,
-                        hook=llm_output.hook,
-                        critic_sentiment=llm_output.critic_sentiment,
-                        reddit_sentiment=llm_output.reddit_sentiment,
-                        positive_pct=llm_output.positive_pct,
-                        negative_pct=llm_output.negative_pct,
-                        mixed_pct=llm_output.mixed_pct,
-                        sources_count=len(result.get("search_results", [])),
-                        sources_urls=[r.get("link", "") for r in result.get("search_results", [])[:10]],
-                        llm_model=llm_model,
-                    )
-                    db.add(review)
-                
-                # Apply OMDB scores if present
-                omdb = result.get("omdb_scores")
-                if omdb and isinstance(omdb, dict):
-                    review.imdb_score = omdb.get("imdb_score")
-                    review.rt_critic_score = omdb.get("rt_critic_score")
-                    review.metascore = omdb.get("metascore")
-                
-                # Apply trailer
-                agent_trailer = result.get("trailer_url")
-                if agent_trailer:
-                    review.trailer_url = agent_trailer
-                
-                review.last_refreshed_at = datetime.utcnow()
-                await db.flush()
-                
-                job_progress.pop(tmdb_id, None)
-                logger.info(f"✅ LangGraph review complete: '{title}' → {review.verdict}")
-                return review
-        except ImportError:
-            logger.warning("langgraph not installed, falling back to pipeline")
-        except Exception as e:
-            logger.error(f"LangGraph failed, falling back to pipeline: {e}")
-    
     # ─── Procedural Pipeline Route ────────────────────────────
-    job_progress[tmdb_id] = {"message": "Searching for reviews...", "percent": 10}
+    _report(tmdb_id, "Searching for reviews...", 10)
     logger.info(f"🔍 Step 1/4: Searching for reviews of '{title}' ({year})")
 
     # ─── Step 1: SEARCH ────────────────────────────────────
@@ -715,7 +696,6 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
 
     if not all_results:
         logger.warning(f"No search results found for '{title}'")
-        job_progress.pop(tmdb_id, None)
         # Create low-confidence review from metadata only
         return await _create_fallback_review(
             db,
@@ -757,16 +737,16 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
                     except:
                         pass
                 
-                reddit_snippets.append(f"[Source: {source_label}]\n{snippet}")
+                reddit_snippets.append((source_label, snippet))
     
     if reddit_snippets:
         logger.info(f"📋 Captured {len(reddit_snippets)} Reddit snippets from Serper")
 
     # ─── Step 2: READ ──────────────────────────────────────
-    job_progress[tmdb_id] = {"message": "Reading articles...", "percent": 30}
+    _report(tmdb_id, "Reading articles...", 30)
     
     # ─── STEP: Read articles ───
-    articles, failed_urls = await jina_service.read_urls(selected_urls, max_concurrent=5)
+    articles, failed_urls = await jina_service.read_urls(selected_urls)
     
     # ─── STEP: Smart backfill — only if we're genuinely short on data ───
     if len(articles) >= 4:
@@ -776,7 +756,6 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         logger.info(f"🔄 Only {len(articles)} articles — backfilling {backfill_count}")
         backfill_articles, _ = await jina_service.read_urls(
             backfill_urls[:backfill_count],
-            max_concurrent=5,
             timeout=5.0,
         )
         articles.extend(backfill_articles)
@@ -786,7 +765,7 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     
     # DEBUG: Log content lengths
     logger.info("📊 ARTICLE CONTENT LENGTHS:")
-    total_chars = sum(len(a) for a in articles)
+    total_chars = sum(len(text) for _, text in articles)
     logger.info(f"   TOTAL: {total_chars:,} characters from {len(articles)} articles")
 
     if not articles:
@@ -794,27 +773,24 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
         snippets = "\n\n".join(
             f"Source: {r['title']}\n{r['snippet']}" for r in all_results[:10]
         )
-        articles = [snippets]
+        articles = [("search snippets", snippets)]
 
     # ─── Step 3: GREP ──────────────────────────────────────
-    job_progress[tmdb_id] = {"message": "Analyzing feedback...", "percent": 60}
+    _report(tmdb_id, "Analyzing feedback...", 60)
     logger.info(f"🔎 Step 3/4: Filtering opinions from {len(articles)} articles")
     
     # ─── STEP: Grep filter ONLY the scraped articles ───
     # Reddit snippets bypass grep — they're already pure opinion
     
-    # NEW: Source Labeling & Per-Article Extraction
-    # 1. Sync URLs with Articles (include backfill)
-    final_source_urls = list(selected_urls)
-    if len(articles) > len(selected_urls) and backfill_urls:
-         # Add backfill URLs corresponding to the extra articles
-         backfilled_count = len(articles) - len(selected_urls)
-         final_source_urls.extend(backfill_urls[:backfilled_count])
-
+    # Source labelling & per-article extraction.
+    # read_urls now returns (source_url, text) pairs. This used to rebuild a URL list and
+    # zip it against the articles by index, but results arrive in completion order with
+    # failures dropped, so labels drifted onto the wrong articles — Reddit threads got
+    # tagged as critic publications and fed to the LLM that way.
     reddit_article_sections = []
     critic_article_sections = []
-    
-    for url, article_text in zip(final_source_urls, articles):
+
+    for url, article_text in articles:
         best_paras = extract_opinion_paragraphs([article_text], max_paragraphs=5)
         
         if best_paras:
@@ -823,17 +799,15 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
             except:
                 domain = "Source"
             
-            section = f"[Source: {domain}]\n{best_paras}"
+            section = (domain, best_paras)
             if "reddit.com" in url.lower():
                 reddit_article_sections.append(section)
             else:
                 critic_article_sections.append(section)
 
-    # Reddit articles first, then critics
-    filtered_opinions = "\n\n".join(reddit_article_sections + critic_article_sections)
-    
+    extracted_chars = sum(len(text) for _, text in reddit_article_sections + critic_article_sections)
     logger.info(
-        f"🔍 FILTERED OPINIONS: {len(filtered_opinions)} chars "
+        f"🔍 FILTERED OPINIONS: {extracted_chars} chars "
         f"(from {total_chars} raw chars)"
     )
     
@@ -843,53 +817,16 @@ async def generate_review_for_movie(db: AsyncSession, movie: Movie) -> Review:
     # No need to aggressively truncate to 5k.
     
     MAX_LLM_CHARS = 10000
-    
-    # 1. Prepare Reddit Text
-    reddit_text = ""
-    if reddit_snippets:
-        reddit_text = "\n\n".join(reddit_snippets)
-    
-    # 2. Calculate remaining budget for critics
-    if reddit_text:
-        # Reserve space for Reddit (up to 3000 chars roughly, or whatever it is)
-        # We process Reddit first, so we just subtract its length from the budget
-        valuable_reddit_len = min(len(reddit_text), 5000) # Cap Reddit impact on budget if it's huge
-        critic_limit = MAX_LLM_CHARS - valuable_reddit_len
-    else:
-        critic_limit = MAX_LLM_CHARS
 
-    # 3. Truncate Critics if needed
-    critic_text = filtered_opinions
-    if len(critic_text) > critic_limit:
-        critic_text = critic_text[:critic_limit]
-        # Clean cut at last period
-        last_period = critic_text.rfind('.')
-        if last_period > 0:
-            critic_text = critic_text[:last_period+1]
-        
-    # 4. Assemble Final Input: Reddit FIRST
-    # Separate Reddit article opinions from critic opinions
-    reddit_articles_text = "\n\n".join(reddit_article_sections)
-    critic_articles_text = "\n\n".join(critic_article_sections)
-    
-    # Budget: Reddit snippets + Reddit articles get 50%, critics get 50%
-    half_budget = MAX_LLM_CHARS // 2
-    
-    # All Reddit content (snippets + full thread opinions)
-    all_reddit = ""
-    if reddit_text:
-        all_reddit = reddit_text
-    if reddit_articles_text:
-        all_reddit = all_reddit + "\n\n" + reddit_articles_text if all_reddit else reddit_articles_text
-    all_reddit = all_reddit[:half_budget]
-    
-    # Critic content gets the other half
-    critic_final = critic_articles_text[:half_budget]
-    # Clean cut at last period
-    last_period = critic_final.rfind('.')
-    if last_period > 0:
-        critic_final = critic_final[:last_period + 1]
-    
+    # Every source is sanitised and fenced (prompt_guard) before it reaches the prompt:
+    # scraped pages and Reddit comments are written by strangers and must be treated as
+    # data, not instructions. Budgets are applied per source so no fence is ever cut open.
+    # Reddit (snippets + full thread opinions) gets half, critics the other half, minus a
+    # little room for the section headers so synthesize_review's own cap never truncates.
+    half_budget = (MAX_LLM_CHARS - 200) // 2
+    all_reddit = join_sources_within_budget(reddit_snippets + reddit_article_sections, half_budget)
+    critic_final = join_sources_within_budget(critic_article_sections, half_budget)
+
     if all_reddit and critic_final:
         final_opinions = f"""AUDIENCE REACTIONS (Reddit & Forums):
 {all_reddit}
@@ -907,15 +844,20 @@ CRITIC REVIEWS (Professional):
 
     logger.info(f"📨 Sending {len(filtered_opinions)} chars to LLM (Reddit First + Critics)")
 
-    if len(filtered_opinions) < 100 and not reddit_text:
+    if not reddit_snippets and extracted_chars < 70:
         # Use raw snippets as fallback if we have absolutely nothing
-        filtered_opinions = "\n\n".join(
-            f"{r['title']}: {r['snippet']}" for r in all_results[:15]
+        filtered_opinions = join_sources_within_budget(
+            [
+                (urlparse(r.get("link", "")).netloc.replace("www.", ""),
+                 f"{r.get('title', '')}: {r.get('snippet', '')}")
+                for r in all_results[:15]
+            ],
+            MAX_LLM_CHARS - 200,
         )
         logger.info(f"   ⚠️ Using fallback snippets: {len(filtered_opinions)} chars")
 
     # ─── Step 4: SYNTHESIZE ────────────────────────────────
-    job_progress[tmdb_id] = {"message": "Writing your verdict...", "percent": 80}
+    _report(tmdb_id, "Writing your verdict...", 80)
     logger.info(f"🧠 Step 4/4: Generating review with LLM for '{title}'")
     logger.info(f"   → Sending {len(filtered_opinions)} chars to LLM")
     logger.info(f"   → TMDB Score: {movie.tmdb_vote_average}")
@@ -987,8 +929,12 @@ CRITIC REVIEWS (Professional):
             reddit_sources=confidence_stats["reddit_sources"],
             media_type=movie.media_type or "movie",
         )
-        
-        
+
+        # A placeholder ("trouble reaching our AI critics", unparseable output) must never
+        # be saved. On a regenerate or refresh it would overwrite a good review in place.
+        if llm_output.degraded:
+            raise RuntimeError(f"No usable model output for '{title}'; keeping existing data")
+
         # Capture the raw LLM verdict BEFORE any score override, so stats-refresh can later
         # re-apply the same score rules against fresh ratings (see jobs/stats_refresh.py).
         base_verdict = llm_output.verdict
@@ -1235,6 +1181,16 @@ CRITIC REVIEWS (Professional):
         # Override confidence with our calculated value (not LLM's guess)
         llm_output.confidence = confidence_stats["confidence_tier"]
 
+        # A review that names neither the title nor anyone from its cast/crew is likely
+        # about the wrong film or generic filler. Keep it, but don't present it as solid.
+        subject_names = [n for n in [director_name, *cast_names] if n]
+        if not review_mentions_subject(llm_output.review_text, title, subject_names):
+            logger.warning(
+                f"⚠️ Review for '{title}' mentions neither the title nor any of "
+                f"{subject_names or 'its credits'} — marking LOW confidence"
+            )
+            llm_output.confidence = "LOW"
+
         # Hook-verdict consistency repair: if the hook contradicts the verdict, swap it
         _NEGATIVE_HOOK_WORDS = {
             "forgettable", "predictable", "disappointing", "mediocre", "bland",
@@ -1264,7 +1220,6 @@ CRITIC REVIEWS (Professional):
         logger.info(f"   → Praise Points: {len(llm_output.praise_points or [])} items")
         logger.info(f"   → Criticism Points: {len(llm_output.criticism_points or [])} items")
     except Exception as e:
-        job_progress.pop(tmdb_id, None)
         logger.error(f"LLM generation failed: {e}")
         raise
 
@@ -1341,7 +1296,7 @@ CRITIC REVIEWS (Professional):
     await db.flush()
     
     # ─── Step 6: ENRICH (Phase 2) ─────────────────────────
-    job_progress[tmdb_id] = "Finalizing your review..."
+    _report(tmdb_id, "Finalizing your review...", 95)
     
     # Trailer was already fetched in Step 1 parallel search
     if trailer_url:
@@ -1366,8 +1321,6 @@ CRITIC REVIEWS (Professional):
         await db.flush()
     except Exception as e:
         logger.warning(f"Final flush failed: {e}")
-    
-    job_progress.pop(tmdb_id, None)
 
     # Tell anyone who saved this title that its verdict just landed — only on a
     # brand-new review (not a refresh), in its own session so it can't break us.
@@ -1444,8 +1397,12 @@ async def _create_fallback_review(
         media_type=movie.media_type or "movie",
     )
 
-    review = Review(
-        movie_id=movie.id,
+    if llm_output.degraded:
+        raise RuntimeError(
+            f"No usable model output for '{movie.title}'; keeping existing data"
+        )
+
+    fields = dict(
         verdict=llm_output.verdict,
         review_text=llm_output.review_text,
         praise_points=llm_output.praise_points,
@@ -1465,7 +1422,23 @@ async def _create_fallback_review(
         best_quote=llm_output.best_quote,
         quote_source=llm_output.quote_source,
     )
+
+    # Review.movie_id is unique, so a blind INSERT here raised UniqueViolation whenever the
+    # movie already had a review — which is exactly the case smart_refresh hits during a
+    # Serper outage, failing every candidate in the batch. Update in place instead.
+    existing = (await db.execute(
+        select(Review).where(Review.movie_id == movie.id)
+    )).scalar_one_or_none()
+
+    if existing:
+        for key, value in fields.items():
+            setattr(existing, key, value)
+        existing.generated_at = datetime.utcnow()
+        review = existing
+    else:
+        review = Review(movie_id=movie.id, **fields)
+        db.add(review)
+
     _apply_review_enrichment(review, rating_context, omdb_data, mdblist_scores)
-    db.add(review)
     await db.flush()
     return review

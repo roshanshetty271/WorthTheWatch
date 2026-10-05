@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
+from app.middleware.rate_limit import _get_actor_from_request
 from app.models import Movie, Review, ReviewFeedback
 
 logger = logging.getLogger(__name__)
@@ -22,18 +23,37 @@ settings = get_settings()
 
 
 def _hash_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
-        raw_ip = ips[-1] if ips else "unknown"
-    else:
-        raw_ip = request.client.host if request.client else "unknown"
+    # Votes now arrive through the Next.js proxy, so the socket and X-Forwarded-For address
+    # is a Vercel server shared by every visitor. Keying on it would collapse all anonymous
+    # voters into one row per review. The proxy forwards the real client IP alongside the
+    # signed identity headers, so use that when the request is proxy-verified.
+    raw_ip = None
+    if _get_actor_from_request(request)[0] is not None:
+        raw_ip = request.headers.get("x-wtw-client-ip")
+    if not raw_ip:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+            raw_ip = ips[-1] if ips else "unknown"
+        else:
+            raw_ip = request.client.host if request.client else "unknown"
     return hashlib.sha256(f"{settings.IP_HASH_SALT}:{raw_ip}".encode()).hexdigest()[:16]
+
+
+def _verified_user_id(request: Request) -> str | None:
+    """The signed-in user's id, or None.
+
+    Taken only from the proxy-signed actor headers. A client-supplied user_id is never
+    trusted: it previously let any caller read or overwrite another user's vote by
+    passing that user's id.
+    """
+    actor_type, actor_id = _get_actor_from_request(request)
+    return actor_id if actor_type == "user" else None
 
 
 class FeedbackRequest(BaseModel):
     helpful: bool
-    user_id: str | None = None
+    # No user_id here on purpose — identity comes from _verified_user_id(request).
 
 
 class FeedbackResponse(BaseModel):
@@ -52,7 +72,7 @@ async def submit_feedback(
 ):
     """Submit or update feedback on a review verdict."""
     ip_hash = _hash_ip(request)
-    user_id = body.user_id
+    user_id = _verified_user_id(request)
 
     result = await db.execute(
         select(Review.id)
@@ -108,11 +128,15 @@ async def submit_feedback(
 async def get_feedback(
     tmdb_id: int,
     request: Request,
-    user_id: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get aggregate feedback for a review."""
+    """Get aggregate feedback for a review.
+
+    The user_id query parameter was removed: it let anyone read another user's vote by
+    passing that user's id. Identity now comes from the proxy-signed headers.
+    """
     ip_hash = _hash_ip(request)
+    user_id = _verified_user_id(request)
 
     result = await db.execute(
         select(Review.id)

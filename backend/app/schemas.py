@@ -150,6 +150,10 @@ class LLMReviewOutput(BaseModel):
     # Clickable movie mentions — titles wrapped in [[]] in review_text
     mentioned_movies: list[str] = Field(default_factory=list, description="Other movie/show titles mentioned in the review")
 
+    # Set only on the placeholder synthesize_review returns when no model output was usable.
+    # Callers must not persist a degraded output as the review.
+    degraded: bool = False
+
     @field_validator('tags', mode='after')
     @classmethod
     def validate_tags(cls, v):

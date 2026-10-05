@@ -8,11 +8,10 @@ import hashlib
 import json
 import asyncio
 import logging
-import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -24,6 +23,10 @@ from app.services.pipeline import (
     get_or_create_movie,
     generate_review_for_movie,
     job_progress,
+    job_is_active,
+    claim_job,
+    release_job,
+    fail_job,
 )
 from app.config import get_settings
 from app.middleware.rate_limit import (
@@ -34,12 +37,23 @@ from app.middleware.rate_limit import (
     _get_client_ip,
     _hash_ip,
     _is_whitelisted,
+    _proxy_secret_ok,
 )
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 router = APIRouter(prefix="/search", tags=["Search"])
+
+
+def _title_contains(q: str):
+    """Case-insensitive substring match on the title, with q taken literally.
+
+    Unescaped, a search for "%" or "_" matched every title, and "100%" or "A_B" matched
+    titles that don't contain them.
+    """
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return Movie.title.ilike(f"%{escaped}%", escape="\\")
 
 
 @router.get("/quick")
@@ -144,7 +158,7 @@ async def search_movies(
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
-        .where(Movie.title.ilike(f"%{q}%"))
+        .where(_title_contains(q))
         .limit(8)
     )
     db_movies = result.unique().scalars().all()
@@ -212,7 +226,8 @@ async def trigger_generation(
     if movie and movie.review:
         return {"status": "already_exists", "tmdb_id": tmdb_id}
 
-    if tmdb_id in job_progress:
+    # Fast path. A failed or stale entry is not active, so a retry goes through.
+    if job_is_active(job_progress.get(tmdb_id)):
         return {"status": "generating", "message": "Review generation already in progress"}
 
     from datetime import date
@@ -239,12 +254,7 @@ async def trigger_generation(
     # --- Quota & abuse checks ---
     raw_ip = _get_client_ip(request)
     ip_hash = _hash_ip(raw_ip)
-    proxy_secret = request.headers.get("x-wtw-proxy-secret", "")
-    use_proxy_quota = (
-        proxy_secret
-        and settings.INTERNAL_PROXY_SECRET
-        and secrets.compare_digest(proxy_secret, settings.INTERNAL_PROXY_SECRET)
-    )
+    use_proxy_quota = _proxy_secret_ok(request)
 
     if _is_whitelisted(raw_ip):
         pass  # skip quota + abuse
@@ -264,16 +274,20 @@ async def trigger_generation(
         abuse = await check_ip_abuse_guard(ip_hash)
         if abuse["blocked"]:
             raise HTTPException(status_code=429, detail=abuse)
-
-        background_tasks.add_task(
-            _generate_review_background,
-            tmdb_id=tmdb_id,
-            media_type=media_type,
-        )
-        await record_generation_usage(actor_type, actor_id, ip_hash, "generate", tmdb_id)
-        return {"status": "generating", "tmdb_id": tmdb_id}
     else:
         await check_rate_limit(request, limit_type="generation")
+
+    # Claim right before scheduling, with no await in between, so concurrent requests for
+    # the same title start one job. The background task releases the claim.
+    if not claim_job(tmdb_id):
+        return {"status": "generating", "message": "Review generation already in progress"}
+    try:
+        if use_proxy_quota and not _is_whitelisted(raw_ip):
+            await record_generation_usage(actor_type, actor_id, ip_hash, "generate", tmdb_id)
+    except BaseException:
+        # The task is never scheduled when this raises, so nothing else would release it.
+        release_job(tmdb_id)
+        raise
 
     background_tasks.add_task(
         _generate_review_background,
@@ -296,12 +310,7 @@ async def regenerate_review(
     """Regenerate review with fresh data. Quota/abuse checked BEFORE deleting old review."""
     raw_ip = _get_client_ip(request)
     ip_hash = _hash_ip(raw_ip)
-    proxy_secret = request.headers.get("x-wtw-proxy-secret", "")
-    use_proxy_quota = (
-        proxy_secret
-        and settings.INTERNAL_PROXY_SECRET
-        and secrets.compare_digest(proxy_secret, settings.INTERNAL_PROXY_SECRET)
-    )
+    use_proxy_quota = _proxy_secret_ok(request)
 
     if _is_whitelisted(raw_ip):
         pass  # skip quota + abuse
@@ -324,30 +333,29 @@ async def regenerate_review(
     else:
         await check_rate_limit(request, limit_type="generation")
 
-    # Find the movie
-    result = await db.execute(
-        select(Movie)
-        .options(joinedload(Movie.review))
-        .where(Movie.tmdb_id == tmdb_id)
-    )
-    movie = result.unique().scalar_one_or_none()
+    # Claimed here, before the response, so the stream/status endpoints report this job as
+    # running from the first poll. Without it they saw the old review (deliberately kept
+    # below) and reported "completed" before the regeneration had started.
+    if not claim_job(tmdb_id, "Refreshing verdict with latest data..."):
+        return {"status": "regenerating", "tmdb_id": tmdb_id}
+    try:
+        if use_proxy_quota and not _is_whitelisted(raw_ip):
+            await record_generation_usage(actor_type, actor_id, ip_hash, "regenerate", tmdb_id)
+    except BaseException:
+        release_job(tmdb_id)
+        raise
 
-    # Enqueue fresh generation FIRST, then delete old review
+    # The old review is deliberately left in place. generate_review_for_movie updates an
+    # existing row rather than inserting, so the replacement overwrites it on success.
+    # Deleting first only ever lost data: background tasks don't start until after this
+    # response is sent, so the DELETE always committed first, and any failed generation
+    # (a Serper outage, an LLM error) left the movie with no review at all — triggerable
+    # by any visitor, since this endpoint needs no authentication.
     background_tasks.add_task(
         _generate_review_background,
         tmdb_id=tmdb_id,
         media_type=media_type,
     )
-
-    if movie and movie.review:
-        await db.execute(
-            delete(Review).where(Review.movie_id == movie.id)
-        )
-        await db.commit()
-        logger.info(f"🗑️ Deleted old review for {movie.title} (tmdb_id={tmdb_id})")
-
-    if use_proxy_quota and not _is_whitelisted(raw_ip):
-        await record_generation_usage(actor_type, actor_id, ip_hash, "regenerate", tmdb_id)
 
     return {"status": "regenerating", "tmdb_id": tmdb_id}
 
@@ -364,48 +372,52 @@ async def stream_generation_status(
     """
     async def event_generator():
         last_progress = ""
-        max_wait = 120  # 2 minute timeout
+        # The stream is kept short so proxies don't cut it; it does NOT bound the job.
+        max_wait = 120
         elapsed = 0
         logger.info(f"📡 SSE stream opened for tmdb_id={tmdb_id}")
 
         while elapsed < max_wait:
-            # Check if review is completed
-            async with async_session() as check_db:
-                result = await check_db.execute(
-                    select(Movie)
-                    .options(joinedload(Movie.review))
-                    .where(Movie.tmdb_id == tmdb_id)
-                )
-                movie = result.unique().scalar_one_or_none()
-
-                if movie and movie.review:
-                    review_resp = ReviewResponse.model_validate(movie.review)
-                    logger.info(f"📡 SSE: Sending completed event for tmdb_id={tmdb_id}")
-                    yield f"data: {json.dumps({'type': 'completed', 'review': review_resp.model_dump(mode='json')})}\n\n"
-                    return
-
-            # Check progress
             progress_data = job_progress.get(tmdb_id)
-            if progress_data:
-                if isinstance(progress_data, dict):
-                    msg = progress_data.get("message", "Processing...")
-                    pct = progress_data.get("percent", 0)
-                else:
-                    msg = str(progress_data)
-                    pct = 0
 
-                # Only send if progress changed
+            if job_is_active(progress_data):
+                # Still running in this process: report progress without touching the DB.
+                # Checking for a review first would end a regenerate immediately with the
+                # old review, which is kept in place until the new one commits.
+                msg = progress_data.get("message", "Processing...")
+                pct = progress_data.get("percent", 0)
                 if msg != last_progress:
                     last_progress = msg
                     logger.info(f"📡 SSE: {msg} ({pct}%) for tmdb_id={tmdb_id}")
                     yield f"data: {json.dumps({'type': 'progress', 'message': msg, 'percent': pct})}\n\n"
+            elif isinstance(progress_data, dict) and progress_data.get("failed"):
+                yield f"data: {json.dumps({'type': 'error', 'message': progress_data.get('message', 'Generation failed. Please try again.')})}\n\n"
+                return
+            else:
+                # No job here: it finished (claim released after commit), or it runs in
+                # another process. Either way the database is the source of truth.
+                async with async_session() as check_db:
+                    result = await check_db.execute(
+                        select(Movie)
+                        .options(joinedload(Movie.review))
+                        .where(Movie.tmdb_id == tmdb_id)
+                    )
+                    movie = result.unique().scalar_one_or_none()
+
+                    if movie and movie.review:
+                        review_resp = ReviewResponse.model_validate(movie.review)
+                        logger.info(f"📡 SSE: Sending completed event for tmdb_id={tmdb_id}")
+                        yield f"data: {json.dumps({'type': 'completed', 'review': review_resp.model_dump(mode='json')})}\n\n"
+                        return
 
             await asyncio.sleep(1)
             elapsed += 1
 
-        # Timeout
-        logger.warning(f"📡 SSE: Timeout for tmdb_id={tmdb_id}")
-        yield f"data: {json.dumps({'type': 'error', 'message': 'Generation timed out. Please try again.'})}\n\n"
+        # The job keeps running after the stream ends. This used to send "Generation timed
+        # out", so users gave up on reviews that landed a minute later. Tell the client to
+        # keep polling /status instead.
+        logger.info(f"📡 SSE: still working after {max_wait}s for tmdb_id={tmdb_id}, handing off to polling")
+        yield f"data: {json.dumps({'type': 'still_working', 'message': 'Still working on it...'})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -422,7 +434,17 @@ async def check_generation_status(
     tmdb_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Poll for review generation status (fallback for SSE)."""
+    """Poll for review generation status (fallback for SSE).
+
+    Job state comes first, for the same reason as in the stream: during a regenerate the
+    old review is still in the database and must not be reported as the result.
+    """
+    progress_data = job_progress.get(tmdb_id)
+    if job_is_active(progress_data):
+        return {"status": "generating", "progress": progress_data.get("message", "Processing..."), "percent": progress_data.get("percent", 0)}
+    if isinstance(progress_data, dict) and progress_data.get("failed"):
+        return {"status": "failed", "message": progress_data.get("message", "Generation failed. Please try again.")}
+
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
@@ -431,11 +453,6 @@ async def check_generation_status(
     movie = result.unique().scalar_one_or_none()
 
     if not movie:
-        progress_data = job_progress.get(tmdb_id)
-        if progress_data:
-             if isinstance(progress_data, dict):
-                 return {"status": "generating", "progress": progress_data.get("message", "Processing..."), "percent": progress_data.get("percent", 0)}
-             return {"status": "generating", "progress": str(progress_data), "percent": 0}
         return {"status": "not_found"}
 
     if movie.review:
@@ -460,25 +477,31 @@ async def check_generation_status(
             "movie": MovieWithReview(movie=movie_resp, review=review_resp),
         }
 
-    progress_data = job_progress.get(tmdb_id, {"message": "Preparing...", "percent": 0})
-    if isinstance(progress_data, dict):
-        return {"status": "generating", "progress": progress_data.get("message", "Processing..."), "percent": progress_data.get("percent", 0)}
-    return {"status": "generating", "progress": str(progress_data), "percent": 0}
+    return {"status": "generating", "progress": "Preparing...", "percent": 0}
 
 
 async def _generate_review_background(tmdb_id: int, media_type: str = "movie"):
-    """Background task: generate a review for a movie."""
+    """Background task: generate a review for a movie.
+
+    The route claimed the job before scheduling this task, and this task owns the claim.
+    It is released only after the commit, so the stream/status endpoints never see "no job"
+    while the new review is still uncommitted (on a regenerate they would serve the old
+    one). Every failure, including cancellation, leaves a `failed` marker instead, which
+    the endpoints report and the next generate request overrides.
+    """
     try:
         async with async_session() as db:
             try:
                 movie = await get_or_create_movie(db, tmdb_id, media_type)
                 await generate_review_for_movie(db, movie)
                 await db.commit()
-            except Exception as e:
+            except BaseException:
                 await db.rollback()
-                logger.error(f"Background generation failed for {tmdb_id}: {e}")
-                # Store error in job_progress so SSE/polling can report it
-                job_progress[tmdb_id] = {"message": "Failed: Review generation encountered an error", "percent": 0}
-    except Exception as e:
-        logger.critical(f"🚨 Background generation task crashed for {tmdb_id}: {e}")
-        job_progress[tmdb_id] = {"message": "Generation crashed. Please try again.", "percent": 0}
+                raise
+    except BaseException as e:
+        logger.error(f"Background generation failed for {tmdb_id}: {e!r}")
+        fail_job(tmdb_id, "Failed: Review generation encountered an error")
+        if not isinstance(e, Exception):
+            raise
+    else:
+        release_job(tmdb_id)

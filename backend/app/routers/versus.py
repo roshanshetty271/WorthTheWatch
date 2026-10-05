@@ -212,13 +212,22 @@ async def battle(
     logger.info(f"⚔️ Versus battle: {movie_a_id} ({movie_a_type}) vs {movie_b_id} ({movie_b_type})")
     
     # ── Check cache BEFORE rate limit (cached battles cost nothing) ──
+    # Order the pair by id, carrying each title's media_type with it so the key written
+    # below and the key read here are built the same way.
+    a_first = movie_a_id <= movie_b_id
     cache_a = min(movie_a_id, movie_b_id)
     cache_b = max(movie_a_id, movie_b_id)
-    
+    cache_a_type = movie_a_type if a_first else movie_b_type
+    cache_b_type = movie_b_type if a_first else movie_a_type
+
     cached = await db.execute(
         select(BattleCache).where(
             BattleCache.movie_a_id == cache_a,
             BattleCache.movie_b_id == cache_b,
+            # Without these, a cached TV battle was served for the same-id movie pair —
+            # the exact collision the docstring above warns about.
+            BattleCache.movie_a_type == cache_a_type,
+            BattleCache.movie_b_type == cache_b_type,
         )
     )
     cached_battle = cached.scalar_one_or_none()
@@ -343,8 +352,6 @@ Remember: The kill_reason needs to be ONE sentence so clever and funny that peop
         
         # ── Save to cache ──
         try:
-            cache_a_type = movie_a_type if movie_a_id <= movie_b_id else movie_b_type
-            cache_b_type = movie_b_type if movie_a_id <= movie_b_id else movie_a_type
             new_cache = BattleCache(
                 movie_a_id=cache_a,
                 movie_b_id=cache_b,

@@ -6,8 +6,11 @@ test.describe('Homepage', () => {
     await page.goto('/');
 
     await expect(page).toHaveTitle(/Worth the Watch/);
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByText('another bad movie')).toBeVisible();
+    const hero = page.getByRole('heading', { level: 1 });
+    await expect(hero).toBeVisible();
+    // Scoped to the hero: the footer tagline repeats "another bad movie", so an
+    // unscoped getByText matches two elements and fails strict mode.
+    await expect(hero.getByText('another bad movie.')).toBeVisible();
   });
 
   test('displays movie sections with real data', async ({ page }) => {

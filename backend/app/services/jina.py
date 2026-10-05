@@ -9,12 +9,24 @@ import httpx
 import logging
 import time
 from typing import Optional, List, Dict
+from urllib.parse import urlsplit
+from urllib.robotparser import RobotFileParser
 from selectolax.lexbor import LexborHTMLParser
 from app.config import get_settings
+from app.services.net_guard import UnsafeURLError, safe_get
 from fake_useragent import UserAgent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# robots.txt: checked once per origin and cached, so the cost is one short request per new
+# site. Any failure to fetch or parse it allows the fetch (fail-open).
+ROBOTS_USER_AGENT = "WorthTheWatch"
+ROBOTS_TIMEOUT = 2.0
+ROBOTS_TTL_SECONDS = 6 * 3600
+ROBOTS_ERROR_TTL_SECONDS = 10 * 60
+ROBOTS_CACHE_MAX = 512
+ROBOTS_MAX_BYTES = 512_000
 
 # Domains that won't work with simple scraping — skip them entirely
 SKIP_DOMAINS = [
@@ -40,7 +52,6 @@ class ArticleReader:
     Smart Reddit handling:
     - Tries old.reddit.com first for ONE URL
     - If blocked (403), skips ALL remaining Reddit direct fetches
-    - Falls back to Google cache for Reddit content
     - Zero wasted retries
     """
 
@@ -59,12 +70,67 @@ class ArticleReader:
             "Accept-Language": "en-US,en;q=0.9",
             "Connection": "keep-alive",
         }
-        
-        self._google_cache_blocked = False
+
         try:
             self.ua = UserAgent()
         except Exception:
             self.ua = None  # Fallback if initialization fails
+
+        # origin -> (expires_at, parser or None meaning "allow everything")
+        self._robots: Dict[str, tuple[float, Optional[RobotFileParser]]] = {}
+        self._robots_inflight: Dict[str, asyncio.Task] = {}
+
+    # ─── robots.txt ───────────────────────────────────────
+
+    async def _load_robots(self, origin: str) -> Optional[RobotFileParser]:
+        """Fetch and parse origin/robots.txt. None means no restrictions apply."""
+        ttl = ROBOTS_TTL_SECONDS
+        parser: Optional[RobotFileParser] = None
+        try:
+            async with httpx.AsyncClient(
+                timeout=ROBOTS_TIMEOUT,
+                follow_redirects=False,
+                headers={"User-Agent": f"{ROBOTS_USER_AGENT}/1.0 (+{settings.SITE_URL})"},
+            ) as client:
+                resp = await safe_get(client, f"{origin}/robots.txt")
+            # Per RFC 9309 a missing robots.txt (4xx) means everything is allowed. 5xx and
+            # network errors would mean "assume disallowed"; we fail open instead and retry
+            # sooner.
+            if resp.status_code == 200:
+                parser = RobotFileParser()
+                parser.parse(resp.text[:ROBOTS_MAX_BYTES].splitlines())
+            elif resp.status_code >= 500:
+                ttl = ROBOTS_ERROR_TTL_SECONDS
+        except Exception as e:
+            logger.debug(f"robots.txt unavailable for {origin}: {e}")
+            ttl = ROBOTS_ERROR_TTL_SECONDS
+
+        if len(self._robots) >= ROBOTS_CACHE_MAX:
+            self._robots.pop(next(iter(self._robots)))
+        self._robots[origin] = (time.monotonic() + ttl, parser)
+        return parser
+
+    async def _robots_allows(self, url: str) -> bool:
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc:
+            return True
+        origin = f"{parts.scheme}://{parts.netloc}"
+
+        cached = self._robots.get(origin)
+        if cached and cached[0] > time.monotonic():
+            parser = cached[1]
+        else:
+            # One request per origin even when the burst fetches several pages from it.
+            task = self._robots_inflight.get(origin)
+            if task is None:
+                task = asyncio.ensure_future(self._load_robots(origin))
+                self._robots_inflight[origin] = task
+                task.add_done_callback(lambda _t, o=origin: self._robots_inflight.pop(o, None))
+            # Shielded: read_urls cancels losing fetches, which must not cancel the shared
+            # lookup other fetches are waiting on.
+            parser = await asyncio.shield(task)
+
+        return parser is None or parser.can_fetch(ROBOTS_USER_AGENT, url)
 
 
     # ─── Main Entry Points ────────────────────────────────
@@ -82,14 +148,27 @@ class ArticleReader:
         else:
             return await self._read_with_selectolax(url, timeout)
 
-    async def read_urls(self, urls: list[str], max_concurrent: int = 5, timeout: float = 5.0) -> tuple[list[str], list[str]]:
+    async def _fetch_labelled(self, source_url: str, fetch_url: str, timeout: float):
+        """Fetch and keep the originating URL attached to the result.
+
+        Results come back in completion order, so the only safe way to know which article
+        came from which URL is to carry the URL through with it. Callers used to zip the
+        request list against the result list by index, which silently mislabelled every
+        article once one request failed or finished out of order.
+        """
+        return source_url, await self._fetch_and_parse(fetch_url, timeout)
+
+    async def read_urls(
+        self, urls: list[str], timeout: float = 5.0
+    ) -> tuple[list[tuple[str, str]], list[str]]:
         """
         Race to 5: Fire all non-Reddit URLs immediately.
         Return as soon as 5 quality articles are collected.
         Cancel remaining tasks to save time.
+
+        Returns ([(source_url, article_text), ...], failed_urls).
         """
-        self._google_cache_blocked = False
-        
+
         # Separate Reddit and non-Reddit
         reddit_urls = [u for u in urls if "reddit.com" in u.lower()]
         other_urls = [u for u in urls if "reddit.com" not in u.lower()]
@@ -103,15 +182,15 @@ class ArticleReader:
         tasks = {}
         for url in other_urls:
             # Create task for direct fetch
-            task = asyncio.create_task(self._fetch_and_parse(url, timeout))
+            task = asyncio.create_task(self._fetch_labelled(url, url, timeout))
             tasks[task] = url
-        
+
         # Also fire Reddit test in parallel with non-Reddit
         reddit_test_task = None
         if reddit_urls:
             test_url = self._to_old_reddit(reddit_urls[0])
             reddit_test_task = asyncio.create_task(
-                self._fetch_and_parse(test_url, timeout)
+                self._fetch_labelled(reddit_urls[0], test_url, timeout)
             )
             tasks[reddit_test_task] = reddit_urls[0]
             
@@ -122,10 +201,10 @@ class ArticleReader:
         if tasks:
             for coro in asyncio.as_completed(tasks.keys()):
                 try:
-                    result = await coro
-                    
+                    source_url, result = await coro
+
                     if result and len(result) > MIN_ARTICLE_CHARS:
-                        articles.append(result)
+                        articles.append((source_url, result))
                         # Check if we won the race
                         if len(articles) >= TARGET_ARTICLES:
                             logger.info(
@@ -144,9 +223,11 @@ class ArticleReader:
                 cancelled_count += 1
                 failed.append(url)
             else:
-                # Task finished, check if it was a failure (None result)
+                # Task finished, check if it was a failure (None result).
+                # result() is now (source_url, text|None) — a tuple is always truthy,
+                # so the text has to be inspected explicitly.
                 try:
-                    res = task.result()
+                    _, res = task.result()
                     if not res:
                         failed.append(url)
                 except Exception:
@@ -161,7 +242,7 @@ class ArticleReader:
         if reddit_test_task:
             if reddit_test_task.done() and not reddit_test_task.cancelled():
                  # It finished naturally
-                res = reddit_test_task.result()
+                _, res = reddit_test_task.result()
                 if res and len(res) > MIN_ARTICLE_CHARS:
                     reddit_blocked = False
             elif reddit_test_task.cancelled():
@@ -179,27 +260,7 @@ class ArticleReader:
             # If it failed/returned None, then blocked=True.
             
             if reddit_blocked:
-                # Try Google Cache for remaining Reddit URLs (Limit 3)
-                count = min(len(reddit_urls) - 1, 3)
-                if count > 0:
-                    logger.warning(
-                        f"🚫 Reddit blocked/failed — trying cache for "
-                        f"{count} URLs (limited to 3)"
-                    )
-                    cache_tasks = []
-                    for url in reddit_urls[1:4]:
-                        if not self._google_cache_blocked:
-                            cache_tasks.append(
-                                asyncio.create_task(self._fetch_google_cache(url, timeout))
-                            )
-                    
-                    if cache_tasks:
-                        cache_results = await asyncio.gather(
-                            *cache_tasks, return_exceptions=True
-                        )
-                        for r in cache_results:
-                            if isinstance(r, str) and len(r) > MIN_ARTICLE_CHARS:
-                                articles.append(r)
+                logger.info("🚫 Reddit blocked/failed — skipping remaining Reddit threads")
             else:
                 # Reddit works — fetch remaining in parallel
                 logger.info("✅ Reddit works — fetching remaining threads")
@@ -207,108 +268,21 @@ class ArticleReader:
                 for url in reddit_urls[1:]:
                     old = self._to_old_reddit(url)
                     remaining_tasks.append(
-                        asyncio.create_task(self._fetch_and_parse(old, timeout))
+                        asyncio.create_task(self._fetch_labelled(url, old, timeout))
                     )
                 if remaining_tasks:
                     reddit_results = await asyncio.gather(
                         *remaining_tasks, return_exceptions=True
                     )
                     for r in reddit_results:
-                        if isinstance(r, str) and len(r) > MIN_ARTICLE_CHARS:
-                            articles.append(r)
+                        if isinstance(r, tuple):
+                            src, text = r
+                            if isinstance(text, str) and len(text) > MIN_ARTICLE_CHARS:
+                                articles.append((src, text))
 
         logger.info(f"📖 Read {len(articles)}/{len(urls)} articles successfully")
         if failed:
             logger.info(f"❌ Failed/cancelled URLs: {len(failed)}")
-
-        return articles, failed
-
-    # ─── Reddit Smart Handler ─────────────────────────────
-
-    async def _read_reddit_urls(
-        self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0
-    ) -> tuple[list[str], list[str]]:
-        """
-        Smart Reddit fetching:
-        1. Try old.reddit.com for the FIRST URL only
-        2. If it works → fetch the rest via old.reddit.com in parallel
-        3. If blocked → skip direct fetch, use Google cache for ALL
-        """
-        if not urls:
-            return [], []
-
-        articles = []
-        failed = []
-
-        # Test first Reddit URL to see if old.reddit.com works
-        test_url = urls[0]
-        old_url = self._to_old_reddit(test_url)
-
-        logger.info(f"🔍 Testing Reddit access with: {old_url[:60]}...")
-        test_result = await self._fetch_and_parse(old_url, timeout=timeout)
-
-        if test_result:
-            # Reddit works! Fetch all remaining in parallel via old.reddit.com
-            logger.info("✅ Reddit accessible — fetching all threads via old.reddit.com")
-            articles.append(test_result)
-
-            if len(urls) > 1:
-                semaphore = asyncio.Semaphore(max_concurrent)
-                remaining = urls[1:]
-
-                async def _read_reddit(url: str) -> tuple[str, Optional[str]]:
-                    async with semaphore:
-                        old = self._to_old_reddit(url)
-                        content = await self._fetch_and_parse(old, timeout=timeout)
-                        # If individual URL fails, try cache for just that one
-                        if not content:
-                            content = await self._fetch_google_cache(url, timeout=timeout)
-                        return (url, content)
-
-                tasks = [_read_reddit(u) for u in remaining]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                for r in results:
-                    if isinstance(r, tuple):
-                        url, content = r
-                        if content:
-                            articles.append(content)
-                        else:
-                            failed.append(url)
-                    else:
-                        failed.append("unknown_error")
-        else:
-            # Reddit is BLOCKED — skip direct fetch entirely
-            logger.warning(
-                f"🚫 Reddit blocked on this server — "
-                f"using Google cache for {len(urls)} URLs"
-            )
-            failed.append(test_url)
-
-            # Try Google cache for ALL Reddit URLs in parallel
-            semaphore = asyncio.Semaphore(max_concurrent)
-
-            async def _cache_reddit(url: str) -> tuple[str, Optional[str]]:
-                async with semaphore:
-                    if self._google_cache_blocked:
-                        logger.debug("⏭️ Google Cache rate limited — skipping")
-                        return (url, None)
-                        
-                    content = await self._fetch_google_cache(url, timeout=timeout)
-                    return (url, content)
-
-            tasks = [_cache_reddit(u) for u in urls[1:]]  # Skip test URL (already failed)
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for r in results:
-                if isinstance(r, tuple):
-                    url, content = r
-                    if content:
-                        articles.append(content)
-                    else:
-                        failed.append(url)
-                else:
-                    failed.append("unknown_error")
 
         return articles, failed
 
@@ -317,19 +291,25 @@ class ArticleReader:
     async def _fetch_and_parse(self, url: str, timeout: float = 5.0) -> Optional[str]:
         """Single fetch + parse attempt. No retries. Returns clean text or None."""
         t_start = time.time()
-        
+
         try:
+            if not await self._robots_allows(url):
+                logger.info(f"🤖 robots.txt disallows {url[:80]} — skipping")
+                return None
+
             # User-Agent Rotation
             headers = self.headers.copy()
             if self.ua:
                 headers["User-Agent"] = self.ua.random
 
+            # Redirects are followed by safe_get, which checks every hop's address so a
+            # search result can't bounce the backend onto a private or metadata address.
             async with httpx.AsyncClient(
                 timeout=timeout,
-                follow_redirects=True,
+                follow_redirects=False,
                 headers=headers,
             ) as client:
-                resp = await client.get(url)
+                resp = await safe_get(client, url)
                 t_fetch = time.time() - t_start
 
                 if resp.status_code != 200:
@@ -386,52 +366,12 @@ class ArticleReader:
 
         except httpx.TimeoutException:
             return None
+        except UnsafeURLError as e:
+            logger.warning(f"🛑 Refused fetch: {e}")
+            return None
         except Exception as e:
             logger.debug(f"Fetch error for {url[:60]}: {e}")
             return None
-
-    async def _fetch_google_cache(self, url: str, timeout: float = 5.0) -> Optional[str]:
-        """Fetch Reddit content via Google's web cache."""
-        # Normalize to www.reddit.com for cache lookup
-        original = url.replace("old.reddit.com", "www.reddit.com")
-        if "www.reddit.com" not in original and "reddit.com" in original:
-            original = original.replace("reddit.com", "www.reddit.com")
-
-        cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original}"
-
-        try:
-            # User-Agent Rotation
-            headers = self.headers.copy()
-            if self.ua:
-                headers["User-Agent"] = self.ua.random
-
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                follow_redirects=True,
-                headers=headers,
-            ) as client:
-                resp = await client.get(cache_url)
-
-                # Detect rate limiting (302 → 429 pattern)
-                if resp.status_code == 429:
-                    if not self._google_cache_blocked:
-                        self._google_cache_blocked = True
-                        logger.warning("⚠️ Google Cache rate limited — skipping remaining")
-                    return None
-                
-                if resp.status_code == 302:
-                    redirect_url = str(resp.headers.get("location", ""))
-                    if "sorry" in redirect_url.lower() or "google.com/sorry" in redirect_url.lower():
-                        if not self._google_cache_blocked:
-                            self._google_cache_blocked = True
-                            logger.warning("⚠️ Google Cache rate limited (302→sorry) — skipping remaining")
-                        return None
-
-                if resp.status_code == 200 and len(resp.text) > 500:
-                    return self._parse_reddit_from_cache(resp.text)
-        except Exception:
-            pass
-        return None
 
     # ─── HTML Parsers (Selectolax) ────────────────────────
 
@@ -583,60 +523,6 @@ class ArticleReader:
                 unique.append(c)
 
         result = "\n\n".join(unique[:30])
-        return result if len(result) > 100 else None
-
-    def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
-        """Extract Reddit content from a Google Cache wrapper."""
-        # Google Cache often puts the real content in a 'pre' or specific div
-        tree = LexborHTMLParser(html)
-
-        # Remove Google's cache header
-        for div in tree.css("div#google-cache-hdr"):
-            div.decompose()
-        
-        # Remove divs with style containing "CACHE"
-        # Since css selectors for partial attribute value match are tricky with style="" strings
-        # we iterate.
-        for div in tree.css("div"):
-            style = div.attrs.get("style", "")
-            if style and "CACHE" in style.upper():
-                div.decompose()
-
-        body = tree.body or tree
-
-        # Remove junk
-        for tag in body.css("script, style, nav, footer"):
-            tag.decompose()
-
-        # Get raw text
-        try:
-            raw_text = body.text(separator="\n", strip=True)
-        except Exception:
-            raw_text = body.text(strip=True)
-
-        lines = []
-        skip = [
-            "cache", "google", "disclaimer", "snapshot",
-            "log in", "sign up", "get the app", "reddit premium",
-            "user agreement", "privacy policy", "content policy",
-        ]
-
-        for line in raw_text.split("\n"):
-            line = line.strip()
-            if 30 < len(line) < 3000:
-                if not any(s in line.lower() for s in skip):
-                    lines.append(line)
-
-        # Deduplicate
-        seen = set()
-        unique = []
-        for line in lines:
-            key = line[:80].lower()
-            if key not in seen:
-                seen.add(key)
-                unique.append(line)
-
-        result = "\n\n".join(unique[:40])
         return result if len(result) > 100 else None
 
     # ─── Jina Reader (optional) ───────────────────────────

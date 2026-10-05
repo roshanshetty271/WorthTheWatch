@@ -5,6 +5,7 @@ Worth the Watch? — FastAPI Application
 
 import gc
 import logging
+import re
 import secrets
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request, Response
@@ -36,6 +37,25 @@ logger = logging.getLogger(__name__)
 # Suppress httpx request logging — it leaks API keys from URL query params
 # (e.g. Watchmode apiKey). Our own service logs cover what we need.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+class _RedactSecretQuery(logging.Filter):
+    """Blank out ?secret= values in uvicorn's access log ("GET /api/cron/...?secret=...")."""
+
+    _pattern = re.compile(r"([?&]secret=)[^&\s]*", re.IGNORECASE)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._pattern.sub(r"\1[redacted]", a) if isinstance(a, str) else a
+                for a in record.args
+            )
+        elif isinstance(record.msg, str):
+            record.msg = self._pattern.sub(r"\1[redacted]", record.msg)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_RedactSecretQuery())
 
 
 # ─── Lifespan ─────────────────────────────────────────────
@@ -168,8 +188,36 @@ async def get_sitemap_data(response: Response, db: AsyncSession = Depends(get_db
 
 
 def _get_admin_secret(request: Request, secret: str = "") -> str:
-    """Read admin secret from header first, fall back to query param."""
-    return request.headers.get("x-admin-secret", "") or secret
+    """Read the admin/cron secret from a header, falling back to the legacy ?secret= param.
+
+    Accepts X-Admin-Secret or "Authorization: Bearer <secret>" (what Vercel Cron sends).
+    The query parameter still works because the external cron (cron-job.org) is configured
+    outside this repo and may rely on it, but a secret in a URL ends up in access logs and
+    shell history: uvicorn's access log is redacted below, and each use logs a warning so
+    the remaining callers can be moved to the header before the fallback is removed.
+    """
+    header = request.headers.get("x-admin-secret", "")
+    if header:
+        return header
+    auth = request.headers.get("authorization", "")
+    if auth[:7].lower() == "bearer ":
+        return auth[7:].strip()
+    if secret:
+        logger.warning(
+            f"Admin secret sent as a query parameter to {request.url.path}; "
+            "send it in the X-Admin-Secret header instead"
+        )
+    return secret
+
+
+def _admin_ok(request: Request, secret: str = "") -> bool:
+    """Constant-time check against CRON_SECRET. Compared as bytes so a non-ASCII value is
+    a plain 403 rather than a TypeError (500) from compare_digest."""
+    provided = _get_admin_secret(request, secret)
+    expected = settings.CRON_SECRET
+    if not provided or not expected:
+        return False
+    return secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
 
 
 # ─── Health Check ─────────────────────────────────────────
@@ -187,7 +235,7 @@ async def health_check(
     if not check_services:
         return HealthCheck(status="ok")
 
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret for deep check")
 
     health_status = {
@@ -248,6 +296,28 @@ async def health_check(
     return HealthCheck(**health_status)
 
 
+@app.get("/health/ready")
+async def readiness_check():
+    """Readiness: 200 only when the database answers, 503 otherwise.
+
+    /health above is liveness only and stays 200 while every DB-backed route returns 500.
+    This one opens a connection, so do NOT point uptime/keep-warm pingers at it: each hit
+    wakes the Neon compute. Use it for deploy checks and alerting.
+    """
+    import asyncio
+
+    try:
+        async with async_session() as db:
+            await asyncio.wait_for(db.execute(select(1)), timeout=5)
+    except Exception as e:
+        logger.error(f"Readiness check: database unavailable: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "database": "disconnected"},
+        )
+    return {"status": "ready", "database": "connected"}
+
+
 # ─── Cron Endpoint ────────────────────────────────────────
 
 @app.post("/api/cron/daily")
@@ -256,7 +326,7 @@ async def cron_daily(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
     
     await cleanup_old_rate_limit_entries()
@@ -274,7 +344,7 @@ async def cron_digest(
 ):
     """Send the opt-in Worth-It digest. The external cron hits this weekly + monthly
     with ?period=weekly / ?period=monthly. Skips silently if nothing's worth sending."""
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
     result = await run_digest(db, period=period, test_to=(test_to or None))
@@ -290,7 +360,7 @@ async def cron_refresh_stats(
 ):
     """Refresh live stats (ratings / box office / awards) + re-apply the verdict override on a
     rolling, age-tiered basis. No LLM/Serper/Jina — cheap. Hit daily by the external cron."""
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
     result = await run_stats_refresh(db, limit=limit)
@@ -309,7 +379,7 @@ async def cron_daily_tasks(
     verdict refresh (TMDB/OMDB/MDBList, no LLM/Serper) plus the Worth-It digest (weekly on
     Mondays, monthly on the 1st). Deliberately does NOT run daily_sync (review auto-generation
     was removed to save Serper/LLM credits). Returns immediately so the cron never times out."""
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
     background_tasks.add_task(_daily_tasks_background, limit)
@@ -347,7 +417,7 @@ async def manual_refresh(
     max_refresh: int = 10,
     background_tasks: BackgroundTasks = None,
 ):
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     background_tasks.add_task(_refresh_background, max_refresh)
@@ -375,7 +445,7 @@ async def usage_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Dashboard snapshot: generations today/hour, top IPs, suspicious activity."""
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     from datetime import datetime, timedelta
@@ -435,7 +505,7 @@ async def reset_quotas(
     db: AsyncSession = Depends(get_db),
 ):
     """Reset all generation quotas. Everyone gets a fresh start."""
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     from sqlalchemy import delete as sa_delete
@@ -454,7 +524,7 @@ async def seed_database(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     result = await run_daily_sync(db, max_new=count)
@@ -470,7 +540,7 @@ async def delete_movie(
     secret: str = "",
     db: AsyncSession = Depends(get_db),
 ):
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     result = await db.execute(
@@ -505,7 +575,7 @@ async def regenerate_all_reviews(
     """Re-generate existing reviews. Optional `since`/`until` (ISO date) filter on
     `review.generated_at` to target a window — e.g. the Serper-outage reviews —
     instead of all of them. No window = all (original behavior)."""
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     from sqlalchemy.orm import joinedload
@@ -601,7 +671,7 @@ async def seed_top_rated(
     secret: str = "",
     background_tasks: BackgroundTasks = None,
 ):
-    if not secrets.compare_digest(_get_admin_secret(request, secret), settings.CRON_SECRET):
+    if not _admin_ok(request, secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
     
     if media_type not in ("movie", "tv"):
