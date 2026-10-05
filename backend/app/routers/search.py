@@ -46,6 +46,16 @@ settings = get_settings()
 router = APIRouter(prefix="/search", tags=["Search"])
 
 
+def _title_contains(q: str):
+    """Case-insensitive substring match on the title, with q taken literally.
+
+    Unescaped, a search for "%" or "_" matched every title, and "100%" or "A_B" matched
+    titles that don't contain them.
+    """
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return Movie.title.ilike(f"%{escaped}%", escape="\\")
+
+
 @router.get("/quick")
 async def quick_search(
     q: str = Query(..., min_length=2, max_length=200),
@@ -148,7 +158,7 @@ async def search_movies(
     result = await db.execute(
         select(Movie)
         .options(joinedload(Movie.review))
-        .where(Movie.title.ilike(f"%{q}%"))
+        .where(_title_contains(q))
         .limit(8)
     )
     db_movies = result.unique().scalars().all()
