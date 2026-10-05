@@ -531,7 +531,8 @@ MANDATORY INSTRUCTIONS:
                 vibe="System Error",
                 confidence="LOW",
                 critic_sentiment="mixed",
-                reddit_sentiment="mixed"
+                reddit_sentiment="mixed",
+                degraded=True,
             )
 
     logger.info(f"✅ Review generated using {used_model}")
@@ -598,5 +599,6 @@ MANDATORY INSTRUCTIONS:
             confidence="LOW",
             hook="Review generation failed.",
             critic_sentiment="mixed",
-            reddit_sentiment="mixed"
+            reddit_sentiment="mixed",
+            degraded=True,
         )

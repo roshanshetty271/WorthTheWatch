@@ -991,8 +991,12 @@ CRITIC REVIEWS (Professional):
             reddit_sources=confidence_stats["reddit_sources"],
             media_type=movie.media_type or "movie",
         )
-        
-        
+
+        # A placeholder ("trouble reaching our AI critics", unparseable output) must never
+        # be saved. On a regenerate or refresh it would overwrite a good review in place.
+        if llm_output.degraded:
+            raise RuntimeError(f"No usable model output for '{title}'; keeping existing data")
+
         # Capture the raw LLM verdict BEFORE any score override, so stats-refresh can later
         # re-apply the same score rules against fresh ratings (see jobs/stats_refresh.py).
         base_verdict = llm_output.verdict
@@ -1447,6 +1451,11 @@ async def _create_fallback_review(
         reddit_sources=0,
         media_type=movie.media_type or "movie",
     )
+
+    if llm_output.degraded:
+        raise RuntimeError(
+            f"No usable model output for '{movie.title}'; keeping existing data"
+        )
 
     fields = dict(
         verdict=llm_output.verdict,
