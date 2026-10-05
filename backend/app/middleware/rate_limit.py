@@ -383,6 +383,8 @@ async def check_ip_abuse_guard(ip_hash: str) -> dict:
         global_day = (await db.execute(
             select(func.count()).select_from(RateLimitEntry).where(
                 RateLimitEntry.created_at > day_ago,
+                # Same filter as _check_global_caps: roulette spins are not generations.
+                RateLimitEntry.limit_type.in_(_GLOBAL_DAILY_TYPES),
             )
         )).scalar() or 0
         if global_day >= int(settings.DAILY_GENERATION_LIMIT * 0.7):

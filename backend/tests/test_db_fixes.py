@@ -68,6 +68,22 @@ async def test_roulette_rows_do_not_consume_the_generation_budget(db_schema, mon
     assert exc.value.detail["type"] == "global_daily_limit"
 
 
+async def test_proxy_generation_guard_ignores_roulette_rows(db_schema, monkeypatch):
+    """Signed-in and anonymous generations go through check_ip_abuse_guard, which had its
+    own unfiltered copy of the global daily count."""
+    from app.middleware import rate_limit
+
+    monkeypatch.setattr(rate_limit.settings, "DAILY_GENERATION_LIMIT", 3)
+    monkeypatch.setattr(rate_limit.settings, "HOURLY_GLOBAL_LIMIT", 1000)
+    await _add_rate_rows("roulette", 10)
+
+    assert (await rate_limit.check_ip_abuse_guard("some-ip-hash"))["blocked"] is False
+
+    await _add_rate_rows("generation", 3)
+    result = await rate_limit.check_ip_abuse_guard("some-ip-hash")
+    assert result["blocked"] is True and result["type"] == "global_daily_limit"
+
+
 async def test_verified_actor_cannot_skip_the_global_hourly_cap(db_schema, monkeypatch):
     from app.middleware import rate_limit
 
