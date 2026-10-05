@@ -217,3 +217,21 @@ async def test_failed_job_is_reported_by_status(db_schema):
     async with _client() as client:
         status = (await client.get("/api/search/status/605")).json()
     assert status["status"] == "failed"
+
+
+async def test_stream_hands_off_to_polling_instead_of_timing_out(monkeypatch):
+    """A job still running when the stream closes must not be reported as timed out."""
+    from app.routers import search
+    from app.services import pipeline
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(search.asyncio, "sleep", no_sleep)
+    assert pipeline.claim_job(606)
+
+    response = await search.stream_generation_status(606, db=None)
+    events = [chunk async for chunk in response.body_iterator]
+
+    assert '"still_working"' in events[-1]
+    assert not any('"error"' in e for e in events)

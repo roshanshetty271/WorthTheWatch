@@ -362,7 +362,8 @@ async def stream_generation_status(
     """
     async def event_generator():
         last_progress = ""
-        max_wait = 120  # 2 minute timeout
+        # The stream is kept short so proxies don't cut it; it does NOT bound the job.
+        max_wait = 120
         elapsed = 0
         logger.info(f"📡 SSE stream opened for tmdb_id={tmdb_id}")
 
@@ -402,9 +403,11 @@ async def stream_generation_status(
             await asyncio.sleep(1)
             elapsed += 1
 
-        # Timeout
-        logger.warning(f"📡 SSE: Timeout for tmdb_id={tmdb_id}")
-        yield f"data: {json.dumps({'type': 'error', 'message': 'Generation timed out. Please try again.'})}\n\n"
+        # The job keeps running after the stream ends. This used to send "Generation timed
+        # out", so users gave up on reviews that landed a minute later. Tell the client to
+        # keep polling /status instead.
+        logger.info(f"📡 SSE: still working after {max_wait}s for tmdb_id={tmdb_id}, handing off to polling")
+        yield f"data: {json.dumps({'type': 'still_working', 'message': 'Still working on it...'})}\n\n"
 
     return StreamingResponse(
         event_generator(),

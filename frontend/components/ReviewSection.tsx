@@ -17,6 +17,12 @@ const RL_STORAGE_KEY = "wtw_generation_rate_limit";
 
 const PER_IP_LIMIT_TYPES = new Set(["ip_hourly_limit", "ip_daily_limit"]);
 
+// A generation keeps running on the server after the live stream closes (~2 min), and a
+// slow title can take several minutes. Keep polling until this ceiling before giving up.
+const GENERATION_DEADLINE_MS = 7 * 60 * 1000;
+const STILL_WORKING_AFTER_MS = 2 * 60 * 1000;
+const POLL_INTERVAL_MS = 3000;
+
 interface ReviewSectionProps {
     tmdbId: number;
     mediaType: string;
@@ -48,8 +54,17 @@ export default function ReviewSection({
     const [rateLimitInfo, setRateLimitInfo] = useState<{ type: string; message: string; retryAfter: number; limitType: string } | null>(null);
     const [regenerating, setRegenerating] = useState(false);
     const [showSignIn, setShowSignIn] = useState(false);
+    const [stillWorking, setStillWorking] = useState(false);
     const eventSourceRef = useRef<EventSource | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
+    // When the current generation started; drives the still-working note and the deadline.
+    const startedAtRef = useRef(0);
+
+    function beginTracking(startedAt = Date.now()) {
+        startedAtRef.current = startedAt;
+        setStillWorking(Date.now() - startedAt > STILL_WORKING_AFTER_MS);
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType, startedAt }));
+    }
 
     const isUnreleased = releaseDate ? new Date(releaseDate) > new Date() : false;
 
@@ -107,15 +122,24 @@ export default function ReviewSection({
                     setReview(data.review);
                     setGenerating(false);
                     setRegenerating(false);
+                    setStillWorking(false);
                     onReviewUpdate?.(data.review);
                     es.close();
                     sessionStorage.removeItem(SESSION_KEY);
                     fetch(`/api/revalidate?path=/movie/${tmdbId}`, { method: "POST" }).catch(() => { });
                     router.refresh();
+                } else if (data.type === "still_working") {
+                    // Not a failure: the stream closed but the job is still running.
+                    es.close();
+                    eventSourceRef.current = null;
+                    setStillWorking(true);
+                    startPolling();
                 } else if (data.type === "error") {
                     setError(data.message || "Generation failed");
                     setGenerating(false);
                     setRegenerating(false);
+                    setStillWorking(false);
+                    sessionStorage.removeItem(SESSION_KEY);
                     es.close();
                 }
             } catch (e) {
@@ -132,24 +156,29 @@ export default function ReviewSection({
     }
 
     // ─── Polling Fallback ──────────────────────────────────
-    const pollCountRef = useRef(0);
-    const MAX_POLL_RETRIES = 60; // 2 minutes at 2s intervals
+    function stopWithError(message: string) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        sessionStorage.removeItem(SESSION_KEY);
+        setGenerating(false);
+        setRegenerating(false);
+        setStillWorking(false);
+        setError(message);
+    }
 
     function startPolling() {
         if (pollRef.current) clearInterval(pollRef.current);
-        pollCountRef.current = 0;
+        if (!startedAtRef.current) startedAtRef.current = Date.now();
 
         pollRef.current = setInterval(async () => {
-            pollCountRef.current += 1;
+            const elapsed = Date.now() - startedAtRef.current;
 
-            if (pollCountRef.current > MAX_POLL_RETRIES) {
-                if (pollRef.current) clearInterval(pollRef.current);
-                sessionStorage.removeItem(SESSION_KEY);
-                setGenerating(false);
-                setRegenerating(false);
-                setError("Generation timed out. Please try again.");
+            if (elapsed > GENERATION_DEADLINE_MS) {
+                stopWithError(
+                    "This one is taking much longer than usual. It may still finish, so check back in a few minutes."
+                );
                 return;
             }
+            if (elapsed > STILL_WORKING_AFTER_MS) setStillWorking(true);
 
             try {
                 const res = await fetch(`${API_BASE}/api/search/status/${tmdbId}`);
@@ -159,6 +188,7 @@ export default function ReviewSection({
                         setReview(data.movie.review);
                         setGenerating(false);
                         setRegenerating(false);
+                        setStillWorking(false);
                         onReviewUpdate?.(data.movie.review);
                         if (pollRef.current) clearInterval(pollRef.current);
                         sessionStorage.removeItem(SESSION_KEY);
@@ -167,6 +197,8 @@ export default function ReviewSection({
                     } else if (data.status === "generating") {
                         setProgress(data.progress || "Analyzing...");
                         setPercent(data.percent || 10);
+                    } else if (data.status === "failed") {
+                        stopWithError(data.message || "Generation failed. Please try again.");
                     } else if (data.status === "not_found") {
                         setProgress("Starting generation...");
                         setPercent(5);
@@ -175,7 +207,7 @@ export default function ReviewSection({
             } catch (e) {
                 console.error("Status poll failed:", e);
             }
-        }, 2000);
+        }, POLL_INTERVAL_MS);
     }
 
     // Resume pending generation on mount (e.g. user navigated away and came back)
@@ -188,6 +220,8 @@ export default function ReviewSection({
                     setGenerating(true);
                     setProgress("Resuming...");
                     setPercent(10);
+                    // Keep the original start time so a reload doesn't reset the deadline.
+                    beginTracking(typeof pending.startedAt === "number" ? pending.startedAt : Date.now());
                     startPolling();
                 }
             }
@@ -288,7 +322,7 @@ export default function ReviewSection({
                 });
             }
 
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
+            beginTracking();
 
             try {
                 startSSEStream();
@@ -371,7 +405,7 @@ export default function ReviewSection({
             setProgress("Refreshing verdict with latest data...");
             setPercent(5);
 
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tmdbId, mediaType }));
+            beginTracking();
 
             try {
                 startSSEStream();
@@ -479,6 +513,12 @@ export default function ReviewSection({
                         />
                     </div>
                 </div>
+
+                {stillWorking && (
+                    <p className="text-xs text-text-secondary" role="status">
+                        Still working on it. Some titles take a few minutes, and the verdict will appear here when it&apos;s ready.
+                    </p>
+                )}
             </div>
         );
     }
