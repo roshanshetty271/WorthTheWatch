@@ -40,7 +40,6 @@ class ArticleReader:
     Smart Reddit handling:
     - Tries old.reddit.com first for ONE URL
     - If blocked (403), skips ALL remaining Reddit direct fetches
-    - Falls back to Google cache for Reddit content
     - Zero wasted retries
     """
 
@@ -59,8 +58,7 @@ class ArticleReader:
             "Accept-Language": "en-US,en;q=0.9",
             "Connection": "keep-alive",
         }
-        
-        self._google_cache_blocked = False
+
         try:
             self.ua = UserAgent()
         except Exception:
@@ -93,7 +91,7 @@ class ArticleReader:
         return source_url, await self._fetch_and_parse(fetch_url, timeout)
 
     async def read_urls(
-        self, urls: list[str], max_concurrent: int = 5, timeout: float = 5.0
+        self, urls: list[str], timeout: float = 5.0
     ) -> tuple[list[tuple[str, str]], list[str]]:
         """
         Race to 5: Fire all non-Reddit URLs immediately.
@@ -102,8 +100,7 @@ class ArticleReader:
 
         Returns ([(source_url, article_text), ...], failed_urls).
         """
-        self._google_cache_blocked = False
-        
+
         # Separate Reddit and non-Reddit
         reddit_urls = [u for u in urls if "reddit.com" in u.lower()]
         other_urls = [u for u in urls if "reddit.com" not in u.lower()]
@@ -195,30 +192,7 @@ class ArticleReader:
             # If it failed/returned None, then blocked=True.
             
             if reddit_blocked:
-                # Try Google Cache for remaining Reddit URLs (Limit 3)
-                count = min(len(reddit_urls) - 1, 3)
-                if count > 0:
-                    logger.warning(
-                        f"🚫 Reddit blocked/failed — trying cache for "
-                        f"{count} URLs (limited to 3)"
-                    )
-                    async def _cache_labelled(u: str):
-                        return u, await self._fetch_google_cache(u, timeout)
-
-                    cache_tasks = []
-                    for url in reddit_urls[1:4]:
-                        if not self._google_cache_blocked:
-                            cache_tasks.append(asyncio.create_task(_cache_labelled(url)))
-
-                    if cache_tasks:
-                        cache_results = await asyncio.gather(
-                            *cache_tasks, return_exceptions=True
-                        )
-                        for r in cache_results:
-                            if isinstance(r, tuple):
-                                src, text = r
-                                if isinstance(text, str) and len(text) > MIN_ARTICLE_CHARS:
-                                    articles.append((src, text))
+                logger.info("🚫 Reddit blocked/failed — skipping remaining Reddit threads")
             else:
                 # Reddit works — fetch remaining in parallel
                 logger.info("✅ Reddit works — fetching remaining threads")
@@ -241,95 +215,6 @@ class ArticleReader:
         logger.info(f"📖 Read {len(articles)}/{len(urls)} articles successfully")
         if failed:
             logger.info(f"❌ Failed/cancelled URLs: {len(failed)}")
-
-        return articles, failed
-
-    # ─── Reddit Smart Handler ─────────────────────────────
-
-    async def _read_reddit_urls(
-        self, urls: list[str], max_concurrent: int = 5, timeout: float = 8.0
-    ) -> tuple[list[str], list[str]]:
-        """
-        Smart Reddit fetching:
-        1. Try old.reddit.com for the FIRST URL only
-        2. If it works → fetch the rest via old.reddit.com in parallel
-        3. If blocked → skip direct fetch, use Google cache for ALL
-        """
-        if not urls:
-            return [], []
-
-        articles = []
-        failed = []
-
-        # Test first Reddit URL to see if old.reddit.com works
-        test_url = urls[0]
-        old_url = self._to_old_reddit(test_url)
-
-        logger.info(f"🔍 Testing Reddit access with: {old_url[:60]}...")
-        test_result = await self._fetch_and_parse(old_url, timeout=timeout)
-
-        if test_result:
-            # Reddit works! Fetch all remaining in parallel via old.reddit.com
-            logger.info("✅ Reddit accessible — fetching all threads via old.reddit.com")
-            articles.append(test_result)
-
-            if len(urls) > 1:
-                semaphore = asyncio.Semaphore(max_concurrent)
-                remaining = urls[1:]
-
-                async def _read_reddit(url: str) -> tuple[str, Optional[str]]:
-                    async with semaphore:
-                        old = self._to_old_reddit(url)
-                        content = await self._fetch_and_parse(old, timeout=timeout)
-                        # If individual URL fails, try cache for just that one
-                        if not content:
-                            content = await self._fetch_google_cache(url, timeout=timeout)
-                        return (url, content)
-
-                tasks = [_read_reddit(u) for u in remaining]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                for r in results:
-                    if isinstance(r, tuple):
-                        url, content = r
-                        if content:
-                            articles.append(content)
-                        else:
-                            failed.append(url)
-                    else:
-                        failed.append("unknown_error")
-        else:
-            # Reddit is BLOCKED — skip direct fetch entirely
-            logger.warning(
-                f"🚫 Reddit blocked on this server — "
-                f"using Google cache for {len(urls)} URLs"
-            )
-            failed.append(test_url)
-
-            # Try Google cache for ALL Reddit URLs in parallel
-            semaphore = asyncio.Semaphore(max_concurrent)
-
-            async def _cache_reddit(url: str) -> tuple[str, Optional[str]]:
-                async with semaphore:
-                    if self._google_cache_blocked:
-                        logger.debug("⏭️ Google Cache rate limited — skipping")
-                        return (url, None)
-                        
-                    content = await self._fetch_google_cache(url, timeout=timeout)
-                    return (url, content)
-
-            tasks = [_cache_reddit(u) for u in urls[1:]]  # Skip test URL (already failed)
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for r in results:
-                if isinstance(r, tuple):
-                    url, content = r
-                    if content:
-                        articles.append(content)
-                    else:
-                        failed.append(url)
-                else:
-                    failed.append("unknown_error")
 
         return articles, failed
 
@@ -410,49 +295,6 @@ class ArticleReader:
         except Exception as e:
             logger.debug(f"Fetch error for {url[:60]}: {e}")
             return None
-
-    async def _fetch_google_cache(self, url: str, timeout: float = 5.0) -> Optional[str]:
-        """Fetch Reddit content via Google's web cache."""
-        # Normalize to www.reddit.com for cache lookup
-        original = url.replace("old.reddit.com", "www.reddit.com")
-        if "www.reddit.com" not in original and "reddit.com" in original:
-            original = original.replace("reddit.com", "www.reddit.com")
-
-        cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{original}"
-
-        try:
-            # User-Agent Rotation
-            headers = self.headers.copy()
-            if self.ua:
-                headers["User-Agent"] = self.ua.random
-
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                follow_redirects=True,
-                headers=headers,
-            ) as client:
-                resp = await client.get(cache_url)
-
-                # Detect rate limiting (302 → 429 pattern)
-                if resp.status_code == 429:
-                    if not self._google_cache_blocked:
-                        self._google_cache_blocked = True
-                        logger.warning("⚠️ Google Cache rate limited — skipping remaining")
-                    return None
-                
-                if resp.status_code == 302:
-                    redirect_url = str(resp.headers.get("location", ""))
-                    if "sorry" in redirect_url.lower() or "google.com/sorry" in redirect_url.lower():
-                        if not self._google_cache_blocked:
-                            self._google_cache_blocked = True
-                            logger.warning("⚠️ Google Cache rate limited (302→sorry) — skipping remaining")
-                        return None
-
-                if resp.status_code == 200 and len(resp.text) > 500:
-                    return self._parse_reddit_from_cache(resp.text)
-        except Exception:
-            pass
-        return None
 
     # ─── HTML Parsers (Selectolax) ────────────────────────
 
@@ -604,60 +446,6 @@ class ArticleReader:
                 unique.append(c)
 
         result = "\n\n".join(unique[:30])
-        return result if len(result) > 100 else None
-
-    def _parse_reddit_from_cache(self, html: str) -> Optional[str]:
-        """Extract Reddit content from a Google Cache wrapper."""
-        # Google Cache often puts the real content in a 'pre' or specific div
-        tree = LexborHTMLParser(html)
-
-        # Remove Google's cache header
-        for div in tree.css("div#google-cache-hdr"):
-            div.decompose()
-        
-        # Remove divs with style containing "CACHE"
-        # Since css selectors for partial attribute value match are tricky with style="" strings
-        # we iterate.
-        for div in tree.css("div"):
-            style = div.attrs.get("style", "")
-            if style and "CACHE" in style.upper():
-                div.decompose()
-
-        body = tree.body or tree
-
-        # Remove junk
-        for tag in body.css("script, style, nav, footer"):
-            tag.decompose()
-
-        # Get raw text
-        try:
-            raw_text = body.text(separator="\n", strip=True)
-        except Exception:
-            raw_text = body.text(strip=True)
-
-        lines = []
-        skip = [
-            "cache", "google", "disclaimer", "snapshot",
-            "log in", "sign up", "get the app", "reddit premium",
-            "user agreement", "privacy policy", "content policy",
-        ]
-
-        for line in raw_text.split("\n"):
-            line = line.strip()
-            if 30 < len(line) < 3000:
-                if not any(s in line.lower() for s in skip):
-                    lines.append(line)
-
-        # Deduplicate
-        seen = set()
-        unique = []
-        for line in lines:
-            key = line[:80].lower()
-            if key not in seen:
-                seen.add(key)
-                unique.append(line)
-
-        result = "\n\n".join(unique[:40])
         return result if len(result) > 100 else None
 
     # ─── Jina Reader (optional) ───────────────────────────
