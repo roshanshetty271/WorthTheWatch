@@ -11,7 +11,9 @@ Sentry.init({
   integrations: [Sentry.replayIntegration()],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  // 10%. This one runs in the visitor's browser, so it costs no server CPU —
+  // it is lowered to stay inside the Sentry free-tier quota.
+  tracesSampleRate: 0.1,
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
